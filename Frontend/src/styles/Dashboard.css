@@ -1,0 +1,19 @@
+.dashboard {
+  display: flex;
+  max-height: 100vh;
+  background: #ecf0f1;
+}
+
+.dashboard__content {
+  flex: 1;
+  padding: 1.5rem;
+  max-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .dashboard__content {
+    padding: 1rem;
+  }
+}
