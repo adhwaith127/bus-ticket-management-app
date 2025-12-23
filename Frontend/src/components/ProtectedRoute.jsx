@@ -46,7 +46,8 @@ export default function ProtectedRoute() {
           window.location.href = '/dashboard';
         }
       } else if (path.includes('/ticket-report')) {
-        if (userRole !== 'branch_admin' && userRole !== 'superadmin') {
+        // if (userRole !== 'branch_admin' && userRole !== 'superadmin') {
+        if (userRole !== 'branch_admin') {
           window.alert('Access Denied: You do not have permission to view this page');
           window.location.href = '/dashboard';
         }
