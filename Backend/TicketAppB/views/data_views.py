@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @csrf_exempt
 def getTransactionDataFromDevice(request):
-    raw = request.GET.get("fn")ww
+    raw = request.GET.get("fn")
 
     if not raw:
         return JsonResponse({"status": "error","message": "No input data"}, status=status.HTTP_400_BAD_REQUEST)

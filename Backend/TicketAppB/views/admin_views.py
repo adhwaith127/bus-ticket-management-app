@@ -73,21 +73,12 @@ def update_company_details(request, pk):
     try:
         company = Company.objects.get(pk=pk)
     except Company.DoesNotExist:
-        return Response(
-            {"message": "Company not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({"message": "Company not found"}, status=status.HTTP_404_NOT_FOUND)
     
     serializer = CompanySerializer(company, data=request.data, partial=True)
     
     if serializer.is_valid():
         serializer.save()
-        return Response(
-            {"message": "Company updated successfully", "data": serializer.data},
-            status=status.HTTP_200_OK
-        )
+        return Response({"message": "Company updated successfully", "data": serializer.data},status=status.HTTP_200_OK)
     
-    return Response(
-        {"message": "Validation failed", "errors": serializer.errors},
-        status=status.HTTP_400_BAD_REQUEST
-    )
+    return Response({"message": "Validation failed", "errors": serializer.errors},status=status.HTTP_400_BAD_REQUEST)
