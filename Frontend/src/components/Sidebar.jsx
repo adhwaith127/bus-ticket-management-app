@@ -93,6 +93,18 @@ export default function Sidebar() {
                   👥 User Management
                 </NavLink>
               </li>
+              
+              <li className="sidebar__menu-item">
+                <NavLink
+                  to="/dashboard/ticket-report"
+                  className={({ isActive }) => 
+                    `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
+                  }
+                  onClick={closeSidebar}
+                >
+                  📝 Ticket Report
+                </NavLink>
+              </li>
             </div>
 
             {/* Added Logout Section at the Bottom */}

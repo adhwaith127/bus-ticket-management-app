@@ -1,3 +1,4 @@
+/* ==================== PAGE LAYOUT ==================== */
 .company-list-page {
   padding: 2rem;
   background-color: #f4f6f9;
@@ -9,13 +10,17 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .company-list-header h1 {
   color: #333;
   margin: 0;
+  font-size: 1.75rem;
 }
 
+/* ==================== BUTTONS ==================== */
 .btn-add {
   background-color: #007bff;
   color: white;
@@ -25,13 +30,89 @@
   cursor: pointer;
   font-weight: 600;
   transition: background 0.2s;
+  white-space: nowrap;
 }
 
 .btn-add:hover {
   background-color: #0056b3;
 }
 
-/* Table Styles */
+.btn-cancel {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #5a6268;
+}
+
+.btn-submit {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-submit:hover {
+  background: #218838;
+}
+
+.btn-submit:disabled {
+  background: #94d3a2;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ==================== ACTION BUTTONS ==================== */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-view,
+.btn-edit {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 60px;
+  white-space: nowrap;
+}
+
+.btn-view {
+  background-color: #4299e1;
+  color: white;
+}
+
+.btn-view:hover {
+  background-color: #3182ce;
+  transform: translateY(-1px);
+}
+
+.btn-edit {
+  background-color: #48bb78;
+  color: white;
+}
+
+.btn-edit:hover {
+  background-color: #38a169;
+  transform: translateY(-1px);
+}
+
+/* ==================== TABLE ==================== */
 .table-container {
   background: white;
   border-radius: 8px;
@@ -42,9 +123,11 @@
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 800px;
 }
 
-.data-table th, .data-table td {
+.data-table th,
+.data-table td {
   padding: 1rem;
   text-align: left;
   border-bottom: 1px solid #eee;
@@ -54,25 +137,42 @@
   background-color: #fafafa;
   font-weight: 600;
   color: #555;
+  white-space: nowrap;
 }
 
-.text-center { text-align: center; }
+.data-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
 
-/* Status Badge */
+.text-center {
+  text-align: center;
+}
+
+/* ==================== STATUS BADGE ==================== */
 .status-badge {
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
   font-size: 0.85rem;
   text-transform: capitalize;
+  display: inline-block;
 }
-.status-badge.verified { background-color: #d4edda; color: #155724; }
-.status-badge.pending { background-color: #fff3cd; color: #856404; }
 
-/* Form Styles */
+.status-badge.verified {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+/* ==================== FORM ==================== */
 .modal-form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  max-width: 100%;
 }
 
 .form-row {
@@ -85,6 +185,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .form-group label {
@@ -93,11 +194,29 @@
   color: #444;
 }
 
-.form-group input, .form-group textarea, .form-group select {
+.form-group input,
+.form-group textarea,
+.form-group select {
   padding: 0.6rem;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
 }
 
 .form-actions {
@@ -105,22 +224,95 @@
   justify-content: flex-end;
   gap: 1rem;
   margin-top: 1rem;
+  flex-wrap: wrap;
 }
 
-.btn-cancel {
-  background: #6c757d;
-  color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
-  cursor: pointer;
+/* ==================== FIXED LOCATION ROW ==================== */
+.form-row--location {
+  display: grid;
+  grid-template-columns: 2fr 1.75fr 1.25fr;
+  gap: 1rem;
 }
 
-.btn-submit {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
-  cursor: pointer;
+/* Remove conflicting flex properties */
+.form-group--city,
+.form-group--state,
+.form-group--zip {
+  /* Grid handles sizing, no need for flex */
+}
+
+/* ==================== READ-ONLY FIELDS ==================== */
+input[readonly],
+textarea[readonly],
+select[readonly] {
+  background-color: #f7fafc;
+  cursor: not-allowed;
+  color: #4a5568;
+  border-color: #e2e8f0;
+}
+
+input[readonly]:focus,
+textarea[readonly]:focus,
+select[readonly]:focus {
+  box-shadow: none;
+  border-color: #e2e8f0;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+  .company-list-page {
+    padding: 1rem;
+  }
+
+  .company-list-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .company-list-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .btn-add {
+    width: 100%;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
+
+  .form-row--location {
+    grid-template-columns: 1fr;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .btn-view,
+  .btn-edit {
+    width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .data-table th,
+  .data-table td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.85rem;
+  }
 }

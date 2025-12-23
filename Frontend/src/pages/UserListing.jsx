@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
-// import api, { BASE_URL } from '../assets/js/axiosConfig';
 import '../styles/UserListing.css'; 
 import axios from 'axios';
-
 
 export default function UserListing() {
   const [users, setUsers] = useState([]);
@@ -18,9 +16,9 @@ export default function UserListing() {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    role: 'user', // Default
+    role: 'user',
     company_id: '',
-    password:''
+    password: ''
   });
 
   useEffect(() => {
@@ -41,15 +39,28 @@ export default function UserListing() {
   };
 
   const fetchCompanies = async () => {
-  try {
-    const response = await axios.get(`${BASE_URL}/customer-data/`);
-    // point to response.data.data
-    setCompanies(response.data?.data || []); 
-  } catch (err) {
-    console.error("Error fetching companies for dropdown:", err);
-    setCompanies([]);
-  }
-};
+    try {
+      const response = await axios.get(`${BASE_URL}/customer-data/`);
+      setCompanies(response.data?.data || []); 
+    } catch (err) {
+      console.error("Error fetching companies for dropdown:", err);
+      setCompanies([]);
+    }
+  };
+
+  // ==================== HELPER FUNCTION TO MAP COMPANY ID TO NAME ====================
+  const getCompanyNameById = (companyId) => {
+    // If companyId is null, undefined, or empty, return N/A
+    if (!companyId) {
+      return 'N/A';
+    }
+
+    // Find the company in the companies array
+    const company = companies.find(comp => comp.id === companyId);
+    
+    // If company found, return name, otherwise return N/A
+    return company ? company.company_name : 'N/A';
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -60,10 +71,10 @@ export default function UserListing() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post(`${BASE_URL}/create_user/`, formData);
+      await axios.post(`${BASE_URL}/create_user/`, formData);
       window.alert('User created successfully!');
       setIsModalOpen(false);
-      setFormData({ username: '', email: '', role: 'user', company_id: '' ,password:''});
+      setFormData({ username: '', email: '', role: 'user', company_id: '', password: '' });
       fetchUsers();
     } catch (err) {
       window.alert(err.response?.data?.message || 'Failed to create user');
@@ -85,6 +96,7 @@ export default function UserListing() {
         <table className="data-table">
           <thead>
             <tr>
+              <th>ID</th>
               <th>Username</th>
               <th>Email</th>
               <th>Role</th>
@@ -94,12 +106,13 @@ export default function UserListing() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="5" className="text-center">Loading...</td></tr>
+              <tr><td colSpan="6" className="text-center">Loading...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan="5" className="text-center">No users found.</td></tr>
+              <tr><td colSpan="6" className="text-center">No users found.</td></tr>
             ) : (
-              users.map((user, index) => (
-                <tr key={index}>
+              users.map((user) => (
+                <tr key={user.id}>
+                  <td>{user.id}</td>
                   <td>{user.username}</td>
                   <td>{user.email}</td>
                   <td>
@@ -107,7 +120,7 @@ export default function UserListing() {
                       {user.role}
                     </span>
                   </td>
-                  <td>{user.company_name || 'N/A'}</td>
+                  <td>{getCompanyNameById(user.company)}</td>
                   <td>{user.date_joined ? new Date(user.date_joined).toLocaleDateString() : '-'}</td>
                 </tr>
               ))
@@ -153,7 +166,6 @@ export default function UserListing() {
             <label>Password</label>
             <input type="password" name="password" value={formData.password} onChange={handleInputChange} required />
           </div>
-
 
           <div className="form-actions">
             <button type="button" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Cancel</button>

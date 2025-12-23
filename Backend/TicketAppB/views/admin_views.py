@@ -17,11 +17,11 @@ def create_user(request):
         username=request.data.get('username')
         email=request.data.get('email')
         role=request.data.get('role')
-        company=request.data.get('company')
+        company=request.data.get('company_id')
         password=request.data.get('password')
 
         try:
-            company_instance = Company.objects.get(company_name=company)
+            company_instance = Company.objects.get(id=company)
         except Company.DoesNotExist:
             return Response({"message": "Invalid Company Given"},status=status.HTTP_400_BAD_REQUEST)
         
@@ -31,18 +31,17 @@ def create_user(request):
         return Response({"message":"User added successfully"},status=status.HTTP_201_CREATED)
     
     except Exception as e:
-        return Response({"message":"User creation failed"},status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message":"User creation failed"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
 @api_view(['GET'])
 def get_all_users(request):
-    users=CustomUser.objects.all().order_by('-id')
+    users=CustomUser.objects.all().order_by('id')
 
     serializer = UserSerializer(users, many=True)
 
-    return Response(
-        {"message": "Success","data": serializer.data},status=status.HTTP_200_OK)
+    return Response({"message": "Success","data": serializer.data},status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def all_company_data(request):
@@ -67,3 +66,28 @@ def create_company(request):
             {"message": "Successfully added company","data": serializer.data},status=status.HTTP_201_CREATED)
 
     return Response({"message": "Validation failed","errors": serializer.errors},status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT'])
+def update_company_details(request, pk):
+    try:
+        company = Company.objects.get(pk=pk)
+    except Company.DoesNotExist:
+        return Response(
+            {"message": "Company not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    serializer = CompanySerializer(company, data=request.data, partial=True)
+    
+    if serializer.is_valid():
+        serializer.save()
+        return Response(
+            {"message": "Company updated successfully", "data": serializer.data},
+            status=status.HTTP_200_OK
+        )
+    
+    return Response(
+        {"message": "Validation failed", "errors": serializer.errors},
+        status=status.HTTP_400_BAD_REQUEST
+    )

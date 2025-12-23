@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import auth_views,admin_views
+from .views import auth_views,admin_views,data_views
 
 
 urlpatterns = [
@@ -12,8 +12,13 @@ urlpatterns = [
     path('verify-auth/', auth_views.verify_auth, name='verify_auth'),
 
     # company data
-    path('create_user',admin_views.create_user,name='create-user'),
+    path('create_user/',admin_views.create_user,name='create-user'),
     path('get_users/',admin_views.get_all_users,name='get_all_users'),
     path('customer-data/',admin_views.all_company_data, name='company_data'),
-    path('create-company/',admin_views.create_company,name='create_company')
+    path('create-company/',admin_views.create_company,name='create_company'),
+    path('update-company-details/<int:pk>/', admin_views.update_company_details, name='update_company'),
+
+    # ticket data
+    path('getTransactionDataFromDevice/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),
+    path('get_all_transaction_data/',data_views.get_all_transaction_data,name='get_all_transaction_data')
 ]
