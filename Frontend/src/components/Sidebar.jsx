@@ -1,30 +1,27 @@
 import '../styles/Sidebar.css';
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom'; // Added useNavigate
-import api, { BASE_URL } from '../assets/js/axiosConfig'; // Added API imports
+import { NavLink, useNavigate } from 'react-router-dom';
+import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
-  const navigate = useNavigate(); // Initialize navigate
+  const navigate = useNavigate();
 
-  const toggleSidebar = () => {
-    setIsOpen(!isOpen);
-  };
+  // 🔐 Get user + role
+  const storedUser = localStorage.getItem('user');
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const role = user?.role;
 
-  const closeSidebar = () => {
-    setIsOpen(false);
-  };
+  const toggleSidebar = () => setIsOpen(!isOpen);
+  const closeSidebar = () => setIsOpen(false);
 
-  // Logout Logic
+  // Logout
   const handleLogout = async () => {
     try {
       await api.post(`${BASE_URL}/logout/`);
-      localStorage.removeItem('user');
-      closeSidebar();
-      navigate('/login');
     } catch (err) {
       console.error('Logout error:', err);
-      // Still clear local storage and redirect even if the server call fails
+    } finally {
       localStorage.removeItem('user');
       closeSidebar();
       navigate('/login');
@@ -33,7 +30,7 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Toggle Button */}
+      {/* Mobile Toggle */}
       <button
         className="sidebar-toggle"
         onClick={toggleSidebar}
@@ -42,7 +39,7 @@ export default function Sidebar() {
         <span className="sidebar-toggle__icon">☰</span>
       </button>
 
-      {/* Mobile Overlay */}
+      {/* Overlay */}
       <div
         className={`sidebar-overlay ${isOpen ? 'sidebar-overlay--active' : ''}`}
         onClick={closeSidebar}
@@ -57,11 +54,13 @@ export default function Sidebar() {
         <nav className="sidebar__nav">
           <ul className="sidebar__menu">
             <div className="sidebar__menu-top">
+
+              {/* 🏠 Dashboard - ALL USERS */}
               <li className="sidebar__menu-item">
                 <NavLink
                   to="/dashboard"
                   end
-                  className={({ isActive }) => 
+                  className={({ isActive }) =>
                     `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
                   }
                   onClick={closeSidebar}
@@ -69,51 +68,66 @@ export default function Sidebar() {
                   Home
                 </NavLink>
               </li>
-              
-              <li className="sidebar__menu-item">
-                <NavLink
-                  to="/dashboard/companies"
-                  className={({ isActive }) => 
-                    `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
-                  }
-                  onClick={closeSidebar}
-                >
-                  🏢 Company Management
-                </NavLink>
-              </li>
 
-              <li className="sidebar__menu-item">
-                <NavLink
-                  to="/dashboard/users"
-                  className={({ isActive }) => 
-                    `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
-                  }
-                  onClick={closeSidebar}
-                >
-                  👥 User Management
-                </NavLink>
-              </li>
-              
-              <li className="sidebar__menu-item">
-                <NavLink
-                  to="/dashboard/ticket-report"
-                  className={({ isActive }) => 
-                    `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
-                  }
-                  onClick={closeSidebar}
-                >
-                  📝 Ticket Report
-                </NavLink>
-              </li>
+              {/* 🏢 Company Management - SUPER ADMIN */}
+              {role === 'superadmin' && (
+                <li className="sidebar__menu-item">
+                  <NavLink
+                    to="/dashboard/companies"
+                    className={({ isActive }) =>
+                      `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
+                    }
+                    onClick={closeSidebar}
+                  >
+                    🏢 Company Management
+                  </NavLink>
+                </li>
+              )}
+
+              {/* 👥 User Management - SUPER ADMIN */}
+              {role === 'superadmin' && (
+                <li className="sidebar__menu-item">
+                  <NavLink
+                    to="/dashboard/users"
+                    className={({ isActive }) =>
+                      `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
+                    }
+                    onClick={closeSidebar}
+                  >
+                    👥 User Management
+                  </NavLink>
+                </li>
+              )}
+
+              {/* 📝 Ticket Report - BRANCH ADMIN */}
+              {role === 'branch_admin' && (
+                <li className="sidebar__menu-item">
+                  <NavLink
+                    to="/dashboard/ticket-report"
+                    className={({ isActive }) =>
+                      `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
+                    }
+                    onClick={closeSidebar}
+                  >
+                    📝 Ticket Report
+                  </NavLink>
+                </li>
+              )}
             </div>
 
-            {/* Added Logout Section at the Bottom */}
+            {/* 🚪 Logout */}
             <div className="sidebar__menu-bottom">
               <li className="sidebar__menu-item">
                 <button
                   onClick={handleLogout}
                   className="sidebar__link sidebar__link--logout"
-                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
                 >
                   Logout
                 </button>

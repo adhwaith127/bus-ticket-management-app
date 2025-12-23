@@ -4,12 +4,19 @@ from rest_framework.decorators import api_view
 from ..models import Company,CustomUser
 from ..serializers import CompanySerializer,UserSerializer
 from django.contrib.auth import get_user_model
+from .auth_views import get_user_from_cookie
+
 
 User=get_user_model()
 
 
 @api_view(['POST'])
 def create_user(request):
+    # verify user
+    user=get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    
     try:        
         if not request.data:
             return Response({'error': 'Invalid Input'}, status=status.HTTP_400_BAD_REQUEST)
@@ -37,6 +44,11 @@ def create_user(request):
 
 @api_view(['GET'])
 def get_all_users(request):
+    # verify user
+    user=get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
     users=CustomUser.objects.all().order_by('id')
 
     serializer = UserSerializer(users, many=True)
@@ -45,16 +57,23 @@ def get_all_users(request):
 
 @api_view(['GET'])
 def all_company_data(request):
+    # verify user
+    user=get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    
     companies = Company.objects.all().order_by('-id')
-
     serializer = CompanySerializer(companies, many=True)
 
-    return Response(
-        {"message": "Success","data": serializer.data},status=status.HTTP_200_OK)
+    return Response({"message": "Success","data": serializer.data},status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
 def create_company(request):
+    # verify user
+    user=get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
     if not request.data:
         return Response({"message": "No input received"},status=status.HTTP_400_BAD_REQUEST)
 
@@ -70,6 +89,11 @@ def create_company(request):
 
 @api_view(['PUT'])
 def update_company_details(request, pk):
+    # verify user
+    user=get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    
     try:
         company = Company.objects.get(pk=pk)
     except Company.DoesNotExist:

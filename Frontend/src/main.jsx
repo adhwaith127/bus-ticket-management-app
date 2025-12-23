@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Dashboard from './layouts/Dashboard'
 import Home from './pages/Home'
+import ProtectedRoute from './components/ProtectedRoute'
 
 import CompanyListing from './pages/CompanyListing'
 import UserListing from './pages/UserListing'
@@ -21,37 +22,42 @@ const router = createBrowserRouter([
   {
     path: '/signup',
     element: <Signup />
-  },  
+  },
   {
     path: '/login',
     element: <Login />
   },
   {
-    path: '/dashboard',
-    element: <Dashboard />,
+    element: <ProtectedRoute />,
     children: [
       {
-        index: true,
-        element: <Home />
-      },
-      {
-        path: 'companies',
-        element: <CompanyListing />
-      },
-      {
-        path: 'users',
-        element: <UserListing />
-      },
-      {
-        path:'ticket-report',
-        element:<TicketReport/>
+        path: '/dashboard',
+        element: <Dashboard />,
+        children: [
+          {
+            index: true,
+            element: <Home />
+          },
+          {
+            path: 'companies',
+            element: <CompanyListing />
+          },
+          {
+            path: 'users',
+            element: <UserListing />
+          },
+          {
+            path: 'ticket-report',
+            element: <TicketReport />
+          }
+        ]
       }
     ]
   }
-])
+]);
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <RouterProvider router={router} />
   </StrictMode>
-)
+);

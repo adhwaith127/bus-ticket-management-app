@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
 import '../styles/UserListing.css'; 
-import axios from 'axios';
+// import axios from 'axios';
+import api, { BASE_URL } from '../assets/js/axiosConfig';
+
 
 export default function UserListing() {
   const [users, setUsers] = useState([]);
@@ -9,8 +11,6 @@ export default function UserListing() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // Form State
   const [formData, setFormData] = useState({
@@ -29,7 +29,7 @@ export default function UserListing() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${BASE_URL}/get_users/`);
+      const response = await api.get(`${BASE_URL}/get_users/`);
       setUsers(response.data.data || []);
     } catch (err) {
       console.error("Error fetching users:", err);
@@ -40,7 +40,7 @@ export default function UserListing() {
 
   const fetchCompanies = async () => {
     try {
-      const response = await axios.get(`${BASE_URL}/customer-data/`);
+      const response = await api.get(`${BASE_URL}/customer-data/`);
       setCompanies(response.data?.data || []); 
     } catch (err) {
       console.error("Error fetching companies for dropdown:", err);
@@ -71,7 +71,7 @@ export default function UserListing() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await axios.post(`${BASE_URL}/create_user/`, formData);
+      await api.post(`${BASE_URL}/create_user/`, formData);
       window.alert('User created successfully!');
       setIsModalOpen(false);
       setFormData({ username: '', email: '', role: 'user', company_id: '', password: '' });
@@ -146,7 +146,7 @@ export default function UserListing() {
             <label>Role</label>
             <select name="role" value={formData.role} onChange={handleInputChange} required>
               <option value="user">User</option>
-              <option value="admin">Admin</option>
+              <option value="branch_admin">BranchAdmin</option>
             </select>
           </div>
 

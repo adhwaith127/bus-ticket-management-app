@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import * as XLSX from 'xlsx';
 import '../styles/TicketReport.css';
-
-// Get base URL from environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// UPDATED: Import api from axiosConfig for authentication
+import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function TicketReport() {
   // ==================== STATE MANAGEMENT SECTION ====================
@@ -33,25 +31,20 @@ export default function TicketReport() {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      // Make GET request using axios
-      const response = await axios.get(`${API_BASE_URL}/get_all_transaction_data`);
+      // UPDATED: Use api instance with authentication cookies
+      const response = await api.get(`${BASE_URL}/get_all_transaction_data`);
       
-      // Axios automatically parses JSON response and puts it in response.data
       if (response.data.message === 'success') {
         setTransactions(response.data.data);
       } else {
         setError('Failed to fetch transactions');
       }
     } catch (err) {
-      // Axios error handling
       if (err.response) {
-        // Server responded with error status
         setError(`Server Error: ${err.response.status} - ${err.response.data.message || 'Unknown error'}`);
       } else if (err.request) {
-        // Request made but no response received
         setError('No response from server. Please check your connection.');
       } else {
-        // Error in request setup
         setError('Error setting up request: ' + err.message);
       }
     } finally {

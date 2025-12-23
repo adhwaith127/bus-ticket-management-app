@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
 import '../styles/CompanyListing.css';
-import axios from 'axios';
+// import axios from 'axios';
+import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function CompanyListing() {
   const [companies, setCompanies] = useState([]);
@@ -12,8 +13,6 @@ export default function CompanyListing() {
   // ==================== NEW STATE FOR VIEW/EDIT ====================
   const [modalMode, setModalMode] = useState('create'); // 'create', 'view', 'edit'
   const [editingCompany, setEditingCompany] = useState(null);
-
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // Form State
   const [formData, setFormData] = useState({
@@ -35,7 +34,7 @@ export default function CompanyListing() {
   const fetchCompanies = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${BASE_URL}/customer-data/`);
+      const response = await api.get(`${BASE_URL}/customer-data/`);
       const companyData = response.data?.data || [];
       setCompanies(companyData);
     } catch (err) {
@@ -113,7 +112,7 @@ export default function CompanyListing() {
     try {
       if (modalMode === 'edit') {
         // UPDATE COMPANY
-        const response = await axios.put(
+        const response = await api.put(
           `${BASE_URL}/update-company-details/${editingCompany.id}/`,
           formData
         );
@@ -125,7 +124,7 @@ export default function CompanyListing() {
         }
       } else if (modalMode === 'create') {
         // CREATE COMPANY
-        const response = await axios.post(
+        const response = await api.post(
           `${BASE_URL}/create-company/`,
           formData
         );

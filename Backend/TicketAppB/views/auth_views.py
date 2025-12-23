@@ -204,14 +204,7 @@ def refresh_token_view(request):
         return Response({'error': 'Invalid or expired refresh token'}, status=401)
     
 
-# For ProtectedRoute component
-# not currently used . currently we check localstorage for stored user data
-# this becomes secure because even if page loads the website needs to display data. for that api is called. 
-# in that api call we verify if the user is actually calling with valid cookie
-# if yes then we respond else return un-auth error. 
-# on receiving unauth error on a page other than authentication ones, interceptor tries to get new access token.
-# so if it is not a valid user with valid cookie/token then we are redirected to login.
-# in a way we are protected
+# Now returns user role for frontend role-based access control
 @api_view(['GET'])
 def verify_auth(request):
     user = get_user_from_cookie(request)
