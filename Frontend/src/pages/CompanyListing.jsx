@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
 import '../styles/CompanyListing.css';
-// import axios from 'axios';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function CompanyListing() {
@@ -10,17 +9,22 @@ export default function CompanyListing() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  // ==================== NEW STATE FOR VIEW/EDIT ====================
+  // Modal Mode Management
   const [modalMode, setModalMode] = useState('create'); // 'create', 'view', 'edit'
   const [editingCompany, setEditingCompany] = useState(null);
 
-  // Form State
+  // License Validation State
+  const [validatingLicense, setValidatingLicense] = useState({});
+
+  // Form State - Updated with GST and Address 2
   const [formData, setFormData] = useState({
     company_name: '',
     company_email: '',
+    gst_number: '',
     contact_person: '',
     contact_number: '',
     address: '',
+    address_2: '',
     city: '',
     state: '',
     zip_code: '',
@@ -50,16 +54,19 @@ export default function CompanyListing() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ==================== OPEN MODAL FOR CREATE ====================
+  // ==================== MODAL HANDLERS ====================
+  
   const openCreateModal = () => {
     setModalMode('create');
     setEditingCompany(null);
     setFormData({
       company_name: '',
       company_email: '',
+      gst_number: '',
       contact_person: '',
       contact_number: '',
       address: '',
+      address_2: '',
       city: '',
       state: '',
       zip_code: '',
@@ -68,16 +75,17 @@ export default function CompanyListing() {
     setIsModalOpen(true);
   };
 
-  // ==================== OPEN MODAL FOR VIEW ====================
   const openViewModal = (company) => {
     setModalMode('view');
     setEditingCompany(company);
     setFormData({
       company_name: company.company_name || '',
       company_email: company.company_email || '',
+      gst_number: company.gst_number || '',
       contact_person: company.contact_person || '',
       contact_number: company.contact_number || '',
       address: company.address || '',
+      address_2: company.address_2 || '',
       city: company.city || '',
       state: company.state || '',
       zip_code: company.zip_code || '',
@@ -86,16 +94,17 @@ export default function CompanyListing() {
     setIsModalOpen(true);
   };
 
-  // ==================== OPEN MODAL FOR EDIT ====================
   const openEditModal = (company) => {
     setModalMode('edit');
     setEditingCompany(company);
     setFormData({
       company_name: company.company_name || '',
       company_email: company.company_email || '',
+      gst_number: company.gst_number || '',
       contact_person: company.contact_person || '',
       contact_number: company.contact_number || '',
       address: company.address || '',
+      address_2: company.address_2 || '',
       city: company.city || '',
       state: company.state || '',
       zip_code: company.zip_code || '',
@@ -104,14 +113,20 @@ export default function CompanyListing() {
     setIsModalOpen(true);
   };
 
-  // ==================== HANDLE CREATE/UPDATE SUBMIT ====================
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingCompany(null);
+    setModalMode('create');
+  };
+
+  // ==================== FORM SUBMIT HANDLER ====================
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
       if (modalMode === 'edit') {
-        // UPDATE COMPANY
         const response = await api.put(
           `${BASE_URL}/update-company-details/${editingCompany.id}/`,
           formData
@@ -123,7 +138,6 @@ export default function CompanyListing() {
           fetchCompanies();
         }
       } else if (modalMode === 'create') {
-        // CREATE COMPANY
         const response = await api.post(
           `${BASE_URL}/create-company/`,
           formData
@@ -140,9 +154,11 @@ export default function CompanyListing() {
       setFormData({
         company_name: '',
         company_email: '',
+        gst_number: '',
         contact_person: '',
         contact_number: '',
         address: '',
+        address_2: '',
         city: '',
         state: '',
         zip_code: '',
@@ -174,21 +190,75 @@ export default function CompanyListing() {
     }
   };
 
-  // ==================== CLOSE MODAL ====================
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingCompany(null);
-    setModalMode('create');
+  // ==================== LICENSE VALIDATION HANDLER ====================
+  
+  const handleValidateLicense = async (companyId) => {
+    // Set loading state for this specific company
+    setValidatingLicense(prev => ({ ...prev, [companyId]: true }));
+
+    try {
+      const response = await api.post(
+        `${BASE_URL}/validate-company-license/${companyId}/`
+      );
+
+      if (response.status === 200) {
+        window.alert(response.data.message || 'License validated successfully!');
+        // Refresh company list to show updated status
+        fetchCompanies();
+      }
+    } catch (err) {
+      console.error("License validation error:", err);
+      
+      if (!err.response) {
+        window.alert('Server unreachable. Please try again later.');
+        return;
+      }
+
+      const { data } = err.response;
+      window.alert(data?.message || data?.error || 'License validation failed');
+    } finally {
+      setValidatingLicense(prev => ({ ...prev, [companyId]: false }));
+    }
   };
 
-  // ==================== GET MODAL TITLE ====================
+  // ==================== UI HELPERS ====================
+  
   const getModalTitle = () => {
     if (modalMode === 'view') return 'Company Details';
     if (modalMode === 'edit') return 'Edit Company';
     return 'Register Company';
   };
 
-  // Check if field should be read-only
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'Approve':
+        return 'status-approved';
+      case 'Pending':
+        return 'status-pending';
+      case 'Expired':
+        return 'status-expired';
+      case 'Block':
+        return 'status-blocked';
+      default:
+        return 'status-pending';
+    }
+  };
+
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'Approve':
+        return 'Approved';
+      case 'Pending':
+        return 'Pending';
+      case 'Expired':
+        return 'Expired';
+      case 'Block':
+        return 'Blocked';
+      default:
+        return 'Pending';
+    }
+  };
+
   const isReadOnly = modalMode === 'view';
 
   return (
@@ -209,46 +279,68 @@ export default function CompanyListing() {
               <th>Email</th>
               <th>Contact Person</th>
               <th>Status</th>
+              <th>License</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="6" className="text-center">Loading...</td></tr>
+              <tr><td colSpan="7" className="text-center">Loading...</td></tr>
             ) : companies.length === 0 ? (
-              <tr><td colSpan="6" className="text-center">No companies found.</td></tr>
+              <tr><td colSpan="7" className="text-center">No companies found.</td></tr>
             ) : (
-              companies.map((company) => (
-                <tr key={company.id}>
-                  <td>{company.id}</td>
-                  <td>{company.company_name}</td>
-                  <td>{company.company_email}</td>
-                  <td>{company.contact_person}</td>
-                  <td>
-                    <span className={`status-badge ${company.verification_status}`}>
-                      {company.verification_status || 'Active'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      <button 
-                        className="btn-view" 
-                        onClick={() => openViewModal(company)}
-                        title="View Details"
-                      >
-                        View
-                      </button>
-                      <button 
-                        className="btn-edit" 
-                        onClick={() => openEditModal(company)}
-                        title="Edit Company"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              companies.map((company) => {
+                const isPending = company.authentication_status === 'Pending';
+                const isValidating = validatingLicense[company.id];
+                
+                return (
+                  <tr key={company.id}>
+                    <td>{company.id}</td>
+                    <td>{company.company_name}</td>
+                    <td>{company.company_email}</td>
+                    <td>{company.contact_person}</td>
+                    <td>
+                      <span className={`status-badge ${getStatusBadgeClass(company.authentication_status)}`}>
+                        {getStatusLabel(company.authentication_status)}
+                      </span>
+                    </td>
+                    <td>
+                      {isPending ? (
+                        <button 
+                          className="btn-validate" 
+                          onClick={() => handleValidateLicense(company.id)}
+                          disabled={isValidating}
+                          title="Validate License"
+                        >
+                          {isValidating ? 'Validating...' : 'Validate License'}
+                        </button>
+                      ) : (
+                        <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
+                          {getStatusLabel(company.authentication_status)}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <button 
+                          className="btn-view" 
+                          onClick={() => openViewModal(company)}
+                          title="View Details"
+                        >
+                          View
+                        </button>
+                        <button 
+                          className="btn-edit" 
+                          onClick={() => openEditModal(company)}
+                          title="Edit Company"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -256,7 +348,7 @@ export default function CompanyListing() {
 
       {/* Modal for Create/View/Edit */}
       <Modal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
-        <form onSubmit={handleSubmit} className="modal-form">
+        <div className="modal-form">
           <div className="form-row">
             <div className="form-group">
               <label>Company Name *</label>
@@ -282,6 +374,32 @@ export default function CompanyListing() {
             </div>
           </div>
           
+          <div className="form-row">
+            <div className="form-group">
+              <label>GST Number</label>
+              <input 
+                type="text" 
+                name="gst_number" 
+                value={formData.gst_number} 
+                onChange={handleInputChange} 
+                placeholder="Optional"
+                readOnly={isReadOnly}
+              />
+            </div>
+            <div className="form-group">
+              <label>Number of Licenses *</label>
+              <input 
+                type="number" 
+                name="number_of_licence" 
+                value={formData.number_of_licence} 
+                onChange={handleInputChange} 
+                min="1" 
+                required 
+                readOnly={isReadOnly}
+              />
+            </div>
+          </div>
+
           <div className="form-row">
             <div className="form-group">
               <label>Contact Person *</label>
@@ -319,7 +437,18 @@ export default function CompanyListing() {
             ></textarea>
           </div>
 
-          {/* FIXED ROW: City 40%, State 35%, Zip 25% */}
+          <div className="form-group">
+            <label>Address 2</label>
+            <textarea 
+              name="address_2" 
+              value={formData.address_2} 
+              onChange={handleInputChange} 
+              rows="2"
+              placeholder="Optional - Additional address details"
+              readOnly={isReadOnly}
+            ></textarea>
+          </div>
+
           <div className="form-row form-row--location">
             <div className="form-group form-group--city">
               <label>City *</label>
@@ -356,30 +485,17 @@ export default function CompanyListing() {
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Number of Licenses *</label>
-            <input 
-              type="number" 
-              name="number_of_licence" 
-              value={formData.number_of_licence} 
-              onChange={handleInputChange} 
-              min="1" 
-              required 
-              readOnly={isReadOnly}
-            />
-          </div>
-
           <div className="form-actions">
             <button type="button" className="btn-cancel" onClick={closeModal}>
               {modalMode === 'view' ? 'Close' : 'Cancel'}
             </button>
             {modalMode !== 'view' && (
-              <button type="submit" className="btn-submit" disabled={submitting}>
+              <button type="button" className="btn-submit" onClick={handleSubmit} disabled={submitting}>
                 {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Company' : 'Save Company'}
               </button>
             )}
           </div>
-        </form>
+        </div>
       </Modal>
     </div>
   );

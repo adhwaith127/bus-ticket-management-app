@@ -5,7 +5,9 @@ import os
 
 from datetime import timedelta
 
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -164,3 +166,18 @@ CSRF_COOKIE_SECURE = False
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+
+
+# License Server Configuration
+LICENSE_SERVER_BASE_URL = os.getenv('LICENSE_SERVER_BASE_URL')
+PRODUCT_REGISTRATION_ENDPOINT = os.getenv('PRODUCT_REGISTRATION_ENDPOINT', '/product-registration')
+PRODUCT_AUTH_ENDPOINT = os.getenv('PRODUCT_AUTH_ENDPOINT', '/product-authentication')
+
+# Construct full URLs
+PRODUCT_REGISTRATION_URL = f"{LICENSE_SERVER_BASE_URL}{PRODUCT_REGISTRATION_ENDPOINT}"
+PRODUCT_AUTH_URL = f"{LICENSE_SERVER_BASE_URL}{PRODUCT_AUTH_ENDPOINT}"
+
+# Application Configuration
+APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
+PROJECT_NAME = os.getenv('PROJECT_NAME', 'Bus Ticketing System')
