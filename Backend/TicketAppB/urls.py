@@ -16,10 +16,12 @@ urlpatterns = [
     path('get_users/',user_views.get_all_users,name='get_all_users'),
     
     # company data
-    path('customer-data/',company_views.all_company_data, name='company_data'),
-    path('create-company/',company_views.create_company,name='create_company'),
+    path('customer-data/', company_views.all_company_data, name='company_data'),
+    path('create-company/', company_views.create_company, name='create_company'),
     path('update-company-details/<int:pk>/', company_views.update_company_details, name='update_company'),
+    path('register-company-license/<int:pk>/', company_views.register_company_with_license_server, name='register_company_license'),  # NEW
     path('validate-company-license/<int:pk>/', company_views.validate_company_license, name='validate_company_license'),
+
 
     # ticket data
     path('getTransactionDataFromDevice/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),

@@ -65,7 +65,7 @@ export default function Sidebar() {
                   }
                   onClick={closeSidebar}
                 >
-                  Home
+                 🏠 Home
                 </NavLink>
               </li>
 

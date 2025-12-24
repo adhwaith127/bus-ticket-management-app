@@ -14,6 +14,7 @@ export default function CompanyListing() {
   const [editingCompany, setEditingCompany] = useState(null);
 
   // License Validation State
+  const [registeringLicense, setRegisteringLicense] = useState({});
   const [validatingLicense, setValidatingLicense] = useState({});
 
   // Form State - Updated with GST and Address 2
@@ -119,7 +120,6 @@ export default function CompanyListing() {
     setModalMode('create');
   };
 
-  // ==================== FORM SUBMIT HANDLER ====================
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -221,6 +221,35 @@ export default function CompanyListing() {
     }
   };
 
+  const handleRegisterLicense = async (companyId) => {
+    // Set loading state for this specific company
+    setRegisteringLicense(prev => ({ ...prev, [companyId]: true }));
+
+    try {
+      const response = await api.post(
+        `${BASE_URL}/register-company-license/${companyId}/`
+      );
+
+      if (response.status === 200) {
+        window.alert(response.data.message || 'Company registered successfully!');
+        // Refresh company list to show updated status
+        fetchCompanies();
+      }
+    } catch (err) {
+      console.error("License registration error:", err);
+      
+      if (!err.response) {
+        window.alert('Server unreachable. Please try again later.');
+        return;
+      }
+
+      const { data } = err.response;
+      window.alert(data?.message || data?.error || 'License registration failed');
+    } finally {
+      setRegisteringLicense(prev => ({ ...prev, [companyId]: false }));
+    }
+  };
+
   // ==================== UI HELPERS ====================
   
   const getModalTitle = () => {
@@ -290,11 +319,8 @@ export default function CompanyListing() {
               <tr><td colSpan="7" className="text-center">No companies found.</td></tr>
             ) : (
               companies.map((company) => {
-                const isPending = company.authentication_status === 'Pending';
-                const isValidating = validatingLicense[company.id];
-                
-                return (
-                  <tr key={company.id}>
+                  return (
+                    <tr key={company.id}> 
                     <td>{company.id}</td>
                     <td>{company.company_name}</td>
                     <td>{company.company_email}</td>
@@ -305,20 +331,47 @@ export default function CompanyListing() {
                       </span>
                     </td>
                     <td>
-                      {isPending ? (
-                        <button 
-                          className="btn-validate" 
-                          onClick={() => handleValidateLicense(company.id)}
-                          disabled={isValidating}
-                          title="Validate License"
-                        >
-                          {isValidating ? 'Validating...' : 'Validate License'}
-                        </button>
-                      ) : (
-                        <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
-                          {getStatusLabel(company.authentication_status)}
-                        </span>
-                      )}
+                      {(() => {
+                        const isPending = company.authentication_status === 'Pending';
+                        const hasCompanyId = company.company_id !== null && company.company_id !== undefined;
+                        const isRegistering = registeringLicense[company.id];
+                        const isValidating = validatingLicense[company.id];
+                        
+                        // Case 1: Not registered yet (no company_id)
+                        if (!hasCompanyId) {
+                          return (
+                            <button 
+                              className="btn-register" 
+                              onClick={() => handleRegisterLicense(company.id)}
+                              disabled={isRegistering}
+                              title="Register with License Server"
+                            >
+                              {isRegistering ? 'Registering...' : 'Register Company'}
+                            </button>
+                          );
+                        }
+                        
+                        // Case 2: Registered but pending validation
+                        if (isPending && hasCompanyId) {
+                          return (
+                            <button 
+                              className="btn-validate" 
+                              onClick={() => handleValidateLicense(company.id)}
+                              disabled={isValidating}
+                              title="Validate License"
+                            >
+                              {isValidating ? 'Validating...' : 'Validate License'}
+                            </button>
+                          );
+                        }
+                        
+                        // Case 3: Already validated (Approved/Expired/Blocked)
+                        return (
+                          <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
+                            {getStatusLabel(company.authentication_status)}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td>
                       <div className="action-buttons">

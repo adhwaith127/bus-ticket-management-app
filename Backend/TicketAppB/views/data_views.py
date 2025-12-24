@@ -3,15 +3,15 @@ from decimal import Decimal
 from datetime import datetime
 from rest_framework import status
 from ..models import TransactionData
+from django.http import HttpResponse
 from django.http import JsonResponse
 from .auth_views import get_user_from_cookie
 from rest_framework.response import Response
+from django.contrib.auth import get_user_model
 from ..serializers import TicketDataSerializer
 from rest_framework.decorators import api_view
 from django.db import IntegrityError, transaction
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth import get_user_model
-from django.http import HttpResponse
 
 
 User=get_user_model()
@@ -31,6 +31,8 @@ def getTransactionDataFromDevice(request):
     logger.info("Transaction from device: %s", raw)
 
     parts = raw.split("|")
+    # get first 32 chars for response
+    response_chars=raw[0:32]
 
     try:
         transaction = TransactionData.objects.create(
@@ -77,13 +79,13 @@ def getTransactionDataFromDevice(request):
         )
 
     except IntegrityError:
-        return HttpResponse("DUPLICATE", status=status.HTTP_200_OK,content_type="text/plain")
+        device_response=f'OK#SUCCESS#fn={response_chars}#'
+        return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_200_OK)
 
     except Exception:
         logger.exception("Transaction parsing failed")
         return HttpResponse("ERROR",status=status.HTTP_500_INTERNAL_SERVER_ERROR,content_type="text/plain")
 
-    response_chars=raw[0:32]
     device_response=f'OK#SUCCESS#fn={response_chars}#'
 
     return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_201_CREATED)
@@ -113,3 +115,8 @@ def get_all_transaction_data(request):
 def some_function(request):
     if request.method != "GET":
         return JsonResponse({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    
+
+
+
+
