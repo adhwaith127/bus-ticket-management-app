@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company,CustomUser,TransactionData
+from .models import Company,CustomUser,TransactionData,TripCloseData
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -90,3 +90,65 @@ class TicketDataSerializer(serializers.ModelSerializer):
     class Meta:
         model=TransactionData
         fields='__all__'
+
+
+
+class TripCloseDataSerializer(serializers.ModelSerializer):
+    total_passengers = serializers.SerializerMethodField()
+    total_tickets_issued = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TripCloseData
+        fields = [
+            "id",
+            "palmtec_id",
+            "company_code",
+            "schedule",
+            "trip_no",
+            "route_code",
+            "up_down_trip",
+            "start_datetime",
+            "end_datetime",
+            "start_ticket_no",
+            "end_ticket_no",
+
+            # Passenger counts
+            "full_count",
+            "half_count",
+            "st1_count",
+            "luggage_count",
+            "physical_count",
+            "pass_count",
+            "ladies_count",
+            "senior_count",
+
+            # Collections
+            "full_collection",
+            "half_collection",
+            "st_collection",
+            "luggage_collection",
+            "physical_collection",
+            "ladies_collection",
+            "senior_collection",
+            "adjust_collection",
+            "expense_amount",
+            "total_collection",
+
+            # UPI
+            "upi_ticket_count",
+            "upi_ticket_amount",
+
+            # Derived fields
+            "total_passengers",
+            "total_tickets_issued",
+
+            # Timestamps
+            "received_at",
+            "created_at",
+        ]
+
+    def get_total_passengers(self, obj):
+        return obj.get_total_passengers()
+
+    def get_total_tickets_issued(self, obj):
+        return obj.get_total_tickets_issued()

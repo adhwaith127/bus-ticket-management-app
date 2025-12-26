@@ -13,6 +13,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import CompanyListing from './pages/CompanyListing'
 import UserListing from './pages/UserListing'
 import TicketReport from './pages/TicketReport'
+import TripcloseReport from './pages/TripcloseReport'
+import BranchListing from './pages/BranchListing'
 
 const router = createBrowserRouter([
   {
@@ -47,9 +49,17 @@ const router = createBrowserRouter([
             element: <UserListing />
           },
           {
+            path: 'branches',
+            element: <BranchListing />
+          },
+          {
             path: 'ticket-report',
             element: <TicketReport />
-          }
+          },
+          {
+            path: 'trip-close-report',
+            element: <TripcloseReport />
+          },
         ]
       }
     ]

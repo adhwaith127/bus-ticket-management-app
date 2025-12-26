@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from .auth_views import get_user_from_cookie
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
-from ..serializers import TicketDataSerializer
+from ..serializers import TicketDataSerializer,TripCloseDataSerializer
 from rest_framework.decorators import api_view
 from django.db import IntegrityError, transaction
 from django.views.decorators.csrf import csrf_exempt
@@ -143,7 +143,7 @@ def getTripCloseDataFromDevice(request):
             trip_data = TripCloseData.objects.create(
                 # Device information
                 palmtec_id=parts[1],
-                license_code=parts[2],
+                company_code=parts[2],
 
                 # Trip identification
                 schedule=int(parts[3]) if parts[3] else 0,
@@ -216,8 +216,19 @@ def getTripCloseDataFromDevice(request):
 def get_all_trip_close_data(request):
     user = get_user_from_cookie(request)
     if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        return JsonResponse({"error": "Authentication required"},status=status.HTTP_401_UNAUTHORIZED)
+
     try:
-        pass
+        # Return only user's company data
+        if user.company:
+            trip_data = TripCloseData.objects.filter(company_code=user.company).order_by("-start_datetime")
+        else:
+            trip_data = TripCloseData.objects.none()
+
+        serializer = TripCloseDataSerializer(trip_data, many=True)
+
+        return JsonResponse(
+            {"message": "success","data": serializer.data},status=status.HTTP_200_OK)
+
     except Exception as e:
-        return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JsonResponse({"message": f"{e}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)

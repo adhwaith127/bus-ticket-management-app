@@ -7,7 +7,6 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
-  // 🔐 Get user + role
   const storedUser = localStorage.getItem('user');
   const user = storedUser ? JSON.parse(storedUser) : null;
   const role = user?.role;
@@ -99,7 +98,20 @@ export default function Sidebar() {
                 </li>
               )}
 
-              {/* 📝 Ticket Report - BRANCH ADMIN */}
+              {role === 'branch_admin' && (
+                <li className="sidebar__menu-item">
+                  <NavLink
+                    to="/dashboard/branches"
+                    className={({ isActive }) =>
+                      `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
+                    }
+                    onClick={closeSidebar}
+                  >
+                    🏬 Branch Management
+                  </NavLink>
+                </li>
+              )}
+
               {role === 'branch_admin' && (
                 <li className="sidebar__menu-item">
                   <NavLink
@@ -110,6 +122,20 @@ export default function Sidebar() {
                     onClick={closeSidebar}
                   >
                     📝 Ticket Report
+                  </NavLink>
+                </li>
+              )}
+
+              {role === 'branch_admin' && (
+                <li className="sidebar__menu-item">
+                  <NavLink
+                    to="/dashboard/trip-close-report"
+                    className={({ isActive }) =>
+                      `sidebar__link ${isActive ? 'sidebar__link--active' : ''}`
+                    }
+                    onClick={closeSidebar}
+                  >
+                    📊 Trip Close Report
                   </NavLink>
                 </li>
               )}

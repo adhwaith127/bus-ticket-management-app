@@ -127,6 +127,7 @@ class TransactionData(models.Model):
     senior_count      = models.IntegerField(default=0)
 
     transaction_id    = models.CharField(max_length=50, null=True, blank=True)
+    # values are 0 and 1 . 0 for cash 1 for upi
     ticket_status     = models.CharField(max_length=10, null=True, blank=True)
     reference_number  = models.CharField(max_length=50, null=True, blank=True)
 
@@ -166,9 +167,9 @@ class TripCloseData(models.Model):
         help_text="Device identifier (PalmtecID)"
     )
     
-    license_code = models.CharField(
+    company_code = models.CharField(
         max_length=100,
-        help_text="License code"
+        help_text="Company code"
     )
     
     schedule = models.IntegerField(

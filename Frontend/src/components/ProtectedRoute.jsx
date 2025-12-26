@@ -45,8 +45,7 @@ export default function ProtectedRoute() {
           window.alert('Access Denied: You do not have permission to view this page');
           window.location.href = '/dashboard';
         }
-      } else if (path.includes('/ticket-report')) {
-        // if (userRole !== 'branch_admin' && userRole !== 'superadmin') {
+      } else if (path.includes('/ticket-report') || path.includes('/trip-close-report') || path.includes('/branches')) {
         if (userRole !== 'branch_admin') {
           window.alert('Access Denied: You do not have permission to view this page');
           window.location.href = '/dashboard';

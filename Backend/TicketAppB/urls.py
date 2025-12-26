@@ -26,8 +26,8 @@ urlpatterns = [
 
 
     # ticket data
-    path('getTransactionDataFromDevice/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),
+    path('getTicket/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),
     path('get_all_transaction_data/',data_views.get_all_transaction_data,name='get_all_transaction_data'),
-    path('getTripCloseDataFromDevice/',data_views.getTripCloseDataFromDevice,name='get_trip_close_data'),
+    path('getTripClose/',data_views.getTripCloseDataFromDevice,name='get_trip_close_data'),
     path('get_all_trip_close_data/',data_views.get_all_trip_close_data,name='get_all_trip_close_data'),
 ]
