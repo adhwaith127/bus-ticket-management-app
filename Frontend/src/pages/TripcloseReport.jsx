@@ -168,7 +168,7 @@ export default function TripcloseReport() {
           <p className="tripReport__subtitle">View and manage daily trip closures</p>
         </div>
         <button className="tripReport__btn tripReport__btn--primary" onClick={exportToExcel}>
-          Download Excel
+          Download Report
         </button>
       </div>
 

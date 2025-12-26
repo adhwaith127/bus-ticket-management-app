@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
 import '../styles/UserListing.css'; 
-// import axios from 'axios';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 

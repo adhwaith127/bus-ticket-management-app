@@ -1,188 +1,166 @@
 /* ==================== PAGE LAYOUT ==================== */
 .company-list-page {
-  padding: 2rem;
-  background-color: #f4f6f9;
-  min-height: 100vh;
+  /* Remove padding - Dashboard handles it */
+  background-color: transparent;
+  min-height: auto;
 }
 
 .company-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-6);
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .company-list-header h1 {
-  color: #333;
+  color: var(--text-main);
   margin: 0;
   font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 /* ==================== BUTTONS ==================== */
 .btn-add {
-  background-color: #007bff;
+  background: var(--primary);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 600;
-  transition: background 0.2s;
-  white-space: nowrap;
+  font-size: 0.9375rem;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-add:hover {
-  background-color: #0056b3;
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-cancel {
-  background: #6c757d;
+  background: var(--text-secondary);
   color: white;
   border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.2s;
+  font-weight: 500;
+  transition: all 0.2s;
 }
 
 .btn-cancel:hover {
-  background: #5a6268;
+  background: var(--text-main);
 }
 
 .btn-submit {
-  background: #28a745;
+  background: var(--success);
   color: white;
   border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.2s;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-submit:hover {
-  background: #218838;
+  background: var(--success-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-submit:disabled {
-  background: #94d3a2;
+  background: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.6;
+  transform: none;
 }
 
 /* ==================== ACTION BUTTONS ==================== */
 .action-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   justify-content: center;
   flex-wrap: wrap;
 }
 
 .btn-view,
-.btn-edit {
-  padding: 6px 12px;
+.btn-edit,
+.btn-register,
+.btn-validate {
+  padding: var(--space-2) var(--space-4);
   border: none;
-  border-radius: 4px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-width: 60px;
-  white-space: nowrap;
+  transition: all 0.2s;
+  min-width: 70px;
 }
 
 .btn-view {
-  background-color: #4299e1;
+  background: var(--info);
   color: white;
 }
 
 .btn-view:hover {
-  background-color: #3182ce;
+  background: #2563eb;
   transform: translateY(-1px);
 }
 
 .btn-edit {
-  background-color: #48bb78;
+  background: var(--success);
   color: white;
 }
 
 .btn-edit:hover {
-  background-color: #38a169;
+  background: var(--success-dark);
   transform: translateY(-1px);
 }
 
-/* Register License Button */
 .btn-register {
-  padding: 6px 12px;
-  background-color: #3498db;
+  background: var(--info);
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background-color 0.2s;
-  font-weight: 500;
 }
 
 .btn-register:hover:not(:disabled) {
-  background-color: #2980b9;
+  background: #2563eb;
 }
 
 .btn-register:disabled {
-  background-color: #95a5a6;
+  background: var(--text-muted);
   cursor: not-allowed;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
-/* Validate License Button (if not already styled) */
 .btn-validate {
-  padding: 6px 12px;
-  background-color: #27ae60;
+  background: var(--success);
   color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background-color 0.2s;
-  font-weight: 500;
 }
 
 .btn-validate:hover:not(:disabled) {
-  background-color: #229954;
+  background: var(--success-dark);
 }
 
 .btn-validate:disabled {
-  background-color: #95a5a6;
+  background: var(--text-muted);
   cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.btn-validate:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.status-validating {
-  background-color: #ffa500;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.license-status.status-validating {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  opacity: 0.6;
 }
 
 /* ==================== TABLE ==================== */
 .table-container {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  overflow-x: auto;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
 }
 
 .data-table {
@@ -193,147 +171,134 @@
 
 .data-table th,
 .data-table td {
-  padding: 1rem;
+  padding: var(--space-4);
   text-align: left;
-  border-bottom: 1px solid #eee;
 }
 
 .data-table th {
-  background-color: #fafafa;
+  background: var(--border-light);
   font-weight: 600;
-  color: #555;
-  white-space: nowrap;
+  color: var(--text-main);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.2s;
 }
 
 .data-table tbody tr:hover {
-  background-color: #f8f9fa;
+  background: var(--primary-light);
 }
 
-.text-center {
-  text-align: center;
+.data-table tbody tr:last-child {
+  border-bottom: none;
 }
 
-/* ==================== STATUS BADGES (UPDATED) ==================== */
-.status-badge {
-  padding: 0.35rem 0.85rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  display: inline-block;
-  letter-spacing: 0.3px;
+.data-table td {
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
 }
 
-/* Approved/Approve Status */
-.status-badge.status-approved {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-/* Pending Status */
-.status-badge.status-pending,
-.status-badge.pending {
-  background-color: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeaa7;
-}
-
-/* Expired Status */
-.status-badge.status-expired {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-/* Blocked Status */
-.status-badge.status-blocked {
-  background-color: #e2e3e5;
-  color: #383d41;
-  border: 1px solid #d6d8db;
-}
-
-/* Legacy verified class (kept for backwards compatibility) */
-.status-badge.verified {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-/* ==================== LICENSE STATUS DISPLAY (NEW) ==================== */
+/* ==================== STATUS BADGES ==================== */
+.status-badge,
 .license-status {
   display: inline-block;
-  padding: 0.35rem 0.85rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: 9999px;
+  font-size: 0.8125rem;
   font-weight: 600;
   text-transform: capitalize;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.02em;
 }
 
+.status-badge.status-approved,
 .license-status.status-approved {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+  background: var(--success-light);
+  color: var(--success-dark);
 }
 
+.status-badge.status-pending,
+.status-badge.pending,
+.license-status.status-pending {
+  background: var(--warning-light);
+  color: #d97706;
+}
+
+.status-badge.status-expired,
 .license-status.status-expired {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background: var(--danger-light);
+  color: #b91c1c;
 }
 
+.status-badge.status-blocked,
 .license-status.status-blocked {
-  background-color: #e2e3e5;
-  color: #383d41;
-  border: 1px solid #d6d8db;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.status-badge.verified {
+  background: var(--success-light);
+  color: var(--success-dark);
+}
+
+.status-validating {
+  background: var(--warning);
+  color: white;
+  padding: var(--space-1) var(--space-3);
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 /* ==================== FORM ==================== */
 .modal-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  max-width: 100%;
+  gap: var(--space-4);
 }
 
 .form-row {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .form-group {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .form-group label {
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #444;
+  color: var(--text-main);
 }
 
 .form-group input,
 .form-group textarea,
 .form-group select {
-  padding: 0.6rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.9375rem;
   width: 100%;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: all 0.2s;
+  background: var(--bg-card);
+  color: var(--text-main);
 }
 
 .form-group input:focus,
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .form-group textarea {
@@ -343,67 +308,58 @@
 
 .form-group input::placeholder,
 .form-group textarea::placeholder {
-  color: #adb5bd;
-  font-style: italic;
+  color: var(--text-muted);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 1rem;
-  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
-/* ==================== FIXED LOCATION ROW ==================== */
+/* ==================== LOCATION ROW ==================== */
 .form-row--location {
   display: grid;
   grid-template-columns: 2fr 1.75fr 1.25fr;
-  gap: 1rem;
-}
-
-/* Remove conflicting flex properties */
-.form-group--city,
-.form-group--state,
-.form-group--zip {
-  /* Grid handles sizing, no need for flex */
+  gap: var(--space-4);
 }
 
 /* ==================== READ-ONLY FIELDS ==================== */
 input[readonly],
 textarea[readonly],
 select[readonly] {
-  background-color: #f7fafc;
+  background: var(--border-light);
   cursor: not-allowed;
-  color: #4a5568;
-  border-color: #e2e8f0;
+  color: var(--text-secondary);
+  border-color: var(--border-color);
 }
 
 input[readonly]:focus,
 textarea[readonly]:focus,
 select[readonly]:focus {
   box-shadow: none;
-  border-color: #e2e8f0;
+  border-color: var(--border-color);
 }
 
-/* ==================== LOADING STATES (NEW) ==================== */
+/* ==================== LOADING SPINNER ==================== */
 .loading-spinner {
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(102, 126, 234, 0.3);
+  border: 2px solid var(--primary-light);
   border-radius: 50%;
-  border-top-color: #667eea;
-  animation: spin 0.8s ease-in-out infinite;
+  border-top-color: var(--primary);
+  animation: spin 0.8s linear infinite;
   vertical-align: middle;
-  margin-right: 8px;
+  margin-right: var(--space-2);
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-/* ==================== ANIMATIONS (NEW) ==================== */
+/* ==================== ANIMATIONS ==================== */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -419,26 +375,11 @@ select[readonly]:focus {
   animation: fadeIn 0.3s ease;
 }
 
-/* Stagger animation for table rows */
-.data-table tbody tr:nth-child(1) { animation-delay: 0.05s; }
-.data-table tbody tr:nth-child(2) { animation-delay: 0.1s; }
-.data-table tbody tr:nth-child(3) { animation-delay: 0.15s; }
-.data-table tbody tr:nth-child(4) { animation-delay: 0.2s; }
-.data-table tbody tr:nth-child(5) { animation-delay: 0.25s; }
-
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
-  .company-list-page {
-    padding: 1rem;
-  }
-
   .company-list-header {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .company-list-header h1 {
-    font-size: 1.5rem;
   }
 
   .btn-add {
@@ -459,7 +400,8 @@ select[readonly]:focus {
 
   .btn-view,
   .btn-edit,
-  .btn-validate {
+  .btn-validate,
+  .btn-register {
     width: 100%;
   }
 
@@ -471,49 +413,7 @@ select[readonly]:focus {
     width: 100%;
   }
 
-  .data-table th,
-  .data-table td {
-    padding: 0.75rem 0.5rem;
-    font-size: 0.9rem;
+  .table-container {
+    overflow-x: auto;
   }
-}
-
-@media (max-width: 480px) {
-  .data-table th,
-  .data-table td {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.85rem;
-  }
-
-  .status-badge,
-  .license-status {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.6rem;
-  }
-
-  .btn-validate {
-    min-width: 100px;
-    font-size: 12px;
-  }
-}
-
-/* ==================== UTILITY CLASSES ==================== */
-.text-muted {
-  color: #6c757d;
-}
-
-.text-success {
-  color: #28a745;
-}
-
-.text-danger {
-  color: #dc3545;
-}
-
-.text-warning {
-  color: #ffc107;
-}
-
-.font-weight-bold {
-  font-weight: 600;
 }

@@ -180,12 +180,12 @@ export default function TicketReport() {
     <div className="ticketReport">
       {/* Header Section */}
       <div className="ticketReport__header">
-        <h1 className="ticketReport__title">Ticket Transaction Report</h1>
-        <button 
-          className="ticketReport__button ticketReport__button--primary"
-          onClick={exportToExcel}
-        >
-          Download Excel Report
+        <div>
+          <h1 className="ticketReport__title">Ticket Transaction Reports</h1>
+          <p className="ticketReport__subtitle">View and manage daily ticket transactions</p>
+        </div>
+        <button className="ticketReport__button ticketReport__button--primary"onClick={exportToExcel}>
+          Download Report
         </button>
       </div>
 
@@ -255,7 +255,7 @@ export default function TicketReport() {
       {/* Summary Section */}
       <div className="ticketReport__summary">
         <span className="ticketReport__summaryText">
-          Showing {startIndex + 1} - {Math.min(endIndex, filteredData.length)} of {filteredData.length} transactions
+          Showing {Math.min(endIndex, filteredData.length)} of {filteredData.length} transactions
         </span>
       </div>
 
@@ -286,32 +286,38 @@ export default function TicketReport() {
             </tr>
           </thead>
           <tbody className="ticketReport__tbody">
-            {currentData.map((transaction, index) => (
-              <tr 
-                key={transaction.id} 
-                className={`ticketReport__row ${index % 2 === 0 ? 'ticketReport__row--even' : 'ticketReport__row--odd'}`}
-              >
-                <td className="ticketReport__td">{transaction.ticket_number || '-'}</td>
-                <td className="ticketReport__td">{transaction.device_id || '-'}</td>
-                <td className="ticketReport__td">{transaction.trip_number || '-'}</td>
-                <td className="ticketReport__td">{transaction.ticket_date || '-'}</td>
-                <td className="ticketReport__td">{transaction.ticket_time || '-'}</td>
-                <td className="ticketReport__td">{transaction.from_stage || 0}</td>
-                <td className="ticketReport__td">{transaction.to_stage || 0}</td>
-                <td className="ticketReport__td">{transaction.ticket_type || '-'}</td>
-                <td className="ticketReport__td">{transaction.ticket_status || '-'}</td>
-                <td className="ticketReport__td">{transaction.full_count || 0}</td>
-                <td className="ticketReport__td">{transaction.half_count || 0}</td>
-                <td className="ticketReport__td">{transaction.st_count || 0}</td>
-                <td className="ticketReport__td">{transaction.phy_count || 0}</td>
-                <td className="ticketReport__td">{transaction.lugg_count || 0}</td>
-                <td className="ticketReport__td">₹{transaction.ticket_amount || 0}</td>
-                <td className="ticketReport__td">₹{transaction.lugg_amount || 0}</td>
-                <td className="ticketReport__td">{transaction.company_code || '-'}</td>
-                <td className="ticketReport__td">{transaction.reference_number || '-'}</td>
-                <td className="ticketReport__td">{transaction.transaction_id || '-'}</td>
+            {currentData.length > 0?(
+              currentData.map((transaction, index) => (
+                <tr 
+                  key={transaction.id} 
+                  className={`ticketReport__row ${index % 2 === 0 ? 'ticketReport__row--even' : 'ticketReport__row--odd'}`}
+                >
+                  <td className="ticketReport__td">{transaction.ticket_number || '-'}</td>
+                  <td className="ticketReport__td">{transaction.device_id || '-'}</td>
+                  <td className="ticketReport__td">{transaction.trip_number || '-'}</td>
+                  <td className="ticketReport__td">{transaction.ticket_date || '-'}</td>
+                  <td className="ticketReport__td">{transaction.ticket_time || '-'}</td>
+                  <td className="ticketReport__td">{transaction.from_stage || 0}</td>
+                  <td className="ticketReport__td">{transaction.to_stage || 0}</td>
+                  <td className="ticketReport__td">{transaction.ticket_type || '-'}</td>
+                  <td className="ticketReport__td">{transaction.ticket_status || '-'}</td>
+                  <td className="ticketReport__td">{transaction.full_count || 0}</td>
+                  <td className="ticketReport__td">{transaction.half_count || 0}</td>
+                  <td className="ticketReport__td">{transaction.st_count || 0}</td>
+                  <td className="ticketReport__td">{transaction.phy_count || 0}</td>
+                  <td className="ticketReport__td">{transaction.lugg_count || 0}</td>
+                  <td className="ticketReport__td">₹{transaction.ticket_amount || 0}</td>
+                  <td className="ticketReport__td">₹{transaction.lugg_amount || 0}</td>
+                  <td className="ticketReport__td">{transaction.company_code || '-'}</td>
+                  <td className="ticketReport__td">{transaction.reference_number || '-'}</td>
+                  <td className="ticketReport__td">{transaction.transaction_id || '-'}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="11" className="ticketReport__empty">No trip data found.</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
