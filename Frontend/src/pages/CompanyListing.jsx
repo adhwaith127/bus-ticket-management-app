@@ -13,11 +13,11 @@ export default function CompanyListing() {
   const [modalMode, setModalMode] = useState('create'); // 'create', 'view', 'edit'
   const [editingCompany, setEditingCompany] = useState(null);
 
-  // License Validation State
+  // License State
   const [registeringLicense, setRegisteringLicense] = useState({});
   const [validatingLicense, setValidatingLicense] = useState({});
 
-  // Form State - Updated with GST and Address 2
+  // Form State
   const [formData, setFormData] = useState({
     company_name: '',
     company_email: '',
@@ -55,11 +55,7 @@ export default function CompanyListing() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // ==================== MODAL HANDLERS ====================
-  
-  const openCreateModal = () => {
-    setModalMode('create');
-    setEditingCompany(null);
+  const resetFormData = () => {
     setFormData({
       company_name: '',
       company_email: '',
@@ -73,44 +69,44 @@ export default function CompanyListing() {
       zip_code: '',
       number_of_licence: 1
     });
+  };
+
+  const populateFormData = (company) => {
+    setFormData({
+      company_name: company.company_name || '',
+      company_email: company.company_email || '',
+      gst_number: company.gst_number || '',
+      contact_person: company.contact_person || '',
+      contact_number: company.contact_number || '',
+      address: company.address || '',
+      address_2: company.address_2 || '',
+      city: company.city || '',
+      state: company.state || '',
+      zip_code: company.zip_code || '',
+      number_of_licence: company.number_of_licence || 1
+    });
+  };
+
+  // ==================== MODAL HANDLERS ====================
+  
+  const openCreateModal = () => {
+    setModalMode('create');
+    setEditingCompany(null);
+    resetFormData();
     setIsModalOpen(true);
   };
 
   const openViewModal = (company) => {
     setModalMode('view');
     setEditingCompany(company);
-    setFormData({
-      company_name: company.company_name || '',
-      company_email: company.company_email || '',
-      gst_number: company.gst_number || '',
-      contact_person: company.contact_person || '',
-      contact_number: company.contact_number || '',
-      address: company.address || '',
-      address_2: company.address_2 || '',
-      city: company.city || '',
-      state: company.state || '',
-      zip_code: company.zip_code || '',
-      number_of_licence: company.number_of_licence || 1
-    });
+    populateFormData(company);
     setIsModalOpen(true);
   };
 
   const openEditModal = (company) => {
     setModalMode('edit');
     setEditingCompany(company);
-    setFormData({
-      company_name: company.company_name || '',
-      company_email: company.company_email || '',
-      gst_number: company.gst_number || '',
-      contact_person: company.contact_person || '',
-      contact_number: company.contact_number || '',
-      address: company.address || '',
-      address_2: company.address_2 || '',
-      city: company.city || '',
-      state: company.state || '',
-      zip_code: company.zip_code || '',
-      number_of_licence: company.number_of_licence || 1
-    });
+    populateFormData(company);
     setIsModalOpen(true);
   };
 
@@ -120,50 +116,31 @@ export default function CompanyListing() {
     setModalMode('create');
   };
 
-  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
+      let response;
+      
       if (modalMode === 'edit') {
-        const response = await api.put(
+        response = await api.put(
           `${BASE_URL}/update-company-details/${editingCompany.id}/`,
           formData
         );
-
-        if (response.status === 200) {
-          window.alert(response.data.message || 'Company updated successfully!');
-          setIsModalOpen(false);
-          fetchCompanies();
-        }
       } else if (modalMode === 'create') {
-        const response = await api.post(
+        response = await api.post(
           `${BASE_URL}/create-company/`,
           formData
         );
-
-        if (response.status === 201) {
-          window.alert(response.data.message);
-          setIsModalOpen(false);
-          fetchCompanies();
-        }
       }
 
-      // Reset form
-      setFormData({
-        company_name: '',
-        company_email: '',
-        gst_number: '',
-        contact_person: '',
-        contact_number: '',
-        address: '',
-        address_2: '',
-        city: '',
-        state: '',
-        zip_code: '',
-        number_of_licence: 1
-      });
+      if (response?.status === 200 || response?.status === 201) {
+        window.alert(response.data.message || 'Operation successful!');
+        setIsModalOpen(false);
+        resetFormData();
+        fetchCompanies();
+      }
 
     } catch (err) {
       if (!err.response) {
@@ -173,56 +150,21 @@ export default function CompanyListing() {
 
       const { status, data } = err.response;
 
-      if (status === 400) {
-        if (data.errors) {
-          const firstError = Object.values(data.errors)[0]?.[0];
-          window.alert(firstError || data.message);
-        } else {
-          window.alert(data.message || 'Invalid input');
-        }
-        return;
+      if (status === 400 && data.errors) {
+        const firstError = Object.values(data.errors)[0]?.[0];
+        window.alert(firstError || data.message);
+      } else {
+        window.alert(data?.message || 'Something went wrong');
       }
-
-      window.alert(data?.message || 'Something went wrong');
 
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ==================== LICENSE VALIDATION HANDLER ====================
+  // ==================== LICENSE REGISTRATION HANDLER ====================
   
-  const handleValidateLicense = async (companyId) => {
-    // Set loading state for this specific company
-    setValidatingLicense(prev => ({ ...prev, [companyId]: true }));
-
-    try {
-      const response = await api.post(
-        `${BASE_URL}/validate-company-license/${companyId}/`
-      );
-
-      if (response.status === 200) {
-        window.alert(response.data.message || 'License validated successfully!');
-        // Refresh company list to show updated status
-        fetchCompanies();
-      }
-    } catch (err) {
-      console.error("License validation error:", err);
-      
-      if (!err.response) {
-        window.alert('Server unreachable. Please try again later.');
-        return;
-      }
-
-      const { data } = err.response;
-      window.alert(data?.message || data?.error || 'License validation failed');
-    } finally {
-      setValidatingLicense(prev => ({ ...prev, [companyId]: false }));
-    }
-  };
-
   const handleRegisterLicense = async (companyId) => {
-    // Set loading state for this specific company
     setRegisteringLicense(prev => ({ ...prev, [companyId]: true }));
 
     try {
@@ -232,7 +174,6 @@ export default function CompanyListing() {
 
       if (response.status === 200) {
         window.alert(response.data.message || 'Company registered successfully!');
-        // Refresh company list to show updated status
         fetchCompanies();
       }
     } catch (err) {
@@ -247,6 +188,35 @@ export default function CompanyListing() {
       window.alert(data?.message || data?.error || 'License registration failed');
     } finally {
       setRegisteringLicense(prev => ({ ...prev, [companyId]: false }));
+    }
+  };
+
+  // ==================== LICENSE VALIDATION HANDLER ====================
+  
+  const handleValidateLicense = async (companyId) => {
+    setValidatingLicense(prev => ({ ...prev, [companyId]: true }));
+
+    try {
+      const response = await api.post(
+        `${BASE_URL}/validate-company-license/${companyId}/`
+      );
+
+      if (response.status === 200) {
+        window.alert(response.data.message || 'License validated successfully!');
+        fetchCompanies();
+      }
+    } catch (err) {
+      console.error("License validation error:", err);
+      
+      if (!err.response) {
+        window.alert('Server unreachable. Please try again later.');
+        return;
+      }
+
+      const { data } = err.response;
+      window.alert(data?.message || data?.error || 'License validation failed');
+    } finally {
+      setValidatingLicense(prev => ({ ...prev, [companyId]: false }));
     }
   };
 
@@ -319,8 +289,13 @@ export default function CompanyListing() {
               <tr><td colSpan="7" className="text-center">No companies found.</td></tr>
             ) : (
               companies.map((company) => {
-                  return (
-                    <tr key={company.id}> 
+                const isPending = company.authentication_status === 'Pending';
+                const hasCompanyId = company.company_id !== null && company.company_id !== undefined;
+                const isRegistering = registeringLicense[company.id];
+                const isValidating = validatingLicense[company.id];
+                
+                return (
+                  <tr key={company.id}>
                     <td>{company.id}</td>
                     <td>{company.company_name}</td>
                     <td>{company.company_email}</td>
@@ -331,47 +306,29 @@ export default function CompanyListing() {
                       </span>
                     </td>
                     <td>
-                      {(() => {
-                        const isPending = company.authentication_status === 'Pending';
-                        const hasCompanyId = company.company_id !== null && company.company_id !== undefined;
-                        const isRegistering = registeringLicense[company.id];
-                        const isValidating = validatingLicense[company.id];
-                        
-                        // Case 1: Not registered yet (no company_id)
-                        if (!hasCompanyId) {
-                          return (
-                            <button 
-                              className="btn-register" 
-                              onClick={() => handleRegisterLicense(company.id)}
-                              disabled={isRegistering}
-                              title="Register with License Server"
-                            >
-                              {isRegistering ? 'Registering...' : 'Register Company'}
-                            </button>
-                          );
-                        }
-                        
-                        // Case 2: Registered but pending validation
-                        if (isPending && hasCompanyId) {
-                          return (
-                            <button 
-                              className="btn-validate" 
-                              onClick={() => handleValidateLicense(company.id)}
-                              disabled={isValidating}
-                              title="Validate License"
-                            >
-                              {isValidating ? 'Validating...' : 'Validate License'}
-                            </button>
-                          );
-                        }
-                        
-                        // Case 3: Already validated (Approved/Expired/Blocked)
-                        return (
-                          <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
-                            {getStatusLabel(company.authentication_status)}
-                          </span>
-                        );
-                      })()}
+                      {!hasCompanyId ? (
+                        <button 
+                          className="btn-register" 
+                          onClick={() => handleRegisterLicense(company.id)}
+                          disabled={isRegistering}
+                          title="Register with License Server"
+                        >
+                          {isRegistering ? 'Registering...' : 'Register Company'}
+                        </button>
+                      ) : isPending ? (
+                        <button 
+                          className="btn-validate" 
+                          onClick={() => handleValidateLicense(company.id)}
+                          disabled={isValidating}
+                          title="Validate License"
+                        >
+                          {isValidating ? 'Validating...' : 'Validate License'}
+                        </button>
+                      ) : (
+                        <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
+                          {getStatusLabel(company.authentication_status)}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <div className="action-buttons">

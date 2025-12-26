@@ -1,8 +1,8 @@
 import logging
-from decimal import Decimal
+from decimal import Decimal,InvalidOperation
 from datetime import datetime
 from rest_framework import status
-from ..models import TransactionData
+from ..models import TransactionData,TripCloseData
 from django.http import HttpResponse
 from django.http import JsonResponse
 from .auth_views import get_user_from_cookie
@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 User=get_user_model()
 logger = logging.getLogger(__name__)
+
 
 # used by machine
 @csrf_exempt
@@ -31,6 +32,7 @@ def getTransactionDataFromDevice(request):
     logger.info("Transaction from device: %s", raw)
 
     parts = raw.split("|")
+
     # get first 32 chars for response
     response_chars=raw[0:32]
 
@@ -87,8 +89,9 @@ def getTransactionDataFromDevice(request):
         return HttpResponse("ERROR",status=status.HTTP_500_INTERNAL_SERVER_ERROR,content_type="text/plain")
 
     device_response=f'OK#SUCCESS#fn={response_chars}#'
-
     return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_201_CREATED)
+
+
 
 @api_view(['GET'])
 def get_all_transaction_data(request):
@@ -112,11 +115,109 @@ def get_all_transaction_data(request):
 
 
 @csrf_exempt
-def some_function(request):
-    if request.method != "GET":
-        return JsonResponse({"error": "Method not allowed"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+def getTripCloseDataFromDevice(request):   
+    # Check request method
+    if request.method != 'GET':
+        return HttpResponse("METHOD_NOT_ALLOWED",status=status.HTTP_405_METHOD_NOT_ALLOWED,content_type="text/plain")
+
+    try:
+        # Extract raw data from request
+        raw_payload = request.GET.get('fn', '')
+
+        if not raw_payload:
+            return HttpResponse("NO_DATA",status=status.HTTP_400_BAD_REQUEST,content_type="text/plain")
+
+        # Split data by delimiter
+        parts = raw_payload.split('|')
+
+        # Check if we have minimum required parts
+        if len(parts) < 33:
+            return HttpResponse("MISSING_DATA",status=status.HTTP_400_BAD_REQUEST,content_type="text/plain")
+
+        # Validate request type
+        if parts[0] != 'TrpCl':
+            return HttpResponse(f"INVALID",status=status.HTTP_400_BAD_REQUEST,content_type="text/plain")
+        
+        # Create TripCloseData instance
+        try:
+            trip_data = TripCloseData.objects.create(
+                # Device information
+                palmtec_id=parts[1],
+                license_code=parts[2],
+
+                # Trip identification
+                schedule=int(parts[3]) if parts[3] else 0,
+                trip_no=int(parts[4]) if parts[4] else 0,
+                route_code=parts[31],
+                up_down_trip=parts[32] if len(parts) > 32 else '',
+
+                # Trip timing - parse and combine date
+                start_datetime=datetime.strptime(f"{parts[5]} {parts[6]}", "%Y-%m-%d %H:%M:%S"),
+                end_datetime=datetime.strptime(f"{parts[7]} {parts[8]}", "%Y-%m-%d %H:%M:%S"),
+
+                # Ticket range
+                start_ticket_no=int(parts[9]) if parts[9] else 0,
+                end_ticket_no=int(parts[10]) if parts[10] else 0,
+
+                # Passenger counts
+                full_count=int(parts[11]) if parts[11] else 0,
+                half_count=int(parts[12]) if parts[12] else 0,
+                st1_count=int(parts[13]) if parts[13] else 0,
+                luggage_count=int(parts[14]) if parts[14] else 0,
+                physical_count=int(parts[15]) if parts[15] else 0,
+                pass_count=int(parts[16]) if parts[16] else 0,
+                ladies_count=int(parts[17]) if parts[17] else 0,
+                senior_count=int(parts[18]) if parts[18] else 0,
+
+                # Collection amounts - convert to Decimal
+                full_collection=Decimal(str(parts[19])) if parts[19] else Decimal('0.00'),
+                half_collection=Decimal(str(parts[20])) if parts[20] else Decimal('0.00'),
+                st_collection=Decimal(str(parts[21])) if parts[21] else Decimal('0.00'),
+                luggage_collection=Decimal(str(parts[22])) if parts[22] else Decimal('0.00'),
+                physical_collection=Decimal(str(parts[23])) if parts[23] else Decimal('0.00'),
+                ladies_collection=Decimal(str(parts[24])) if parts[24] else Decimal('0.00'),
+                senior_collection=Decimal(str(parts[25])) if parts[25] else Decimal('0.00'),
+
+                # Other financial data
+                adjust_collection=Decimal(str(parts[26])) if parts[26] else Decimal('0.00'),
+                expense_amount=Decimal(str(parts[27])) if parts[27] else Decimal('0.00'),
+                total_collection=Decimal(str(parts[28])) if parts[28] else Decimal('0.00'),
+
+                # UPI payment data
+                upi_ticket_count=int(parts[29]) if parts[29] else 0,
+                upi_ticket_amount=Decimal(str(parts[30])) if parts[30] else Decimal('0.00'),
+            )
+        
+            # Return success response to device
+            # Extract first 32 characters for response
+            response_chars = raw_payload[0:32]
+            device_response = f'OK#SUCCESS#fn={response_chars}#'
+            return HttpResponse(device_response,status=status.HTTP_201_CREATED,content_type="text/plain")
+
+        # Handle duplicate entry (unique_together constraint)
+        except IntegrityError:
+            response_chars = raw_payload[0:32]
+            device_response = f'OK#SUCCESS#fn={response_chars}#'
+            return HttpResponse(device_response,status=status.HTTP_200_OK,content_type="text/plain")
+    
+    # Handle conversion errors (int/Decimal/datetime)
+    except ValueError as e:
+        logger.exception("Transaction parsing failed, ValueError")
+        return HttpResponse(f"ERROR",status=status.HTTP_400_BAD_REQUEST,content_type="text/plain")
+    
+    # Handle any other unexpected errors
+    except Exception as e:
+        logger.exception("Transaction parsing failed")
+        return HttpResponse(f"ERROR",status=status.HTTP_500_INTERNAL_SERVER_ERROR,content_type="text/plain")
     
 
 
-
-
+@api_view(['GET'])
+def get_all_trip_close_data(request):
+    user = get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        pass
+    except Exception as e:
+        return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

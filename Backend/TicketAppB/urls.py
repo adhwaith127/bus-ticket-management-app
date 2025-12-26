@@ -11,10 +11,12 @@ urlpatterns = [
     path('protected/', auth_views.protected_view, name='protected'),
     path('verify-auth/', auth_views.verify_auth, name='verify_auth'),
 
+
     # user data
     path('create_user/',user_views.create_user,name='create-user'),
     path('get_users/',user_views.get_all_users,name='get_all_users'),
-    
+
+
     # company data
     path('customer-data/', company_views.all_company_data, name='company_data'),
     path('create-company/', company_views.create_company, name='create_company'),
@@ -25,5 +27,7 @@ urlpatterns = [
 
     # ticket data
     path('getTransactionDataFromDevice/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),
-    path('get_all_transaction_data/',data_views.get_all_transaction_data,name='get_all_transaction_data')
+    path('get_all_transaction_data/',data_views.get_all_transaction_data,name='get_all_transaction_data'),
+    path('getTripCloseDataFromDevice/',data_views.getTripCloseDataFromDevice,name='get_trip_close_data'),
+    path('get_all_trip_close_data/',data_views.get_all_trip_close_data,name='get_all_trip_close_data'),
 ]
