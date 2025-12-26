@@ -162,6 +162,21 @@
   transform: translateY(0);
 }
 
+.status-validating {
+  background-color: #ffa500;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.license-status.status-validating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* ==================== TABLE ==================== */
 .table-container {
   background: white;

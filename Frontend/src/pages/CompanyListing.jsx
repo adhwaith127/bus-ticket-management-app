@@ -15,7 +15,7 @@ export default function CompanyListing() {
 
   // License State
   const [registeringLicense, setRegisteringLicense] = useState({});
-  const [validatingLicense, setValidatingLicense] = useState({});
+  // const [validatingLicense, setValidatingLicense] = useState({});
 
   // Form State
   const [formData, setFormData] = useState({
@@ -190,20 +190,19 @@ export default function CompanyListing() {
       setRegisteringLicense(prev => ({ ...prev, [companyId]: false }));
     }
   };
-
-  // ==================== LICENSE VALIDATION HANDLER ====================
-  
+ 
   const handleValidateLicense = async (companyId) => {
-    setValidatingLicense(prev => ({ ...prev, [companyId]: true }));
-
     try {
       const response = await api.post(
         `${BASE_URL}/validate-company-license/${companyId}/`
       );
 
       if (response.status === 200) {
-        window.alert(response.data.message || 'License validated successfully!');
-        fetchCompanies();
+        window.alert(
+          response.data.message || 
+          'License validation started! This may take up to 2 minutes. Refresh the page to see updated status.'
+        );
+        fetchCompanies(); // Refresh to show "Validating" status
       }
     } catch (err) {
       console.error("License validation error:", err);
@@ -215,12 +214,9 @@ export default function CompanyListing() {
 
       const { data } = err.response;
       window.alert(data?.message || data?.error || 'License validation failed');
-    } finally {
-      setValidatingLicense(prev => ({ ...prev, [companyId]: false }));
     }
   };
 
-  // ==================== UI HELPERS ====================
   
   const getModalTitle = () => {
     if (modalMode === 'view') return 'Company Details';
@@ -234,6 +230,8 @@ export default function CompanyListing() {
         return 'status-approved';
       case 'Pending':
         return 'status-pending';
+      case 'Validating':
+        return 'status-validating';
       case 'Expired':
         return 'status-expired';
       case 'Block':
@@ -249,6 +247,8 @@ export default function CompanyListing() {
         return 'Approved';
       case 'Pending':
         return 'Pending';
+      case 'Validating':
+        return 'Validating...';
       case 'Expired':
         return 'Expired';
       case 'Block':
@@ -290,9 +290,9 @@ export default function CompanyListing() {
             ) : (
               companies.map((company) => {
                 const isPending = company.authentication_status === 'Pending';
+                const isValidating = company.authentication_status === 'Validating'; // ← Changed: read from DB
                 const hasCompanyId = company.company_id !== null && company.company_id !== undefined;
                 const isRegistering = registeringLicense[company.id];
-                const isValidating = validatingLicense[company.id];
                 
                 return (
                   <tr key={company.id}>
@@ -316,19 +316,22 @@ export default function CompanyListing() {
                           {isRegistering ? 'Registering...' : 'Register Company'}
                         </button>
                       ) : isPending ? (
-                        <button 
-                          className="btn-validate" 
-                          onClick={() => handleValidateLicense(company.id)}
-                          disabled={isValidating}
-                          title="Validate License"
-                        >
-                          {isValidating ? 'Validating...' : 'Validate License'}
-                        </button>
-                      ) : (
-                        <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
-                          {getStatusLabel(company.authentication_status)}
-                        </span>
-                      )}
+                      <button 
+                        className="btn-validate" 
+                        onClick={() => handleValidateLicense(company.id)}
+                        title="Validate License"
+                      >
+                        Validate License
+                      </button>
+                    ) : isValidating ? (
+                      <span className="license-status status-validating" title="Validation in progress">
+                        ⏳ Validating...
+                      </span>
+                    ) : (
+                      <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
+                        {getStatusLabel(company.authentication_status)}
+                      </span>
+                    )}
                     </td>
                     <td>
                       <div className="action-buttons">

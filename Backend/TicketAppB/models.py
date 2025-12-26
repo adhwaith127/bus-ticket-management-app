@@ -9,6 +9,8 @@ class Company(models.Model):
     # Authentication Status Choices
     class AuthStatus(models.TextChoices):
         PENDING = 'Pending', 'Pending'
+        # for showing in UI that license validation is undergoing
+        VALIDATING = 'Validating', 'Validating'
         APPROVED = 'Approve', 'Approved'
         EXPIRED = 'Expired', 'Expired'
         BLOCKED = 'Block', 'Blocked'
@@ -46,7 +48,7 @@ class Company(models.Model):
     product_from_date = models.DateField(null=True, blank=True)
     product_to_date = models.DateField(null=True, blank=True)
     
-    # Additional License Fields (NEW)
+    # Additional License Fields
     project_code = models.CharField(max_length=100, null=True, blank=True)
     device_count = models.IntegerField(null=True, blank=True)
     branch_count = models.IntegerField(null=True, blank=True)
@@ -72,7 +74,14 @@ class Company(models.Model):
     def needs_validation(self):
         """Check if company needs license validation"""
         return self.authentication_status == self.AuthStatus.PENDING
+    
+    @property
+    def is_validating(self):
+        """Check if validation is in progress"""
+        return self.authentication_status == self.AuthStatus.VALIDATING
 
+
+# Rest of the models remain the same...
 class CustomUser(AbstractUser):
     role = models.CharField(max_length=32, blank=True, null=True,default='user')
     is_verified = models.BooleanField(default=False)
@@ -83,9 +92,8 @@ class CustomUser(AbstractUser):
     
     def __str__(self):
         return self.username
- 
 
-# for individual ticket data storing
+
 class TransactionData(models.Model):
     request_type      = models.CharField(max_length=20, null=True, blank=True)
     device_id         = models.CharField(max_length=20, null=True, blank=True)
@@ -124,8 +132,7 @@ class TransactionData(models.Model):
 
     company_code      = models.CharField(max_length=10, null=True, blank=True)
 
-    # full string
-    raw_payload       = models.TextField()  
+    raw_payload       = models.TextField()
 
     created_at        = models.DateTimeField(auto_now_add=True)
 
@@ -150,11 +157,9 @@ class TransactionData(models.Model):
 
     def __str__(self):
         return f"{self.ticket_number} - {self.device_id}"
-    
 
-# for trip close / trip summary storing
+
 class TripCloseData(models.Model):  
-    # DEVICE/SETUP INFORMATION
     palmtec_id = models.CharField(
         max_length=50,
         db_index=True,
@@ -166,7 +171,6 @@ class TripCloseData(models.Model):
         help_text="License code"
     )
     
-    # TRIP IDENTIFICATION
     schedule = models.IntegerField(
         help_text="Schedule number"
     )
@@ -186,7 +190,6 @@ class TripCloseData(models.Model):
         help_text="Trip direction indicator (U/D)"
     )
     
-    # TRIP TIMING
     start_datetime = models.DateTimeField(
         db_index=True,
         help_text="Trip start date and time"
@@ -196,7 +199,6 @@ class TripCloseData(models.Model):
         help_text="Trip end date and time"
     )
     
-    # TICKET NUMBER RANGE
     start_ticket_no = models.BigIntegerField(
         help_text="Starting ticket number (lSTicketNo)"
     )
@@ -205,7 +207,6 @@ class TripCloseData(models.Model):
         help_text="Ending ticket number (lETicketNo)"
     )
     
-    # PASSENGER COUNTS
     full_count = models.IntegerField(
         default=0,
         validators=[MinValueValidator(0)],
@@ -254,7 +255,6 @@ class TripCloseData(models.Model):
         help_text="Senior citizen passengers (sSenior + uSenior)"
     )
     
-    # COLLECTION AMOUNTS -> DecimalField
     full_collection = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -311,7 +311,6 @@ class TripCloseData(models.Model):
         help_text="Senior collection (fSeniorColl + uSeniorColl)"
     )
     
-    # OTHER FINANCIAL DATA
     adjust_collection = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -335,7 +334,6 @@ class TripCloseData(models.Model):
         help_text="Total collection (fTotalColl)"
     )
     
-    # UPI PAYMENT DATA
     upi_ticket_count = models.IntegerField(
         default=0,
         validators=[MinValueValidator(0)],
@@ -350,7 +348,6 @@ class TripCloseData(models.Model):
         help_text="UPI ticket amount (fUPITicketAmount)"
     )
     
-    # METADATA (Auto-managed fields)
     received_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When server received this data"
@@ -371,25 +368,21 @@ class TripCloseData(models.Model):
         verbose_name = 'Trip Close Data'
         verbose_name_plural = 'Trip Close Datas'
         
-        # Indexes for faster queries
         indexes = [
             models.Index(fields=['palmtec_id', 'start_datetime']),
             models.Index(fields=['route_code', 'start_datetime']),
             models.Index(fields=['start_datetime']),
         ]
         
-        # Prevent duplicate records
         unique_together = [
             ['palmtec_id', 'schedule', 'trip_no', 'start_datetime']
         ]
         
-        # Default ordering (newest first)
         ordering = ['-start_datetime']
     
     def __str__(self):
         return f"Trip {self.trip_no} - {self.route_code} - {self.palmtec_id} ({self.start_datetime})"
     
-    # Calculate total passenger count
     def get_total_passengers(self):
         return (
             self.full_count + 
@@ -401,7 +394,6 @@ class TripCloseData(models.Model):
             self.senior_count
         )
     
-    # Calculate total tickets issued based on ticket number range
     def get_total_tickets_issued(self):
         if self.end_ticket_no and self.start_ticket_no:
             return self.end_ticket_no - self.start_ticket_no + 1

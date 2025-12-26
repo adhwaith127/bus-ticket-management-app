@@ -8,6 +8,7 @@ from .auth_views import get_user_from_cookie
 import requests
 import time
 import logging
+import threading
 from django.conf import settings
 
 # Setup logger
@@ -208,6 +209,69 @@ def poll_license_authentication(customer_id, timeout_seconds=120, interval_secon
     }
 
 
+def background_license_polling(company_id):
+    """
+    Background function that polls license server and updates company status.
+    This runs in a separate thread.
+    """
+    logger.info(f"[BACKGROUND] Starting license polling for company ID: {company_id}")
+    
+    try:
+        # Get company from database
+        company = Company.objects.get(id=company_id)
+        
+        # Poll for authentication
+        auth_result = poll_license_authentication(company.company_id)
+        
+        if not auth_result['success']:
+            # Polling failed or timed out - reset to Pending
+            logger.error(f"[BACKGROUND] Polling failed for company {company_id}: {auth_result.get('error')}")
+            company.authentication_status = Company.AuthStatus.PENDING
+            company.save()
+            return
+        
+        # Update company with license details
+        auth_data = auth_result.get('data', {})
+        auth_status = auth_result['status']
+        
+        logger.info(f"[BACKGROUND] Authentication result: {auth_status} for company: {company.company_name}")
+        
+        # Map authentication status to our model
+        if auth_status == 'Approve':
+            company.authentication_status = Company.AuthStatus.APPROVED
+        elif auth_status == 'Expired':
+            company.authentication_status = Company.AuthStatus.EXPIRED
+        elif auth_status == 'Block':
+            company.authentication_status = Company.AuthStatus.BLOCKED
+        
+        # Update license details (only if approved)
+        if auth_status == 'Approve':
+            company.product_registration_id = auth_data.get('ProductRegistrationId')
+            company.unique_identifier = auth_data.get('UniqueIDentifier')
+            company.product_from_date = auth_data.get('ProductFromDate')
+            company.product_to_date = auth_data.get('ProductToDate')
+            company.project_code = auth_data.get('ProjectCode')
+            company.device_count = auth_data.get('TotalCount', 0)
+            company.branch_count = auth_data.get('OutletCount', 0)
+            
+            logger.info(f"[BACKGROUND] Updated license details for company: {company.company_name}")
+        
+        company.save()
+        logger.info(f"[BACKGROUND] Successfully updated company status to: {company.authentication_status}")
+        
+    except Company.DoesNotExist:
+        logger.error(f"[BACKGROUND] Company not found with ID: {company_id}")
+    except Exception as e:
+        logger.exception(f"[BACKGROUND] Unexpected error during background polling: {str(e)}")
+        # Try to reset status to Pending if possible
+        try:
+            company = Company.objects.get(id=company_id)
+            company.authentication_status = Company.AuthStatus.PENDING
+            company.save()
+        except:
+            pass
+
+
 @api_view(['POST'])
 def register_company_with_license_server(request, pk):
     """
@@ -283,15 +347,19 @@ def register_company_with_license_server(request, pk):
 @api_view(['POST'])
 def validate_company_license(request, pk):
     """
-    Validate company license by polling authentication server.
-    Company must be registered first (must have company_id).
+    START license validation by setting status to 'Validating' and 
+    launching background polling thread.
+    
+    Returns immediately - polling happens in background.
+    User can refresh to see updated status.
     
     Flow:
     1. Check if company exists
     2. Check if company is registered (has company_id)
-    3. Poll license server for authentication
-    4. Update company with license details
-    5. Return updated company data
+    3. Check if already validating
+    4. Set status to 'Validating'
+    5. Start background thread
+    6. Return immediately
     """
     logger.info(f"License validation requested for company ID: {pk}")
     
@@ -324,57 +392,37 @@ def validate_company_license(request, pk):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Poll for authentication
-    logger.info(f"Starting authentication polling for company: {company.company_name}")
-    auth_result = poll_license_authentication(company.company_id)
-    
-    if not auth_result['success']:
-        logger.error(f"Authentication failed: {auth_result['error']}")
+    # Check if already validating
+    if company.authentication_status == Company.AuthStatus.VALIDATING:
+        logger.info(f"Company already validating: {company.company_name}")
         return Response(
             {
-                "message": "License authentication failed",
-                "error": auth_result['error']
+                "message": "License validation already in progress",
+                "status": "Validating"
             },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_200_OK
         )
     
-    # Update company with license details
-    auth_data = auth_result.get('data', {})
-    auth_status = auth_result['status']
-    
-    logger.info(f"Authentication result: {auth_status} for company: {company.company_name}")
-    
-    # Map authentication status to our model
-    if auth_status == 'Approve':
-        company.authentication_status = Company.AuthStatus.APPROVED
-    elif auth_status == 'Expired':
-        company.authentication_status = Company.AuthStatus.EXPIRED
-    elif auth_status == 'Block':
-        company.authentication_status = Company.AuthStatus.BLOCKED
-    
-    # Update license details (only if approved)
-    if auth_status == 'Approve':
-        company.product_registration_id = auth_data.get('ProductRegistrationId')
-        company.unique_identifier = auth_data.get('UniqueIDentifier')
-        company.product_from_date = auth_data.get('ProductFromDate')
-        company.product_to_date = auth_data.get('ProductToDate')
-        company.project_code = auth_data.get('ProjectCode')
-        company.device_count = auth_data.get('TotalCount', 0)
-        company.branch_count = auth_data.get('OutletCount', 0)
-        
-        logger.info(f"Updated license details for company: {company.company_name}")
-        logger.debug(f"License valid from {company.product_from_date} to {company.product_to_date}")
-    
+    # Set status to Validating
+    company.authentication_status = Company.AuthStatus.VALIDATING
     company.save()
+    logger.info(f"Set status to 'Validating' for company: {company.company_name}")
     
-    # Return updated data
+    # Start background thread
+    thread = threading.Thread(
+        target=background_license_polling,
+        args=(company.id,),
+        daemon=True
+    )
+    thread.start()
+    logger.info(f"Started background polling thread for company ID: {pk}")
+    
+    # Return immediately
     serializer = CompanySerializer(company)
-    
-    logger.info(f"License validation completed successfully for company: {company.company_name}")
-    
     return Response(
         {
-            "message": f"License validation completed - Status: {auth_status}",
+            "message": "License validation started. This may take up to 2 minutes. Refresh to see updated status.",
+            "status": "Validating",
             "data": serializer.data
         },
         status=status.HTTP_200_OK
