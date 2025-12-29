@@ -1,15 +1,17 @@
-import '../styles/Home.css';
+import '../styles/AdminHome.css';
 
-const Home = () => {
+const AdminHome = () => {
+  const storedUser = localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")) : null;
+  const username = storedUser?.username || "User";
   return (
-    <div className="home">
-      <div className="home__card">
-        <div className="home__header">
-          <h1 className="home__title">Welcome </h1>
+    <div className="adminhome">
+      <div className="adminhome__card">
+        <div className="adminhome__header">
+          <h1 className="adminhome__title">Welcome, {username}</h1>
         </div>
       </div>
     </div>
   );
 };
 
-export default Home;
+export default AdminHome;

@@ -1,4 +1,4 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
@@ -7,9 +7,10 @@ export default function ProtectedRoute() {
   const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
 
+  // Step 1: Verify authentication on mount
   useEffect(() => {
-    // Verify authentication from backend instead of just localStorage
     verifyAuthFromBackend();
   }, []);
 
@@ -34,26 +35,33 @@ export default function ProtectedRoute() {
     }
   };
 
-  // Role-based access control with redirect
+  // Step 2: Role-based access control
+  // Check if user is trying to access pages they shouldn't
   useEffect(() => {
     if (!loading && isAuthenticated && userRole) {
       const path = location.pathname;
       
-      // Check role-based restrictions
-      if (path.includes('/companies') || path.includes('/users')) {
-        if (userRole !== 'superadmin') {
-          window.alert('Access Denied: You do not have permission to view this page');
-          window.location.href = '/dashboard';
+      // Superadmin restrictions: cannot access branch admin pages
+      if (userRole === 'superadmin') {
+        if (path.includes('/branches') || 
+            path.includes('/ticket-report') || 
+            path.includes('/trip-close-report')) {
+          window.alert('Access Denied: This page is only for Branch Administrators');
+          navigate('/dashboard', { replace: true });
         }
-      } else if (path.includes('/ticket-report') || path.includes('/trip-close-report') || path.includes('/branches')) {
-        if (userRole !== 'branch_admin') {
-          window.alert('Access Denied: You do not have permission to view this page');
-          window.location.href = '/dashboard';
+      }
+      
+      // Branch admin restrictions: cannot access superadmin pages
+      if (userRole === 'branch_admin') {
+        if (path.includes('/companies') || path.includes('/users')) {
+          window.alert('Access Denied: This page is only for Super Administrators');
+          navigate('/dashboard', { replace: true });
         }
       }
     }
-  }, [loading, isAuthenticated, userRole, location.pathname]);
+  }, [loading, isAuthenticated, userRole, location.pathname, navigate]);
 
+  // Step 3: Show loading state
   if (loading) {
     return (
       <div style={{ 
@@ -68,9 +76,11 @@ export default function ProtectedRoute() {
     );
   }
 
+  // Step 4: Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
+  // Step 5: Render protected content
   return <Outlet />;
 }

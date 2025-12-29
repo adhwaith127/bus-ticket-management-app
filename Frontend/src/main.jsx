@@ -7,7 +7,7 @@ import './styles/base.css'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Dashboard from './layouts/Dashboard'
-import Home from './pages/Home'
+import RoleBasedHome from './components/RoleBasedHome'
 import ProtectedRoute from './components/ProtectedRoute'
 
 import CompanyListing from './pages/CompanyListing'
@@ -38,7 +38,7 @@ const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <Home />
+            element: <RoleBasedHome />
           },
           {
             path: 'companies',

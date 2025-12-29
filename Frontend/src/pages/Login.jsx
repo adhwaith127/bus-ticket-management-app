@@ -130,6 +130,7 @@ export default function Login() {
           </div>
         </form>
       </div>
+        <p id="copyright-footer" style={{textAlign:"center",marginTop:"1.5rem"}}>© Softland India Ltd</p>
     </div>
   );
 }

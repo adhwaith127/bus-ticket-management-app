@@ -1,0 +1,104 @@
+/* =====================================================
+   Branch Dashboard Styles (AdminLTE Inspired)
+   Matches base.css color & spacing variables
+   ===================================================== */
+
+.branch-dashboard-page {
+  padding: var(--space-6);
+  background: var(--bg-base);
+  min-height: 100vh;
+  animation: fadeIn 0.3s ease;
+}
+
+.branch-dashboard-header {
+  margin-bottom: var(--space-8);
+}
+
+.branch-dashboard-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.branch-dashboard-header p {
+  margin-top: var(--space-2);
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+/* ===== DASHBOARD GRID ===== */
+.branch-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-5);
+}
+
+/* ===== DASHBOARD CARDS ===== */
+.branch-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.branch-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.branch-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: var(--space-1);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+.branch-card .value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.02em;
+}
+
+.branch-card .value::before {
+  content: attr(data-currency-prefix);
+}
+
+/* ====== LOADING STATE ====== */
+.branch-card.loading {
+  opacity: 0.5;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .branch-dashboard-page {
+    padding: var(--space-4);
+  }
+
+  .branch-dashboard-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .branch-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .branch-card {
+    padding: var(--space-4);
+  }
+}

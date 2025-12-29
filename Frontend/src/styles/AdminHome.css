@@ -1,5 +1,5 @@
 /* ==================== HOME WRAPPER ==================== */
-.home {
+.adminhome {
   max-width: 100%;
   margin: 0;
   background: transparent;
@@ -7,7 +7,7 @@
 }
 
 /* ==================== CARD LAYOUT ==================== */
-.home__card {
+.adminhome__card {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -16,13 +16,13 @@
 }
 
 /* ==================== HEADER ==================== */
-.home__header {
+.adminhome__header {
   background: var(--bg-card);
   padding: var(--space-6);
   border-bottom: 1px solid var(--border-color);
 }
 
-.home__title {
+.adminhome__title {
   margin: 0 0 var(--space-2) 0;
   font-size: 1.75rem;
   font-weight: 700;
@@ -30,27 +30,27 @@
   letter-spacing: -0.02em;
 }
 
-.home__subtitle {
+.adminhome__subtitle {
   margin: 0;
   font-size: 0.9375rem;
   color: var(--text-secondary);
 }
 
 /* ==================== CONTENT ==================== */
-.home__content {
+.adminhome__content {
   padding: var(--space-6);
   background: transparent;
 }
 
 /* ==================== STATS GRID ==================== */
-.home__stats {
+.adminhome__stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: var(--space-6);
   margin-bottom: var(--space-6);
 }
 
-.home__stat-card {
+.adminhome__stat-card {
   display: flex;
   align-items: center;
   gap: var(--space-5);
@@ -62,13 +62,13 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.home__stat-card:hover {
+.adminhome__stat-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
   border-color: var(--primary);
 }
 
-.home__stat-icon {
+.adminhome__stat-icon {
   font-size: 2.5rem;
   color: var(--primary);
   background: var(--primary-light);
@@ -83,12 +83,12 @@
 }
 
 /* ==================== STAT TEXT ==================== */
-.home__stat-info {
+.adminhome__stat-info {
   flex: 1;
   min-width: 0;
 }
 
-.home__stat-title {
+.adminhome__stat-title {
   margin: 0 0 var(--space-1) 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
@@ -97,7 +97,7 @@
   letter-spacing: 0.08em;
 }
 
-.home__stat-desc {
+.adminhome__stat-desc {
   margin: 0;
   font-size: 1.75rem;
   color: var(--text-main);
@@ -106,21 +106,21 @@
 }
 
 /* ==================== INFO BOX ==================== */
-.home__info {
+.adminhome__info {
   background: var(--primary-light);
   padding: var(--space-5);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
 }
 
-.home__info-title {
+.adminhome__info-title {
   margin: 0 0 var(--space-2) 0;
   font-size: 1.125rem;
   color: var(--primary);
   font-weight: 600;
 }
 
-.home__info-text {
+.adminhome__info-text {
   margin: 0;
   font-size: 0.9375rem;
   color: var(--text-secondary);
@@ -129,39 +129,39 @@
 
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
-  .home__header,
-  .home__content {
+  .adminhome__header,
+  .adminhome__content {
     padding: var(--space-5);
   }
 
-  .home__stat-card {
+  .adminhome__stat-card {
     padding: var(--space-4);
   }
 
-  .home__stats {
+  .adminhome__stats {
     gap: var(--space-4);
   }
 }
 
 @media (max-width: 480px) {
-  .home__stat-card {
+  .adminhome__stat-card {
     flex-direction: column;
     text-align: center;
     padding: var(--space-5);
   }
 
-  .home__stat-icon {
+  .adminhome__stat-icon {
     font-size: 2rem;
     padding: var(--space-3);
     min-width: 56px;
     min-height: 56px;
   }
 
-  .home__stat-desc {
+  .adminhome__stat-desc {
     font-size: 1.5rem;
   }
 
-  .home__title {
+  .adminhome__title {
     font-size: 1.5rem;
   }
 }

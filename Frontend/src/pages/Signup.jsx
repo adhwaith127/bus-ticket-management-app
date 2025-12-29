@@ -189,6 +189,7 @@ export default function Signup() {
                     </div>
                 </form>
             </div>
+            <p id="signup-copyright-footer" style={{textAlign:"center",marginTop:"1rem"}}>© Softland India Ltd</p>
         </div>
     );
 }

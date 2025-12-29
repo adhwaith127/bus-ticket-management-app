@@ -15,7 +15,7 @@ def signup_view(request):
     
     username=request.data.get('username')
     email=request.data.get('mailid')
-    role=request.data.get('role','employee')
+    role=request.data.get('role','user')
     password=request.data.get('password')
     cpassword=request.data.get('cpassword')
 

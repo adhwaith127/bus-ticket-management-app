@@ -2,6 +2,9 @@
 .signup-page {
   display: flex;
   justify-content: center;
+  /* column for copyright below login card */
+  flex-direction: column;
+  
   align-items: center;
   min-height: 100vh;
   background: var(--bg-main);

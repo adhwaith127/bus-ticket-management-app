@@ -1,6 +1,8 @@
 /* ==================== LOGIN PAGE ==================== */
 .login-page {
   display: flex;
+  /* column for copyright below login card */
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
