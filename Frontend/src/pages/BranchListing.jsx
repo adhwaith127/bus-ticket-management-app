@@ -66,7 +66,7 @@ export default function BranchListing(){
     setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleAddUser = async (e) => {
+    const handleAddBranch = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
@@ -84,53 +84,11 @@ export default function BranchListing(){
     
   return (
     <div className="user-list-page">
-      <div className="user-list-header">
-        <h1>Branch Management</h1>
-        <button className="btn-add" onClick={() => setIsModalOpen(true)}>
-          + Add New User
-        </button>
-      </div>
-
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Company</th>
-              <th>Joined Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="6" className="text-center">Loading...</td></tr>
-            ) : users.length === 0 ? (
-              <tr><td colSpan="6" className="text-center">No users found.</td></tr>
-            ) : (
-              users.map((user) => (
-                <tr key={user.id}>
-                  <td>{user.id}</td>
-                  <td>{user.username}</td>
-                  <td>{user.email}</td>
-                  <td>
-                    <span className={`role-badge ${user.role}`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td>{getCompanyNameById(user.company)}</td>
-                  <td>{user.date_joined ? new Date(user.date_joined).toLocaleDateString() : '-'}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <h1>Manage your branches</h1>
 
       {/* Add User Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create User Account">
-        <form onSubmit={handleAddUser} className="modal-form">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create New Branch">
+        <form onSubmit={handleAddBranch} className="modal-form">
           <div className="form-group">
             <label>Username</label>
             <input type="text" name="username" value={formData.username} onChange={handleInputChange} required />

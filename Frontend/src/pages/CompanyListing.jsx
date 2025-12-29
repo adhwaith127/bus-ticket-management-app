@@ -345,7 +345,8 @@ export default function CompanyListing() {
                         <button 
                           className="btn-edit" 
                           onClick={() => openEditModal(company)}
-                          title="Edit Company"
+                          title="Edit Company (Not Editable while license validation)"
+                          disabled={company.authentication_status === 'Validating'}
                         >
                           Edit
                         </button>

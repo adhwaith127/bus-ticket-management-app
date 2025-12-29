@@ -222,7 +222,7 @@ def background_license_polling(company_id):
         
         # Poll for authentication
         auth_result = poll_license_authentication(company.company_id)
-        
+
         if not auth_result['success']:
             # Polling failed or timed out - reset to Pending
             logger.error(f"[BACKGROUND] Polling failed for company {company_id}: {auth_result.get('error')}")
@@ -270,6 +270,17 @@ def background_license_polling(company_id):
             company.save()
         except:
             pass
+
+    # This ensures status is never stuck in VALIDATING if thread fails
+    finally:
+        try:
+            company = Company.objects.get(id=company_id)
+            if company.authentication_status == Company.AuthStatus.VALIDATING:
+                company.authentication_status = Company.AuthStatus.PENDING
+                company.save()
+        except:
+            pass
+
 
 
 @api_view(['POST'])
@@ -478,7 +489,7 @@ def create_company(request):
     serializer = CompanySerializer(data=request.data)
     
     if serializer.is_valid():
-        company = serializer.save()
+        company = serializer.save(created_by=user)
         logger.info(f"Created new company: {company.company_name} (ID: {company.id})")
         return Response(
             {

@@ -1,11 +1,12 @@
 from rest_framework import serializers
-from .models import Company,CustomUser,TransactionData,TripCloseData
+from .models import Company,CustomUser,TransactionData,TripCloseData,Branch
 
 
 class CompanySerializer(serializers.ModelSerializer):
     # Read-only fields that are computed or set by system
     is_validated = serializers.ReadOnlyField()
     needs_validation = serializers.ReadOnlyField()
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
     
     class Meta:
         model = Company
@@ -35,6 +36,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'updated_at',
             'is_validated',
             'needs_validation',
+            'created_by',
         ]
         read_only_fields = [
             'id',
@@ -49,6 +51,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'branch_count',
             'created_at',
             'updated_at',
+            'created_by',
         ]
     
     def validate_company_email(self, value):
@@ -152,3 +155,25 @@ class TripCloseDataSerializer(serializers.ModelSerializer):
 
     def get_total_tickets_issued(self, obj):
         return obj.get_total_tickets_issued()
+    
+
+class BranchSerializer(serializers.ModelSerializer):
+    company = serializers.PrimaryKeyRelatedField(read_only=True)
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    
+    class Meta:
+        model=Branch
+        fields=[
+            'company',
+            'branch_code',
+            'branch_name',
+            'address',
+            'city',
+            'state',
+            'zip_code',
+            'created_by'
+        ]
+        read_only_fields=[
+            'company',
+            'created_by',
+        ]

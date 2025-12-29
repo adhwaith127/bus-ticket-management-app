@@ -2,6 +2,7 @@ from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
+from django.conf import settings
 
 from django.db import models
 
@@ -40,6 +41,14 @@ class Company(models.Model):
         default=AuthStatus.PENDING,
         null=True,
         blank=True
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='companies_created'
     )
     
     # License Server Fields
@@ -85,7 +94,7 @@ class Company(models.Model):
 class CustomUser(AbstractUser):
     role = models.CharField(max_length=32, blank=True, null=True,default='user')
     is_verified = models.BooleanField(default=False)
-    company=models.ForeignKey(to=Company,on_delete=models.CASCADE,null=True,blank=True)
+    company=models.ForeignKey(to=Company,on_delete=models.CASCADE,null=True,blank=True,related_name='users')
     
     class Meta:
         db_table = 'custom_user'
@@ -399,3 +408,49 @@ class TripCloseData(models.Model):
         if self.end_ticket_no and self.start_ticket_no:
             return self.end_ticket_no - self.start_ticket_no + 1
         return 0
+
+
+class Branch(models.Model):
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='branches'
+    )
+
+    branch_code = models.CharField(
+        max_length=50,
+        unique=True
+    )
+
+    branch_name = models.CharField(
+        max_length=100
+    )
+
+    address = models.TextField()
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    zip_code = models.CharField(max_length=20)
+
+    # who created this branch
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='branches_created'
+    )
+
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'branch'
+        unique_together = ['company', 'branch_code']
+        indexes = [
+            models.Index(fields=['company', 'branch_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.branch_name} ({self.company.company_name})"
