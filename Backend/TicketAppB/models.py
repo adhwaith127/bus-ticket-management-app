@@ -94,6 +94,7 @@ class Company(models.Model):
 class CustomUser(AbstractUser):
     role = models.CharField(max_length=32, blank=True, null=True,default='user')
     is_verified = models.BooleanField(default=False)
+    # db stores id in company_id
     company=models.ForeignKey(to=Company,on_delete=models.CASCADE,null=True,blank=True,related_name='users')
     
     class Meta:

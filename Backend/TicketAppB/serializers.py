@@ -164,6 +164,7 @@ class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model=Branch
         fields=[
+            'id',
             'company',
             'branch_code',
             'branch_name',
@@ -171,9 +172,12 @@ class BranchSerializer(serializers.ModelSerializer):
             'city',
             'state',
             'zip_code',
+            'is_active',
             'created_by'
         ]
         read_only_fields=[
+            'id',
             'company',
+            'is_active',
             'created_by',
         ]

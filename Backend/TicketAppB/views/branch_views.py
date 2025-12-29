@@ -13,6 +13,41 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+@api_view(['GET'])
+def get_all_branches(request):
+    user = get_user_from_cookie(request)
+    if not user:
+        return Response(
+            {'error': 'Authentication required'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    
+    company_instance = user.company
+    if not company_instance:
+        return Response(
+            {"message": "No company mapped to user."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        branches = Branch.objects.filter(company=company_instance).order_by('id')
+    except Exception as e:
+        logger.error(f"Error fetching branches: {str(e)}")
+        return Response(
+            {"message": "Error fetching branches"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+    serializer = BranchSerializer(branches, many=True)
+    return Response(
+        {
+            "message": "Branches fetched successfully",
+            "data": serializer.data
+        },
+        status=status.HTTP_200_OK
+    )
+
+
 # Create a new branch
 @api_view(['POST'])
 def create_branch(request):
@@ -33,7 +68,14 @@ def create_branch(request):
     serializer = BranchSerializer(data=request.data)
     
     if serializer.is_valid():
-        company_instance=user.company_id
+        company_instance = user.company
+        if not company_instance:
+            return Response(
+                {
+                    "message": "No company to map branch to (User has no mapped company).",
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
         branch = serializer.save(company=company_instance, created_by=user)
         logger.info(f"Created new branch: {branch.branch_name} (ID: {branch.id})")
         return Response(

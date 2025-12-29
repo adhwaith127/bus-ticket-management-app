@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import auth_views,company_views,user_views,data_views
+from .views import auth_views,company_views,user_views,data_views,branch_views
 
 
 urlpatterns = [
@@ -24,6 +24,10 @@ urlpatterns = [
     path('register-company-license/<int:pk>/', company_views.register_company_with_license_server, name='register_company_license'),  # NEW
     path('validate-company-license/<int:pk>/', company_views.validate_company_license, name='validate_company_license'),
 
+    # branch data
+    path("branches/", branch_views.get_all_branches,name='get_all_branches'),
+    path("create-branch/", branch_views.create_branch,name='create_branch'),
+    path("update-branch-details/<int:pk>/", branch_views.update_branch_details,name='update_branch_details'),
 
     # ticket data
     path('getTicket/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),
