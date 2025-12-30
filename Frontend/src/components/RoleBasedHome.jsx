@@ -1,5 +1,6 @@
-import Home from '../pages/Home';
+import AdminHome from '../pages/AdminHome';
 import BranchDashboard from '../pages/BranchDashboard';
+import UserHome from '../pages/UserHome';
 
 export default function RoleBasedHome() {
   // Get user from localStorage
@@ -9,9 +10,11 @@ export default function RoleBasedHome() {
 
   // Render appropriate home based on role
   if (role === 'superadmin') {
-    return <Home />;
+    return <AdminHome />;
   } else if (role === 'branch_admin') {
     return <BranchDashboard />;
+  } else if (role === 'user') {
+    return <UserHome />
   }
 
   // Fallback (shouldn't reach here due to ProtectedRoute)

@@ -9,7 +9,7 @@ export default function ProtectedRoute() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Step 1: Verify authentication on mount
+  // Verify authentication on mount
   useEffect(() => {
     verifyAuthFromBackend();
   }, []);
@@ -35,7 +35,7 @@ export default function ProtectedRoute() {
     }
   };
 
-  // Step 2: Role-based access control
+
   // Check if user is trying to access pages they shouldn't
   useEffect(() => {
     if (!loading && isAuthenticated && userRole) {
@@ -53,15 +53,27 @@ export default function ProtectedRoute() {
       
       // Branch admin restrictions: cannot access superadmin pages
       if (userRole === 'branch_admin') {
-        if (path.includes('/companies') || path.includes('/users')) {
+        if (path.includes('/companies') || 
+            path.includes('/users')) {
           window.alert('Access Denied: This page is only for Super Administrators');
+          navigate('/dashboard', { replace: true });
+        }
+      }
+      
+      if (userRole === 'user') {
+        if (path.includes('/companies') || 
+            path.includes('/users') ||
+            path.includes('/branches') || 
+            path.includes('/ticket-report') || 
+            path.includes('/trip-close-report')) {
+          window.alert('Access Denied: This page is only for Administrators');
           navigate('/dashboard', { replace: true });
         }
       }
     }
   }, [loading, isAuthenticated, userRole, location.pathname, navigate]);
 
-  // Step 3: Show loading state
+  // Show loading state
   if (loading) {
     return (
       <div style={{ 
@@ -76,11 +88,11 @@ export default function ProtectedRoute() {
     );
   }
 
-  // Step 4: Redirect to login if not authenticated
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Step 5: Render protected content
+  // Render protected content
   return <Outlet />;
 }
