@@ -28,6 +28,7 @@ urlpatterns = [
     path("branches/", branch_views.get_all_branches,name='get_all_branches'),
     path("create-branch/", branch_views.create_branch,name='create_branch'),
     path("update-branch-details/<int:pk>/", branch_views.update_branch_details,name='update_branch_details'),
+    path("get_branch_dashboard_metrics/", branch_views.get_branch_dashboard_metrics,name='branch_dashboard_data'),
 
     # ticket data
     path('getTicket/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),

@@ -383,6 +383,7 @@ class TripCloseData(models.Model):
             models.Index(fields=['palmtec_id', 'start_datetime']),
             models.Index(fields=['route_code', 'start_datetime']),
             models.Index(fields=['start_datetime']),
+            models.Index(fields=["company_code"]),
         ]
         
         unique_together = [
@@ -455,3 +456,63 @@ class Branch(models.Model):
 
     def __str__(self):
         return f"{self.branch_name} ({self.company.company_name})"
+
+
+
+class MosambeeTransaction(models.Model):
+    # Core details
+    name = models.CharField(max_length=45)
+    merchantId = models.CharField(max_length=45)
+    businessName = models.CharField(max_length=100, null=True, blank=True)
+    addressLine1 = models.CharField(max_length=255, null=True, blank=True)
+    addressLine2 = models.CharField(max_length=255, null=True, blank=True)
+
+    transactionDate = models.CharField(max_length=20)
+    transactionTime = models.CharField(max_length=20)
+    transactionLat = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    transactionLong = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+
+    transactionSTAN = models.CharField(max_length=6, null=True, blank=True)
+    transactionRRN = models.CharField(max_length=50)
+    transactionAmount = models.DecimalField(max_digits=15, decimal_places=2)
+    transactionAuthCode = models.CharField(max_length=60, null=True, blank=True)
+    transactionBatchNumber = models.CharField(max_length=10, null=True, blank=True)
+    transactionCardNumber = models.CharField(max_length=16)
+    transactionTerminalId = models.CharField(max_length=20)
+    invoiceNumber = models.CharField(max_length=100, null=True, blank=True)
+    acquirerName = models.CharField(max_length=50)
+    transactionID = models.BigIntegerField()
+    transactionTypeId = models.IntegerField()
+    billNumber = models.CharField(max_length=100, null=True, blank=True)
+    cardType = models.CharField(max_length=45)
+    currencyId = models.CharField(max_length=5)
+    responseCode = models.CharField(max_length=6)
+    narration = models.CharField(max_length=100, null=True, blank=True)
+    cardHolderName = models.CharField(max_length=150, null=True, blank=True)  # EXTRA
+
+    # EMV & device info
+    transactionTypeName = models.CharField(max_length=25, null=True, blank=True)
+    aid = models.CharField(max_length=50, null=True, blank=True)
+    ici = models.CharField(max_length=5, null=True, blank=True)
+    apn = models.CharField(max_length=55, null=True, blank=True)
+    appLabel = models.CharField(max_length=60, null=True, blank=True)
+    tvr = models.CharField(max_length=10, null=True, blank=True)
+    tsi = models.CharField(max_length=4, null=True, blank=True)
+    ac = models.CharField(max_length=20, null=True, blank=True)
+    cid = models.CharField(max_length=2, null=True, blank=True)
+    tipProcessing = models.CharField(max_length=10, null=True, blank=True)
+    transactionMode = models.CharField(max_length=10, null=True, blank=True)
+    appVersion = models.CharField(max_length=10, null=True, blank=True)
+    MsrAndPinVerification = models.BooleanField(default=False)
+    cvm = models.CharField(max_length=6, null=True, blank=True)
+    refTxnId = models.CharField(max_length=45, null=True, blank=True)
+    tgTransactionId = models.CharField(max_length=50, null=True, blank=True)
+    cashBack = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    tipAmount = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    creditDebitCardType = models.CharField(max_length=15, null=True, blank=True)
+    transactionStatus = models.CharField(max_length=100)
+    checksum = models.CharField(max_length=512)
+
+    # System metadata
+    created_on = models.DateTimeField(auto_now_add=True)
+    updated_on = models.DateTimeField(auto_now=True)

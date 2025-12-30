@@ -6,6 +6,7 @@ from ..serializers import BranchSerializer
 from django.contrib.auth import get_user_model
 from .auth_views import get_user_from_cookie
 import logging
+from django.http import HttpResponse,JsonResponse
 
 
 # Setup logger
@@ -137,3 +138,24 @@ def update_branch_details(request, pk):
         },
         status=status.HTTP_400_BAD_REQUEST
     )
+
+
+# get data to be displayed in branch dashboard
+@api_view(['GET'])
+def get_branch_dashboard_metrics(request):
+    # Get user from cookie and verify authentication
+    user = get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    # Filter data by user's company_code
+    # Get today's date for filtering
+    # Query TransactionData for payment metrics
+    # Query TripCloseData for trip/bus metrics
+    # Calculate aggregations using Django's aggregate/annotate
+    # Return structured JSON response
+    try:
+        pass
+    
+    except Exception as e:
+        return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

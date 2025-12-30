@@ -2,9 +2,8 @@ import logging
 from decimal import Decimal,InvalidOperation
 from datetime import datetime
 from rest_framework import status
-from ..models import TransactionData,TripCloseData
-from django.http import HttpResponse
-from django.http import JsonResponse
+from ..models import TransactionData,TripCloseData,Company,MosambeeTransaction
+from django.http import HttpResponse,JsonResponse
 from .auth_views import get_user_from_cookie
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
@@ -37,6 +36,10 @@ def getTransactionDataFromDevice(request):
     response_chars=raw[0:32]
 
     try:
+        company_code     = parts[26] if len(parts) > 26 else None,
+        
+        company_instance=Company.objects.get(company_id=company_code)
+        
         transaction = TransactionData.objects.create(
             request_type = parts[0] if len(parts) > 0 else None,
             device_id    = parts[1] if len(parts) > 1 else None,
@@ -76,6 +79,8 @@ def getTransactionDataFromDevice(request):
             ticket_status    = parts[24] if len(parts) > 24 else None,
             reference_number = parts[25] if len(parts) > 25 else None,
             company_code     = parts[26] if len(parts) > 26 else None,
+            # update pending for db foreign key
+            # company_code     = company_instance
 
             raw_payload = raw
         )
@@ -140,10 +145,14 @@ def getTripCloseDataFromDevice(request):
         
         # Create TripCloseData instance
         try:
+            company_code=parts[2]
+            company_instance=Company.objects.get(company_id=company_code)
+            
             trip_data = TripCloseData.objects.create(
                 # Device information
                 palmtec_id=parts[1],
                 company_code=parts[2],
+                # company_code=company_instance,
 
                 # Trip identification
                 schedule=int(parts[3]) if parts[3] else 0,
@@ -232,3 +241,14 @@ def get_all_trip_close_data(request):
 
     except Exception as e:
         return JsonResponse({"message": f"{e}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+
+# handles mosambee Merchant Posting
+@api_view(['GET'])
+def store_mosambee_data(request):
+    try:
+        pass
+    
+    except Exception as e:
+        return Response({"message": "Data Entry failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
