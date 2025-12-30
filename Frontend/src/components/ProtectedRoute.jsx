@@ -46,7 +46,7 @@ export default function ProtectedRoute() {
         if (path.includes('/branches') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report')) {
-          window.alert('Access Denied: This page is only for Branch Administrators');
+          window.alert('Access Denied: This page is only for Branch Admins');
           navigate('/dashboard', { replace: true });
         }
       }
@@ -55,7 +55,7 @@ export default function ProtectedRoute() {
       if (userRole === 'branch_admin') {
         if (path.includes('/companies') || 
             path.includes('/users')) {
-          window.alert('Access Denied: This page is only for Super Administrators');
+          window.alert('Access Denied: This page is only for SuperAdmins');
           navigate('/dashboard', { replace: true });
         }
       }
