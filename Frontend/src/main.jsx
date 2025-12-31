@@ -15,6 +15,7 @@ import UserListing from './pages/UserListing'
 import TicketReport from './pages/TicketReport'
 import TripcloseReport from './pages/TripcloseReport'
 import BranchListing from './pages/BranchListing'
+import SettlementPage from './pages/SettlementPage'
 
 const router = createBrowserRouter([
   {
@@ -59,6 +60,10 @@ const router = createBrowserRouter([
           {
             path: 'trip-close-report',
             element: <TripcloseReport />
+          },
+          {
+            path: 'settlements',
+            element: <SettlementPage />
           },
         ]
       }

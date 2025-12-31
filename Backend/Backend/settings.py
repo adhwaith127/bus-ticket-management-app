@@ -5,9 +5,6 @@ import os
 
 from datetime import timedelta
 
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -16,11 +13,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env() 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
 
-# SECURITY WARNING: don't run with debug turned on in production!
+# don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
@@ -170,14 +165,18 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 
 # License Server Configuration
-LICENSE_SERVER_BASE_URL = os.getenv('LICENSE_SERVER_BASE_URL')
-PRODUCT_REGISTRATION_ENDPOINT = os.getenv('PRODUCT_REGISTRATION_ENDPOINT', '/product-registration')
-PRODUCT_AUTH_ENDPOINT = os.getenv('PRODUCT_AUTH_ENDPOINT', '/product-authentication')
+LICENSE_SERVER_BASE_URL = env('LICENSE_SERVER_BASE_URL',default='http://202.88.237.210:8093/LicenceMgmt/public/api')
+PRODUCT_REGISTRATION_ENDPOINT = env('PRODUCT_REGISTRATION_ENDPOINT', default='/product-registration')
+PRODUCT_AUTH_ENDPOINT = env('PRODUCT_AUTH_ENDPOINT', default='/product-authentication')
 
 # Construct full URLs
 PRODUCT_REGISTRATION_URL = f"{LICENSE_SERVER_BASE_URL}{PRODUCT_REGISTRATION_ENDPOINT}"
 PRODUCT_AUTH_URL = f"{LICENSE_SERVER_BASE_URL}{PRODUCT_AUTH_ENDPOINT}"
 
 # Application Configuration
-APP_VERSION = os.getenv('APP_VERSION', '1.0.0')
-PROJECT_NAME = os.getenv('PROJECT_NAME', 'Bus Ticketing System')
+APP_VERSION = env('APP_VERSION', default='1.0.0')
+PROJECT_NAME = env('PROJECT_NAME', default='Bus Ticketing System')
+
+
+# Mosambee salt
+MOSAMBEE_SALT=env('MOSAMBEE_SALT', default='448B2EAC08375149D8D352D56D8BD42C30A913C696893EDC')
