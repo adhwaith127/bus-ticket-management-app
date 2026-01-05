@@ -139,7 +139,7 @@ def poll_license_authentication(customer_id, timeout_seconds=120, interval_secon
         
         try:
             logger.debug(f"Poll attempt #{poll_count} for Customer ID: {customer_id}")
-            
+
             response = requests.post(
                 settings.PRODUCT_AUTH_URL,
                 json=payload,
@@ -160,7 +160,7 @@ def poll_license_authentication(customer_id, timeout_seconds=120, interval_secon
                     'status': 'Approve',
                     'data': data
                 }
-            
+
             # Expired license
             if 'expired' in auth_status.lower():
                 logger.warning(f"License expired for Customer ID: {customer_id}")
@@ -169,7 +169,7 @@ def poll_license_authentication(customer_id, timeout_seconds=120, interval_secon
                     'status': 'Expired',
                     'data': data
                 }
-            
+
             # Blocked
             if auth_status == 'Block':
                 logger.warning(f"License blocked for Customer ID: {customer_id}")
@@ -178,7 +178,7 @@ def poll_license_authentication(customer_id, timeout_seconds=120, interval_secon
                     'status': 'Block',
                     'data': data
                 }
-            
+
             # Still waiting - continue polling
             if 'waiting' in auth_status.lower() or auth_status == 'Pending':
                 logger.debug(f"Still waiting for approval. Next poll in {interval_seconds}s")

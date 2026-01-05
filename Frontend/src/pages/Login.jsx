@@ -139,7 +139,7 @@ export default function Login() {
 
           {/* Feature Highlights */}
           <div className="mt-12 grid grid-cols-1 gap-6 max-w-md">
-            <div className="flex items-start space-x-4 bg-white/10 backdrop-blur-md rounded-xl p-5 border border-white/20">
+            <div className="flex items-start space-x-4 bg-white/10 backdrop-blur-md rounded-xl p-5 border border-white/20 hover:scale-101 transition-transform duration-300 ease-in-out">
               <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -151,7 +151,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="flex items-start space-x-4 bg-white/10 backdrop-blur-md rounded-xl p-5 border border-white/20">
+            <div className="flex items-start space-x-4 bg-white/10 backdrop-blur-md rounded-xl p-5 border border-white/20 hover:scale-101 transition-transform duration-300 ease-in-out">
               <div className="flex-shrink-0 w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
