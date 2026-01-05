@@ -10,11 +10,28 @@ import time
 import logging
 import threading
 from django.conf import settings
+from datetime import datetime
 
-# Setup logger
+# Setup logger  
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+
+def check_datetime(date_str):
+    try:
+        if not date_str:
+            return None  # FIX: explicit None handling
+
+        if isinstance(date_str, str):
+            # FIX: match incoming format WITH time
+            return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+
+        return date_str  # FIX: already a datetime/date, return as-is
+
+    except Exception:
+        return None  # FIX: never return raw invalid value
+
+    
 
 def build_license_registration_payload(company):
     """
@@ -246,10 +263,15 @@ def background_license_polling(company_id):
         
         # Update license details (only if approved)
         if auth_status == 'Approve':
+            product_from_date = auth_data.get('ProductFromDate')
+            product_to_date = auth_data.get('ProductToDate')
+
             company.product_registration_id = auth_data.get('ProductRegistrationId')
             company.unique_identifier = auth_data.get('UniqueIDentifier')
-            company.product_from_date = auth_data.get('ProductFromDate')
-            company.product_to_date = auth_data.get('ProductToDate')
+
+            company.product_from_date = check_datetime(product_from_date).date() if product_from_date else None
+            company.product_to_date = check_datetime(product_to_date).date() if product_to_date else None
+
             company.project_code = auth_data.get('ProjectCode')
             company.device_count = auth_data.get('TotalCount', 0)
             company.branch_count = auth_data.get('OutletCount', 0)

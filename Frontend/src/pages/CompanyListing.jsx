@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
-import '../styles/CompanyListing.css';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function CompanyListing() {
@@ -15,7 +14,6 @@ export default function CompanyListing() {
 
   // License State
   const [registeringLicense, setRegisteringLicense] = useState({});
-  // const [validatingLicense, setValidatingLicense] = useState({});
 
   // Form State
   const [formData, setFormData] = useState({
@@ -122,69 +120,49 @@ export default function CompanyListing() {
 
     try {
       let response;
-      
       if (modalMode === 'edit') {
-        response = await api.put(
-          `${BASE_URL}/update-company-details/${editingCompany.id}/`,
-          formData
-        );
+        response = await api.put(`${BASE_URL}/update-company-details/${editingCompany.id}/`, formData);
       } else if (modalMode === 'create') {
-        response = await api.post(
-          `${BASE_URL}/create-company/`,
-          formData
-        );
+        response = await api.post(`${BASE_URL}/create-company/`, formData);
       }
 
       if (response?.status === 200 || response?.status === 201) {
+        // You might want to use a toast notification here instead of alert
         window.alert(response.data.message || 'Operation successful!');
         setIsModalOpen(false);
         resetFormData();
         fetchCompanies();
       }
-
     } catch (err) {
       if (!err.response) {
         window.alert('Server unreachable. Please try again later.');
         return;
       }
-
       const { status, data } = err.response;
-
       if (status === 400 && data.errors) {
         const firstError = Object.values(data.errors)[0]?.[0];
         window.alert(firstError || data.message);
       } else {
         window.alert(data?.message || 'Something went wrong');
       }
-
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ==================== LICENSE REGISTRATION HANDLER ====================
+  // ==================== LICENSE HANDLERS ====================
   
   const handleRegisterLicense = async (companyId) => {
     setRegisteringLicense(prev => ({ ...prev, [companyId]: true }));
-
     try {
-      const response = await api.post(
-        `${BASE_URL}/register-company-license/${companyId}/`
-      );
-
+      const response = await api.post(`${BASE_URL}/register-company-license/${companyId}/`);
       if (response.status === 200) {
         window.alert(response.data.message || 'Company registered successfully!');
         fetchCompanies();
       }
     } catch (err) {
       console.error("License registration error:", err);
-      
-      if (!err.response) {
-        window.alert('Server unreachable. Please try again later.');
-        return;
-      }
-
-      const { data } = err.response;
+      const { data } = err.response || {};
       window.alert(data?.message || data?.error || 'License registration failed');
     } finally {
       setRegisteringLicense(prev => ({ ...prev, [companyId]: false }));
@@ -193,179 +171,178 @@ export default function CompanyListing() {
  
   const handleValidateLicense = async (companyId) => {
     try {
-      const response = await api.post(
-        `${BASE_URL}/validate-company-license/${companyId}/`
-      );
-
+      const response = await api.post(`${BASE_URL}/validate-company-license/${companyId}/`);
       if (response.status === 200) {
-        window.alert(
-          response.data.message || 
-          'License validation started! This may take up to 2 minutes. Refresh the page to see updated status.'
-        );
-        fetchCompanies(); // Refresh to show "Validating" status
+        window.alert(response.data.message || 'License validation started!');
+        fetchCompanies();
       }
     } catch (err) {
       console.error("License validation error:", err);
-      
-      if (!err.response) {
-        window.alert('Server unreachable. Please try again later.');
-        return;
-      }
-
-      const { data } = err.response;
+      const { data } = err.response || {};
       window.alert(data?.message || data?.error || 'License validation failed');
     }
   };
 
-  
   const getModalTitle = () => {
     if (modalMode === 'view') return 'Company Details';
     if (modalMode === 'edit') return 'Edit Company';
     return 'Register Company';
   };
 
-  const getStatusBadgeClass = (status) => {
+  // Helper for Status Badge Styling
+  const getStatusStyle = (status) => {
     switch (status) {
       case 'Approve':
-        return 'status-approved';
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'Pending':
-        return 'status-pending';
+        return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'Validating':
-        return 'status-validating';
+        return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'Expired':
-        return 'status-expired';
+        return 'bg-red-100 text-red-700 border-red-200';
       case 'Block':
-        return 'status-blocked';
+        return 'bg-slate-100 text-slate-700 border-slate-200';
       default:
-        return 'status-pending';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'Approve':
-        return 'Approved';
-      case 'Pending':
-        return 'Pending';
-      case 'Validating':
-        return 'Validating...';
-      case 'Expired':
-        return 'Expired';
-      case 'Block':
-        return 'Blocked';
-      default:
-        return 'Pending';
+        return 'bg-slate-50 text-slate-600 border-slate-200';
     }
   };
 
   const isReadOnly = modalMode === 'view';
 
   return (
-    <div className="company-list-page">
-      <div className="company-list-header">
-        <h1>Company Management</h1>
-        <button className="btn-add" onClick={openCreateModal}>
-          + Register New Company
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
+      
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div className='page-header'>
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Company Management</h1>
+          <p className="text-slate-500 mt-1">Manage client companies and license statuses</p>
+        </div>
+        <button 
+          onClick={openCreateModal}
+          className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <span className="font-medium">Register New Company</span>
         </button>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Company Name</th>
-              <th>Email</th>
-              <th>Contact Person</th>
-              <th>Status</th>
-              <th>License</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="7" className="text-center">Loading...</td></tr>
-            ) : companies.length === 0 ? (
-              <tr><td colSpan="7" className="text-center">No companies found.</td></tr>
-            ) : (
-              companies.map((company) => {
-                const isPending = company.authentication_status === 'Pending';
-                const isValidating = company.authentication_status === 'Validating'; // ← Changed: read from DB
-                const hasCompanyId = company.company_id !== null && company.company_id !== undefined;
-                const isRegistering = registeringLicense[company.id];
-                
-                return (
-                  <tr key={company.id}>
-                    <td>{company.id}</td>
-                    <td>{company.company_name}</td>
-                    <td>{company.company_email}</td>
-                    <td>{company.contact_person}</td>
-                    <td>
-                      <span className={`status-badge ${getStatusBadgeClass(company.authentication_status)}`}>
-                        {getStatusLabel(company.authentication_status)}
-                      </span>
-                    </td>
-                    <td>
-                      {!hasCompanyId ? (
-                        <button 
-                          className="btn-register" 
-                          onClick={() => handleRegisterLicense(company.id)}
-                          disabled={isRegistering}
-                          title="Register with License Server"
-                        >
-                          {isRegistering ? 'Registering...' : 'Register Company'}
-                        </button>
-                      ) : isPending ? (
-                      <button 
-                        className="btn-validate" 
-                        onClick={() => handleValidateLicense(company.id)}
-                        title="Validate License"
-                      >
-                        Validate License
-                      </button>
-                    ) : isValidating ? (
-                      <span className="license-status status-validating" title="Validation in progress">
-                        ⏳ Validating...
-                      </span>
-                    ) : (
-                      <span className={`license-status ${getStatusBadgeClass(company.authentication_status)}`}>
-                        {getStatusLabel(company.authentication_status)}
-                      </span>
-                    )}
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button 
-                          className="btn-view" 
-                          onClick={() => openViewModal(company)}
-                          title="View Details"
-                        >
-                          View
-                        </button>
-                        <button 
-                          className="btn-edit" 
-                          onClick={() => openEditModal(company)}
-                          title="Edit Company (Not Editable while license validation)"
-                          disabled={company.authentication_status === 'Validating'}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+      {/* Table Container */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-200">
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">ID</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Company</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">License Action</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan="7" className="px-6 py-8 text-center text-slate-500">
+                    <div className="flex justify-center items-center space-x-2">
+                      <svg className="animate-spin h-5 w-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Loading data...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : companies.length === 0 ? (
+                <tr><td colSpan="7" className="px-6 py-8 text-center text-slate-500">No companies found.</td></tr>
+              ) : (
+                companies.map((company) => {
+                  const isPending = company.authentication_status === 'Pending';
+                  const isValidating = company.authentication_status === 'Validating';
+                  const hasCompanyId = company.company_id !== null && company.company_id !== undefined;
+                  const isRegistering = registeringLicense[company.id];
+                  
+                  return (
+                    <tr key={company.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-6 py-4 text-sm text-slate-500 font-mono">#{company.id}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-800">{company.company_name}</span>
+                          <span className="text-xs text-slate-500">{company.company_email}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">{company.contact_person}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusStyle(company.authentication_status)}`}>
+                          {company.authentication_status || 'Pending'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {!hasCompanyId ? (
+                          <button 
+                            onClick={() => handleRegisterLicense(company.id)}
+                            disabled={isRegistering}
+                            className="text-xs font-medium bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
+                          >
+                            {isRegistering ? 'Registering...' : 'Register Company'}
+                          </button>
+                        ) : isPending ? (
+                          <button 
+                            onClick={() => handleValidateLicense(company.id)}
+                            className="text-xs font-medium bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition"
+                          >
+                            Validate License
+                          </button>
+                        ) : isValidating ? (
+                          <span className="text-xs flex items-center text-blue-600 font-medium animate-pulse">
+                             Validating...
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-medium">Synced</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end items-center space-x-2">
+                          <button style={{cursor:"pointer"}}
+                            onClick={() => openViewModal(company)}
+                            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
+                            title="View"
+                          >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                          <button style={{cursor:"pointer"}}
+                            onClick={() => openEditModal(company)}
+                            disabled={isValidating}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-30"
+                            title="Edit"
+                          >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Modal for Create/View/Edit */}
+      {/* Modal Content - Styled with Tailwind */}
       <Modal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
-        <div className="modal-form">
-          <div className="form-row">
-            <div className="form-group">
-              <label>Company Name *</label>
+        <form className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Company Name<span style={{color:"red"}}> *</span></label>
               <input 
                 type="text" 
                 name="company_name" 
@@ -373,10 +350,11 @@ export default function CompanyListing() {
                 onChange={handleInputChange} 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent transition-all disabled:bg-slate-50 read-only:bg-slate-50"
               />
             </div>
-            <div className="form-group">
-              <label>Email *</label>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Email<span style={{color:"red"}}> *</span></label>
               <input 
                 type="email" 
                 name="company_email" 
@@ -384,24 +362,25 @@ export default function CompanyListing() {
                 onChange={handleInputChange} 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
           </div>
           
-          <div className="form-row">
-            <div className="form-group">
-              <label>GST Number</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">GST Number</label>
               <input 
                 type="text" 
                 name="gst_number" 
                 value={formData.gst_number} 
                 onChange={handleInputChange} 
-                placeholder="Optional"
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
-            <div className="form-group">
-              <label>Number of Licenses *</label>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">No. of Licenses<span style={{color:"red"}}> *</span></label>
               <input 
                 type="number" 
                 name="number_of_licence" 
@@ -410,13 +389,14 @@ export default function CompanyListing() {
                 min="1" 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Contact Person *</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Contact Person<span style={{color:"red"}}> *</span></label>
               <input 
                 type="text" 
                 name="contact_person" 
@@ -424,10 +404,11 @@ export default function CompanyListing() {
                 onChange={handleInputChange} 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
-            <div className="form-group">
-              <label>Contact Number *</label>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Contact Number<span style={{color:"red"}}> *</span></label>
               <input 
                 type="text" 
                 name="contact_number" 
@@ -435,12 +416,13 @@ export default function CompanyListing() {
                 onChange={handleInputChange} 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
           </div>
 
-          <div className="form-group">
-            <label>Address *</label>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Address<span style={{color:"red"}}> *</span></label>
             <textarea 
               name="address" 
               value={formData.address} 
@@ -448,24 +430,25 @@ export default function CompanyListing() {
               required 
               rows="3"
               readOnly={isReadOnly}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
             ></textarea>
           </div>
 
-          <div className="form-group">
-            <label>Address 2</label>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Address 2 (Optional)</label>
             <textarea 
               name="address_2" 
               value={formData.address_2} 
               onChange={handleInputChange} 
               rows="2"
-              placeholder="Optional - Additional address details"
               readOnly={isReadOnly}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
             ></textarea>
           </div>
 
-          <div className="form-row form-row--location">
-            <div className="form-group form-group--city">
-              <label>City *</label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">City<span style={{color:"red"}}> *</span></label>
               <input 
                 type="text" 
                 name="city" 
@@ -473,10 +456,11 @@ export default function CompanyListing() {
                 onChange={handleInputChange} 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
-            <div className="form-group form-group--state">
-              <label>State *</label>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">State<span style={{color:"red"}}> *</span></label>
               <input 
                 type="text" 
                 name="state" 
@@ -484,10 +468,11 @@ export default function CompanyListing() {
                 onChange={handleInputChange} 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
-            <div className="form-group form-group--zip">
-              <label>Zip Code *</label>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Zip Code<span style={{color:"red"}}> *</span></label>
               <input 
                 type="text" 
                 name="zip_code" 
@@ -495,21 +480,37 @@ export default function CompanyListing() {
                 onChange={handleInputChange} 
                 required 
                 readOnly={isReadOnly}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50"
               />
             </div>
           </div>
 
-          <div className="form-actions">
-            <button type="button" className="btn-cancel" onClick={closeModal}>
+          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-slate-100 mt-6">
+            <button 
+              type="button" 
+              onClick={closeModal}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-colors"
+            >
               {modalMode === 'view' ? 'Close' : 'Cancel'}
             </button>
             {modalMode !== 'view' && (
-              <button type="button" className="btn-submit" onClick={handleSubmit} disabled={submitting}>
+              <button 
+                type="button" 
+                onClick={handleSubmit} 
+                disabled={submitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-slate-800 border border-transparent rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 shadow-md transition-all flex items-center"
+              >
+                {submitting && (
+                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                   </svg>
+                )}
                 {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Company' : 'Save Company'}
               </button>
             )}
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   );

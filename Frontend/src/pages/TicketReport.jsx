@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import '../styles/TicketReport.css';
-// UPDATED: Import api from axiosConfig for authentication
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function TicketReport() {
-  // ==================== STATE MANAGEMENT SECTION ====================
+  // ===== STATE =====
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Filter states
   const [filters, setFilters] = useState({
     startDate: '',
     endDate: '',
@@ -19,11 +16,10 @@ export default function TicketReport() {
     ticketStatus: ''
   });
   
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // ==================== DATA FETCHING SECTION ====================
+  // ===== FETCH =====
   useEffect(() => {
     fetchTransactions();
   }, []);
@@ -31,340 +27,234 @@ export default function TicketReport() {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      // UPDATED: Use api instance with authentication cookies
       const response = await api.get(`${BASE_URL}/get_all_transaction_data`);
-      
       if (response.data.message === 'success') {
         setTransactions(response.data.data);
-      } else {
-        setError('Failed to fetch transactions');
-      }
+      } else setError('Failed to fetch transactions');
     } catch (err) {
-      if (err.response) {
-        setError(`Server Error: ${err.response.status} - ${err.response.data.message || 'Unknown error'}`);
-      } else if (err.request) {
-        setError('No response from server. Please check your connection.');
-      } else {
-        setError('Error setting up request: ' + err.message);
-      }
+      if (err.response) setError(`Server Error: ${err.response.status} - ${err.response.data?.message}`);
+      else if (err.request) setError('No response from server.');
+      else setError('Error: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // ==================== FILTER LOGIC SECTION ====================
-  const getFilteredData = () => {
-    return transactions.filter(transaction => {
-      // Date range filter
-      if (filters.startDate && transaction.ticket_date) {
-        if (new Date(transaction.ticket_date) < new Date(filters.startDate)) {
-          return false;
-        }
-      }
-      if (filters.endDate && transaction.ticket_date) {
-        if (new Date(transaction.ticket_date) > new Date(filters.endDate)) {
-          return false;
-        }
-      }
-      
-      // Device ID filter
-      if (filters.deviceId && transaction.device_id) {
-        if (!transaction.device_id.toLowerCase().includes(filters.deviceId.toLowerCase())) {
-          return false;
-        }
-      }
-      
-      // Company code filter
-      if (filters.companyCode && transaction.company_code) {
-        if (!transaction.company_code.toLowerCase().includes(filters.companyCode.toLowerCase())) {
-          return false;
-        }
-      }
-      
-      // Ticket status filter
-      if (filters.ticketStatus && transaction.ticket_status) {
-        if (!transaction.ticket_status.toLowerCase().includes(filters.ticketStatus.toLowerCase())) {
-          return false;
-        }
-      }
-      
+  // ===== FILTER =====
+  const getFilteredData = () =>
+    transactions.filter(t => {
+      if (filters.startDate && t.ticket_date)
+        if (new Date(t.ticket_date) < new Date(filters.startDate)) return false;
+
+      if (filters.endDate && t.ticket_date)
+        if (new Date(t.ticket_date) > new Date(filters.endDate)) return false;
+
+      if (filters.deviceId && t.device_id)
+        if (!t.device_id.toLowerCase().includes(filters.deviceId.toLowerCase())) return false;
+
+      if (filters.companyCode && t.company_code)
+        if (!t.company_code.toLowerCase().includes(filters.companyCode.toLowerCase())) return false;
+
+      if (filters.ticketStatus && t.ticket_status)
+        if (!t.ticket_status.toLowerCase().includes(filters.ticketStatus.toLowerCase())) return false;
+
       return true;
     });
-  };
 
-  // ==================== PAGINATION LOGIC SECTION ====================
   const filteredData = getFilteredData();
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentData = filteredData.slice(startIndex, endIndex);
+  const currentData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-  };
-
-  const handleFilterChange = (filterName, value) => {
-    setFilters(prev => ({ ...prev, [filterName]: value }));
-    setCurrentPage(1); // Reset to first page when filters change
-  };
-
+  const changePage = (p) => setCurrentPage(p);
   const clearFilters = () => {
-    setFilters({
-      startDate: '',
-      endDate: '',
-      deviceId: '',
-      companyCode: '',
-      ticketStatus: ''
-    });
+    setFilters({ startDate: '', endDate: '', deviceId: '', companyCode: '', ticketStatus: '' });
     setCurrentPage(1);
   };
 
-  // ==================== EXCEL EXPORT SECTION ====================
+  // ===== EXPORT =====
   const exportToExcel = () => {
-    // Prepare data for export (using filtered data)
-    const exportData = filteredData.map(transaction => ({
-      'ID': transaction.id,
-      'Request Type': transaction.request_type || '',
-      'Device ID': transaction.device_id || '',
-      'Trip Number': transaction.trip_number || '',
-      'Ticket Number': transaction.ticket_number || '',
-      'Ticket Date': transaction.ticket_date || '',
-      'Ticket Time': transaction.ticket_time || '',
-      'From Stage': transaction.from_stage || 0,
-      'To Stage': transaction.to_stage || 0,
-      'Full Count': transaction.full_count || 0,
-      'Half Count': transaction.half_count || 0,
-      'ST Count': transaction.st_count || 0,
-      'Phy Count': transaction.phy_count || 0,
-      'Lugg Count': transaction.lugg_count || 0,
-      'Ticket Amount': transaction.ticket_amount || 0,
-      'Lugg Amount': transaction.lugg_amount || 0,
-      'Ticket Type': transaction.ticket_type || '',
-      'Ticket Status': transaction.ticket_status || '',
-      'Reference Number': transaction.reference_number || '',
-      'Transaction ID': transaction.transaction_id || '',
-      'Company Code': transaction.company_code || '',
-      'Created At': transaction.created_at || ''
+    const exportData = filteredData.map(t => ({
+      ID: t.id,
+      RequestType: t.request_type,
+      DeviceID: t.device_id,
+      TripNumber: t.trip_number,
+      TicketNumber: t.ticket_number,
+      TicketDate: t.ticket_date,
+      TicketTime: t.ticket_time,
+      FromStage: t.from_stage,
+      ToStage: t.to_stage,
+      FullCount: t.full_count,
+      HalfCount: t.half_count,
+      ST: t.st_count,
+      Phy: t.phy_count,
+      Lugg: t.lugg_count,
+      TicketAmount: t.ticket_amount,
+      LuggAmount: t.lugg_amount,
+      TicketType: t.ticket_type,
+      Status: t.ticket_status,
+      Reference: t.reference_number,
+      TxnID: t.transaction_id,
+      Company: t.company_code,
+      Created: t.created_at,
     }));
-
-    // Create worksheet
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    
-    // Create workbook
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-    
-    // Download file
-    const fileName = `ticket_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportData), "Transactions");
+    XLSX.writeFile(wb, `ticket_report_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  // ==================== UI RENDERING SECTION ====================
-  if (loading) {
+  // ===== LOADING / ERROR =====
+  if (loading)
     return (
-      <div className="ticketReport">
-        <div className="ticketReport__loading">Loading transaction data...</div>
+      <div className="flex items-center justify-center h-screen text-slate-500 text-lg">
+        Loading transaction data...
       </div>
     );
-  }
 
-  if (error) {
+  if (error)
     return (
-      <div className="ticketReport">
-        <div className="ticketReport__error">{error}</div>
+      <div className="flex items-center justify-center h-screen text-red-600 font-medium">
+        {error}
       </div>
     );
-  }
 
+  // ===== UI =====
   return (
-    <div className="ticketReport">
-      {/* Header Section */}
-      <div className="ticketReport__header">
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="ticketReport__title">Ticket Transaction Reports</h1>
-          <p className="ticketReport__subtitle">View and manage daily ticket transactions</p>
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Ticket Transaction Reports</h1>
+          <p className="text-slate-500 mt-1">View and manage daily ticket transactions</p>
         </div>
-        <button className="ticketReport__button ticketReport__button--primary"onClick={exportToExcel}>
+        <button
+          onClick={exportToExcel}
+          className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl shadow-lg transition"
+        >
           Download Report
         </button>
       </div>
 
-      {/* Filters Section */}
-      <div className="ticketReport__filters">
-        <div className="ticketReport__filterGroup">
-          <label className="ticketReport__filterLabel">Start Date:</label>
-          <input
-            type="date"
-            className="ticketReport__filterInput"
-            value={filters.startDate}
-            onChange={(e) => handleFilterChange('startDate', e.target.value)}
-          />
+      {/* Filters */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 md:p-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {[
+            { label: "Start Date", type: "date", key: "startDate" },
+            { label: "End Date", type: "date", key: "endDate" },
+            { label: "Device ID", placeholder: "Search device...", key: "deviceId" },
+            { label: "Company Code", placeholder: "Search company...", key: "companyCode" },
+            { label: "Ticket Status", placeholder: "Search status...", key: "ticketStatus" }
+          ].map((f) => (
+            <div key={f.key} className="flex flex-col">
+              <label className="text-xs font-medium text-slate-500">{f.label}</label>
+              <input
+                type={f.type || "text"}
+                placeholder={f.placeholder}
+                value={filters[f.key]}
+                onChange={(e) => setFilters({ ...filters, [f.key]: e.target.value })}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500"
+              />
+            </div>
+          ))}
         </div>
 
-        <div className="ticketReport__filterGroup">
-          <label className="ticketReport__filterLabel">End Date:</label>
-          <input
-            type="date"
-            className="ticketReport__filterInput"
-            value={filters.endDate}
-            onChange={(e) => handleFilterChange('endDate', e.target.value)}
-          />
-        </div>
-
-        <div className="ticketReport__filterGroup">
-          <label className="ticketReport__filterLabel">Device ID:</label>
-          <input
-            type="text"
-            className="ticketReport__filterInput"
-            placeholder="Search device..."
-            value={filters.deviceId}
-            onChange={(e) => handleFilterChange('deviceId', e.target.value)}
-          />
-        </div>
-
-        <div className="ticketReport__filterGroup">
-          <label className="ticketReport__filterLabel">Company Code:</label>
-          <input
-            type="text"
-            className="ticketReport__filterInput"
-            placeholder="Search company..."
-            value={filters.companyCode}
-            onChange={(e) => handleFilterChange('companyCode', e.target.value)}
-          />
-        </div>
-
-        <div className="ticketReport__filterGroup">
-          <label className="ticketReport__filterLabel">Ticket Status:</label>
-          <input
-            type="text"
-            className="ticketReport__filterInput"
-            placeholder="Search status..."
-            value={filters.ticketStatus}
-            onChange={(e) => handleFilterChange('ticketStatus', e.target.value)}
-          />
-        </div>
-
-        <button 
-          className="ticketReport__button ticketReport__button--secondary"
-          onClick={clearFilters}
-        >
-          Clear Filters
-        </button>
-      </div>
-
-      {/* Summary Section */}
-      <div className="ticketReport__summary">
-        <span className="ticketReport__summaryText">
-          Showing {Math.min(endIndex, filteredData.length)} of {filteredData.length} transactions
-        </span>
-      </div>
-
-      {/* Table Section */}
-      <div className="ticketReport__tableWrapper">
-        <table className="ticketReport__table">
-          <thead className="ticketReport__thead">
-            <tr className="ticketReport__row ticketReport__row--header">
-              <th className="ticketReport__th">Ticket Number</th>
-              <th className="ticketReport__th">Device ID</th>
-              <th className="ticketReport__th">Trip Number</th>
-              <th className="ticketReport__th">Date</th>
-              <th className="ticketReport__th">Time</th>
-              <th className="ticketReport__th">From Stage</th>
-              <th className="ticketReport__th">To Stage</th>
-              <th className="ticketReport__th">Ticket Type</th>
-              <th className="ticketReport__th">Status</th>
-              <th className="ticketReport__th">Full</th>
-              <th className="ticketReport__th">Half</th>
-              <th className="ticketReport__th">ST</th>
-              <th className="ticketReport__th">Phy</th>
-              <th className="ticketReport__th">Lugg</th>
-              <th className="ticketReport__th">Ticket Amt</th>
-              <th className="ticketReport__th">Lugg Amt</th>
-              <th className="ticketReport__th">Company</th>
-              <th className="ticketReport__th">Reference</th>
-              <th className="ticketReport__th">Transaction ID</th>
-            </tr>
-          </thead>
-          <tbody className="ticketReport__tbody">
-            {currentData.length > 0?(
-              currentData.map((transaction, index) => (
-                <tr 
-                  key={transaction.id} 
-                  className={`ticketReport__row ${index % 2 === 0 ? 'ticketReport__row--even' : 'ticketReport__row--odd'}`}
-                >
-                  <td className="ticketReport__td">{transaction.ticket_number || '-'}</td>
-                  <td className="ticketReport__td">{transaction.device_id || '-'}</td>
-                  <td className="ticketReport__td">{transaction.trip_number || '-'}</td>
-                  <td className="ticketReport__td">{transaction.ticket_date || '-'}</td>
-                  <td className="ticketReport__td">{transaction.ticket_time || '-'}</td>
-                  <td className="ticketReport__td">{transaction.from_stage || 0}</td>
-                  <td className="ticketReport__td">{transaction.to_stage || 0}</td>
-                  <td className="ticketReport__td">{transaction.ticket_type || '-'}</td>
-                  <td className="ticketReport__td">{transaction.ticket_status || '-'}</td>
-                  <td className="ticketReport__td">{transaction.full_count || 0}</td>
-                  <td className="ticketReport__td">{transaction.half_count || 0}</td>
-                  <td className="ticketReport__td">{transaction.st_count || 0}</td>
-                  <td className="ticketReport__td">{transaction.phy_count || 0}</td>
-                  <td className="ticketReport__td">{transaction.lugg_count || 0}</td>
-                  <td className="ticketReport__td">₹{transaction.ticket_amount || 0}</td>
-                  <td className="ticketReport__td">₹{transaction.lugg_amount || 0}</td>
-                  <td className="ticketReport__td">{transaction.company_code || '-'}</td>
-                  <td className="ticketReport__td">{transaction.reference_number || '-'}</td>
-                  <td className="ticketReport__td">{transaction.transaction_id || '-'}</td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="11" className="ticketReport__empty">No trip data found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination Section */}
-      {totalPages > 1 && (
-        <div className="ticketReport__pagination">
+        <div className="flex justify-end mt-4">
           <button
-            className="ticketReport__paginationButton"
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
+            onClick={clearFilters}
+            className="border border-slate-300 px-4 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-100"
           >
-            Previous
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="text-sm text-slate-500 mb-3">
+        Showing {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} transactions
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wide">
+              <tr>
+                {[
+                  "Ticket #","Device","Trip","Date","Time","From","To",
+                  "Type","Status","Full","Half","ST","Phy","Lugg",
+                  "Ticket Amt","Lugg Amt","Company","Reference","Txn ID"
+                ].map((h) => (
+                  <th key={h} className="px-4 py-3 font-semibold">{h}</th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {currentData.length ? (
+                currentData.map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50 transition">
+                    <td className="px-4 py-3">{t.ticket_number || "-"}</td>
+                    <td className="px-4 py-3">{t.device_id}</td>
+                    <td className="px-4 py-3">{t.trip_number}</td>
+                    <td className="px-4 py-3">{t.ticket_date}</td>
+                    <td className="px-4 py-3">{t.ticket_time}</td>
+                    <td className="px-4 py-3">{t.from_stage}</td>
+                    <td className="px-4 py-3">{t.to_stage}</td>
+                    <td className="px-4 py-3">{t.ticket_type}</td>
+                    <td className="px-4 py-3">{t.ticket_status}</td>
+                    <td className="px-4 py-3">{t.full_count}</td>
+                    <td className="px-4 py-3">{t.half_count}</td>
+                    <td className="px-4 py-3">{t.st_count}</td>
+                    <td className="px-4 py-3">{t.phy_count}</td>
+                    <td className="px-4 py-3">{t.lugg_count}</td>
+                    <td className="px-4 py-3">₹{t.ticket_amount}</td>
+                    <td className="px-4 py-3">₹{t.lugg_amount}</td>
+                    <td className="px-4 py-3">{t.company_code}</td>
+                    <td className="px-4 py-3">{t.reference_number}</td>
+                    <td className="px-4 py-3">{t.transaction_id}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={20} className="px-4 py-6 text-center text-slate-500">
+                    No trip data found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center space-x-2 mt-6">
+          <button
+            onClick={() => changePage(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 rounded-lg border disabled:opacity-30"
+          >
+            Prev
           </button>
 
-          {[...Array(totalPages)].map((_, index) => {
-            const pageNumber = index + 1;
-            // Show first page, last page, current page, and pages around current
-            if (
-              pageNumber === 1 ||
-              pageNumber === totalPages ||
-              (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
-            ) {
-              return (
-                <button
-                  key={pageNumber}
-                  className={`ticketReport__paginationButton ${
-                    currentPage === pageNumber ? 'ticketReport__paginationButton--active' : ''
-                  }`}
-                  onClick={() => handlePageChange(pageNumber)}
-                >
-                  {pageNumber}
-                </button>
-              );
-            } else if (
-              pageNumber === currentPage - 2 ||
-              pageNumber === currentPage + 2
-            ) {
-              return <span key={pageNumber} className="ticketReport__paginationEllipsis">...</span>;
-            }
-            return null;
+          {[...Array(totalPages)].map((_, i) => {
+            const n = i + 1;
+            return (
+              <button
+                key={n}
+                onClick={() => changePage(n)}
+                className={`px-3 py-1.5 rounded-lg border ${
+                  currentPage === n ? "bg-slate-800 text-white border-slate-800" : ""
+                }`}
+              >
+                {n}
+              </button>
+            );
           })}
 
           <button
-            className="ticketReport__paginationButton"
-            onClick={() => handlePageChange(currentPage + 1)}
+            onClick={() => changePage(currentPage + 1)}
             disabled={currentPage === totalPages}
+            className="px-3 py-1.5 rounded-lg border disabled:opacity-30"
           >
             Next
           </button>

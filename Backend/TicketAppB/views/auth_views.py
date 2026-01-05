@@ -4,6 +4,8 @@ from rest_framework.decorators import api_view
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model,authenticate
 from rest_framework_simplejwt.tokens import RefreshToken,AccessToken
+from django.utils import timezone
+
 
 User=get_user_model()
 
@@ -69,6 +71,9 @@ def login_view(request):
         return Response({'error': 'Account is inactive'}, status=403)
     
     try:
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+
         refresh=RefreshToken.for_user(user)
         access_token=str(refresh.access_token)
         refresh_token=str(refresh)

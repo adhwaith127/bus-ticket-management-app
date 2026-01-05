@@ -14,7 +14,7 @@ class Company(models.Model):
         APPROVED = 'Approve', 'Approved'
         EXPIRED = 'Expired', 'Expired'
         BLOCKED = 'Block', 'Blocked'
-    
+
     # Basic Company Information
     company_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
     company_name = models.CharField(max_length=100)
@@ -33,7 +33,7 @@ class Company(models.Model):
     zip_code = models.CharField(max_length=20)
     
     # License Information
-    number_of_licence = models.IntegerField(default=1)
+    number_of_licence = models.IntegerField(default=0)
     authentication_status = models.CharField(
         max_length=20,
         choices=AuthStatus.choices,

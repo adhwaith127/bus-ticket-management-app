@@ -12,11 +12,47 @@ from rest_framework.decorators import api_view
 from django.db import IntegrityError, transaction
 from django.views.decorators.csrf import csrf_exempt
 import json
+from django.db.models import Count
 
 
 User=get_user_model()
 logger = logging.getLogger(__name__)
 
+
+@api_view(['GET'])
+def get_admin_dashboard_data(request):
+    user = get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        # find all company data
+        all_companies=Company.objects.all()
+        total_companies=Company.objects.count()
+        validated_companies=0
+        unvalidated_companies=0
+        expired_companies=0
+        dashboard_data={"company_summary":{},"user_summary": {}}
+        for company in all_companies:
+            if company.authentication_status=="Pending":
+                unvalidated_companies+=1
+            elif company.authentication_status=="Approve":
+                validated_companies+=1
+            elif company.authentication_status=="Expired":
+                expired_companies+=1
+
+        dashboard_data['company_summary'].update({"total_companies":total_companies,"validated_companies":validated_companies,"unvalidated_companies":unvalidated_companies,"expired_companies":expired_companies})
+
+        # find all user data
+        all_non_admin_users=User.objects.filter(is_superuser=False).count()
+        users_by_company_qs = (User.objects.filter(is_superuser=False).values('company__company_name').annotate(count=Count('id')))
+        users_by_company = [{"company_name": row["company__company_name"],"count": row["count"]}for row in users_by_company_qs]
+
+        dashboard_data['user_summary'].update({"total_users":all_non_admin_users,"users_by_company":users_by_company})
+        
+        return Response({"message":"Success","data":dashboard_data},status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # used by machine
 @csrf_exempt

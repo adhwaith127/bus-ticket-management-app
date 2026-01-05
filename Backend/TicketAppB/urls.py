@@ -11,11 +11,11 @@ urlpatterns = [
     path('protected/', auth_views.protected_view, name='protected'),
     path('verify-auth/', auth_views.verify_auth, name='verify_auth'),
 
-
     # user data
     path('create_user/',user_views.create_user,name='create-user'),
     path('get_users/',user_views.get_all_users,name='get_all_users'),
-
+    path('update_user/<int:user_id>/', user_views.update_user, name='update_user'),
+    path('change_user_password/<int:user_id>/', user_views.change_user_password, name='change_user_password'),
 
     # company data
     path('customer-data/', company_views.all_company_data, name='company_data'),
@@ -35,4 +35,7 @@ urlpatterns = [
     path('get_all_transaction_data/',data_views.get_all_transaction_data,name='get_all_transaction_data'),
     path('getTripClose/',data_views.getTripCloseDataFromDevice,name='get_trip_close_data'),
     path('get_all_trip_close_data/',data_views.get_all_trip_close_data,name='get_all_trip_close_data'),
+
+    # admin dashboard data
+    path('get_admin_data/',data_views.get_admin_dashboard_data,name='get_admin_dashboard_data'),
 ]
