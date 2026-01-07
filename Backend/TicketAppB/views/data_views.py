@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal,InvalidOperation
-from datetime import datetime
+from datetime import datetime,date
 from rest_framework import status
 from ..models import TransactionData,TripCloseData,Company,MosambeeTransaction
 from django.http import HttpResponse,JsonResponse
@@ -73,9 +73,41 @@ def getTransactionDataFromDevice(request):
     response_chars=raw[0:32]
 
     try:
-        company_code     = parts[26] if len(parts) > 26 else None,
+        company_code = parts[25] if len(parts) > 25 else None
         
-        company_instance=Company.objects.get(company_id=company_code)
+        company_instance = Company.objects.filter(company_id=company_code).first()
+        if not company_instance:
+            logger.error("Invalid company code from device: %s", company_code)
+            return HttpResponse("INVALID_COMPANY", status=400, content_type="text/plain")
+        
+        # Parse count fields with proper None handling
+        full_count = int(parts[8]) if len(parts) > 8 and parts[8] else 0
+        half_count = int(parts[9]) if len(parts) > 9 and parts[9] else 0
+        st_count = int(parts[10]) if len(parts) > 10 and parts[10] else 0
+        phy_count = int(parts[11]) if len(parts) > 11 and parts[11] else 0
+        lugg_count = int(parts[12]) if len(parts) > 12 and parts[12] else 0
+
+        # Calculate total tickets
+        try:
+            total_tickets = full_count + half_count + st_count + phy_count + lugg_count
+        except (TypeError, ValueError) as e:
+            logger.error("Error calculating total_tickets: %s", e)
+            total_tickets = 0
+
+        # Parse ticket_status as integer with validation
+        try:
+            ticket_status_raw = parts[24] if len(parts) > 24 and parts[24] else None
+            if ticket_status_raw is not None:
+                ticket_status = int(ticket_status_raw)
+                # Validate: only 0 (Cash) or 1 (UPI) allowed
+                if ticket_status not in [0, 1]:
+                    logger.warning("Invalid ticket_status value %s, defaulting to 0 (Cash)", ticket_status)
+                    ticket_status = 0
+            else:
+                ticket_status = 0  # Default to Cash
+        except (ValueError, TypeError) as e:
+            logger.error("Error parsing ticket_status: %s, defaulting to 0 (Cash)", e)
+            ticket_status = 0
         
         transaction = TransactionData.objects.create(
             request_type = parts[0] if len(parts) > 0 else None,
@@ -89,35 +121,45 @@ def getTransactionDataFromDevice(request):
                           if len(parts) > 5 and parts[5] else None,
 
             from_stage = int(parts[6]) if len(parts) > 6 and parts[6] else 0,
-            to_stage   = parts[7] or 0,
+            to_stage   = int(parts[7]) if len(parts) > 7 and parts[7] else 0,
 
-            full_count = parts[8] or 0,
-            half_count = parts[9] or 0,
-            st_count   = parts[10] or 0,
-            phy_count  = parts[11] or 0,
-            lugg_count = parts[12] or 0,
+            # Use pre-calculated count values
+            full_count = full_count,
+            half_count = half_count,
+            st_count   = st_count,
+            phy_count  = phy_count,
+            lugg_count = lugg_count,
+
+            # Add total_tickets
+            total_tickets = total_tickets,
 
             ticket_amount = Decimal(parts[13]) if len(parts) > 13 and parts[13] else Decimal("0.00"),
-            lugg_amount   = parts[14] or 0,
+            lugg_amount   = Decimal(parts[14]) if len(parts) > 14 and parts[14] else Decimal("0.00"),
 
             ticket_type   = parts[15] if len(parts) > 15 else None,
-            adjust_amount = parts[16] or 0,
-
+            adjust_amount = Decimal(parts[16]) if len(parts) > 16 and parts[16] else Decimal("0.00"),
+            
             pass_id        = parts[17] if len(parts) > 17 else None,
-            warrant_amount = parts[18] or 0,
+            warrant_amount= Decimal(parts[18]) if len(parts) > 18 and parts[18] else Decimal("0.00"),
 
             refund_status = parts[19] if len(parts) > 19 else None,
-            refund_amount = parts[20] or 0,
+            refund_amount = Decimal(parts[20]) if len(parts) > 20 and parts[20] else Decimal("0.00"),
 
-            ladies_count = parts[21] or 0,
-            senior_count = parts[22] or 0,
+            ladies_count = int(parts[21]) if len(parts) > 21 and parts[21] else 0,
+            senior_count = int(parts[22]) if len(parts) > 22 and parts[22] else 0,
 
             transaction_id   = parts[23] if len(parts) > 23 else None,
-            ticket_status    = parts[24] if len(parts) > 24 else None,
+            
+            # Use parsed integer ticket_status
+            ticket_status    = ticket_status,
+            
             reference_number = parts[25] if len(parts) > 25 else None,
-            company_code     = parts[26] if len(parts) > 26 else None,
-            # update pending for db foreign key
-            # company_code     = company_instance
+            
+            # Company foreign key
+            company_code     = company_instance,
+
+            # Branch code (currently null, device doesn't send yet)
+            branch_code = None,
 
             raw_payload = raw
         )
@@ -134,26 +176,39 @@ def getTransactionDataFromDevice(request):
     return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_201_CREATED)
 
 
-
 @api_view(['GET'])
 def get_all_transaction_data(request):
+    # validate user
     user = get_user_from_cookie(request)
     if not user:
         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
     
     try:
+        from_date=request.GET.get('from_date')
+        to_date=request.GET.get('to_date')
+        if not from_date or not to_date:
+            return Response({'error': 'Missing date params'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # convert to objects for datefield in db
+        from_date_obj = datetime.strptime(from_date, '%Y-%m-%d').date()
+        to_date_obj   = datetime.strptime(to_date, '%Y-%m-%d').date()
+
         # Filter by user's company if user has a company assigned
         if user.company:
-            ticketdata = TransactionData.objects.filter(company_code=user.company).order_by('created_at')
+            ticketdata = TransactionData.objects.filter(
+                company_code=user.company,
+                ticket_date__gte=from_date_obj,
+                ticket_date__lte=to_date_obj).order_by('created_at')
         else:
             # If no company assigned, return empty data
             ticketdata = TransactionData.objects.none()
         
+        # Serializer now handles display transformations
         serializer = TicketDataSerializer(ticketdata, many=True)
         return Response({"message": "success", "data": serializer.data}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
 
 
 @csrf_exempt
@@ -182,14 +237,17 @@ def getTripCloseDataFromDevice(request):
         
         # Create TripCloseData instance
         try:
-            company_code=parts[2]
-            company_instance=Company.objects.get(company_id=company_code)
+            company_code = parts[2] if len(parts) > 2 else None
+        
+            company_instance = Company.objects.filter(company_id=company_code).first()
+            if not company_instance:
+                logger.error("Invalid company code from device: %s", company_code)
+                return HttpResponse("INVALID_COMPANY", status=400, content_type="text/plain")
             
             trip_data = TripCloseData.objects.create(
                 # Device information
                 palmtec_id=parts[1],
-                company_code=parts[2],
-                # company_code=company_instance,
+                company_code=company_instance,
 
                 # Trip identification
                 schedule=int(parts[3]) if parts[3] else 0,

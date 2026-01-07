@@ -89,7 +89,6 @@ class Company(models.Model):
         return self.authentication_status == self.AuthStatus.VALIDATING
 
 
-# Rest of the models remain the same...
 class CustomUser(AbstractUser):
     role = models.CharField(max_length=32, blank=True, null=True,default='user')
     is_verified = models.BooleanField(default=False)
@@ -103,7 +102,58 @@ class CustomUser(AbstractUser):
         return self.username
 
 
+class Branch(models.Model):
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='branches'
+    )
+
+    branch_code = models.CharField(
+        max_length=50,
+        unique=True
+    )
+
+    branch_name = models.CharField(
+        max_length=100
+    )
+
+    address = models.TextField()
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    zip_code = models.CharField(max_length=20)
+
+    # who created this branch
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='branches_created'
+    )
+
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'branch'
+        unique_together = ['company', 'branch_code']
+        indexes = [
+            models.Index(fields=['company', 'branch_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.branch_name} ({self.company.company_name})"
+
+
 class TransactionData(models.Model):
+    # UPDATED: Payment Mode Choices
+    class PaymentMode(models.IntegerChoices):
+        CASH = 0, 'Cash'
+        UPI = 1, 'UPI'
+    
     request_type      = models.CharField(max_length=20, null=True, blank=True)
     device_id         = models.CharField(max_length=20, null=True, blank=True)
     trip_number       = models.CharField(max_length=20, null=True, blank=True)
@@ -114,16 +164,20 @@ class TransactionData(models.Model):
     from_stage        = models.IntegerField(null=True, blank=True)
     to_stage          = models.IntegerField(null=True, blank=True)
 
+    ticket_type       = models.CharField(max_length=10, null=True, blank=True)
+
     full_count        = models.IntegerField(default=0)
     half_count        = models.IntegerField(default=0)
     st_count          = models.IntegerField(default=0)
     phy_count         = models.IntegerField(default=0)
     lugg_count        = models.IntegerField(default=0)
 
+    # Total tickets field
+    total_tickets     = models.IntegerField(default=0)
+
     ticket_amount     = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     lugg_amount       = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    ticket_type       = models.CharField(max_length=10, null=True, blank=True)
     adjust_amount     = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     pass_id           = models.CharField(max_length=20, null=True, blank=True)
@@ -136,21 +190,46 @@ class TransactionData(models.Model):
     senior_count      = models.IntegerField(default=0)
 
     transaction_id    = models.CharField(max_length=50, null=True, blank=True)
-    # values are 0 and 1 . 0 for cash 1 for upi
-    ticket_status     = models.CharField(max_length=10, null=True, blank=True)
+
+    # Changed to IntegerField with choices (0 for cash, 1 for upi)
+    ticket_status     = models.IntegerField(
+        choices=PaymentMode.choices,
+        default=PaymentMode.CASH,
+        null=True,
+        blank=True
+    )
+
     reference_number  = models.CharField(max_length=50, null=True, blank=True)
 
-    company_code      = models.CharField(max_length=10, null=True, blank=True)
+    # models.PROTECT to NOT delete tickets if company is deleted
+    company_code = models.ForeignKey(
+        Company,
+        on_delete=models.PROTECT,
+        related_name='transactions',
+        db_index=True,
+        null=True,
+        blank=True
+    )
+
+    # Branch foreign key
+    branch_code = models.ForeignKey(
+        'Branch',
+        on_delete=models.SET_NULL,
+        related_name='transactions',
+        null=True,
+        blank=True
+    )
 
     raw_payload       = models.TextField()
-
     created_at        = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "transaction_data"
         indexes = [
             models.Index(fields=["device_id", "ticket_date"]),
+            models.Index(fields=["total_tickets", "ticket_date"]),
             models.Index(fields=["company_code"]),
+            models.Index(fields=["branch_code"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -167,6 +246,19 @@ class TransactionData(models.Model):
 
     def __str__(self):
         return f"{self.ticket_number} - {self.device_id}"
+    
+    # Property method for backup calculation
+    @property
+    def calculate_total_tickets(self):
+        """Calculate total tickets from all count fields"""
+        counts = [
+            self.full_count or 0,
+            self.half_count or 0,
+            self.st_count or 0,
+            self.phy_count or 0,
+            self.lugg_count or 0
+        ]
+        return sum(counts)
 
 
 class TripCloseData(models.Model):  
@@ -176,10 +268,7 @@ class TripCloseData(models.Model):
         help_text="Device identifier (PalmtecID)"
     )
     
-    company_code = models.CharField(
-        max_length=100,
-        help_text="Company code"
-    )
+    company_code = models.ForeignKey(Company,on_delete=models.PROTECT, related_name='trips',db_index=True,null=True,blank=True,help_text="Company code")
     
     schedule = models.IntegerField(
         help_text="Schedule number"
@@ -409,53 +498,6 @@ class TripCloseData(models.Model):
         if self.end_ticket_no and self.start_ticket_no:
             return self.end_ticket_no - self.start_ticket_no + 1
         return 0
-
-
-class Branch(models.Model):
-    company = models.ForeignKey(
-        Company,
-        on_delete=models.CASCADE,
-        related_name='branches'
-    )
-
-    branch_code = models.CharField(
-        max_length=50,
-        unique=True
-    )
-
-    branch_name = models.CharField(
-        max_length=100
-    )
-
-    address = models.TextField()
-    city = models.CharField(max_length=100)
-    state = models.CharField(max_length=100)
-    zip_code = models.CharField(max_length=20)
-
-    # who created this branch
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='branches_created'
-    )
-
-    is_active = models.BooleanField(default=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'branch'
-        unique_together = ['company', 'branch_code']
-        indexes = [
-            models.Index(fields=['company', 'branch_code']),
-        ]
-
-    def __str__(self):
-        return f"{self.branch_name} ({self.company.company_name})"
-
 
 
 # For reconciliation with TransactionData (bus tickets).

@@ -3,7 +3,7 @@ from datetime import datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.utils import timezone
-from .models import MosambeeTransaction, TransactionData
+from ..models import MosambeeTransaction, TransactionData
 
 
 @csrf_exempt

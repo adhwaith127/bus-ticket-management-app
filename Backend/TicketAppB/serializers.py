@@ -90,10 +90,93 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class TicketDataSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=TransactionData
-        fields='__all__'
+    # Ticket type mapping for display
+    TICKET_TYPE_MAPPING = {
+        '0': 'Full',
+        '1': 'Half',
+        '2': 'Student',
+        '3': 'Physical',
+        '4': 'Luggage'
+    }
 
+    # Add display fields
+    payment_mode_display = serializers.SerializerMethodField()
+    ticket_type_display = serializers.SerializerMethodField()
+    formatted_ticket_date = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TransactionData
+        fields = [
+            'id',
+            'request_type',
+            'device_id',
+            'trip_number',
+            'ticket_number',
+            'ticket_date',  # Original date field
+            'formatted_ticket_date',  # Display format DD-MM-YYYY
+            'ticket_time',
+            'from_stage',
+            'to_stage',
+            'ticket_type',  # Original field (stores "0", "1", etc.)
+            'ticket_type_display',  # Display format ("Full", "Half", etc.)
+            'full_count',
+            'half_count',
+            'st_count',
+            'phy_count',
+            'lugg_count',
+            'total_tickets',  # Total tickets count
+            'ticket_amount',
+            'lugg_amount',
+            'adjust_amount',
+            'pass_id',
+            'warrant_amount',
+            'refund_status',
+            'refund_amount',
+            'ladies_count',
+            'senior_count',
+            'transaction_id',
+            'ticket_status',  # Original field (stores 0 or 1)
+            'payment_mode_display',  # Display format ("Cash" or "UPI")
+            'reference_number',
+            'branch_code',  # Will be null for now
+            'created_at',
+        ]
+        # EXCLUDED: raw_payload, company_code
+    
+    def get_payment_mode_display(self, obj):
+        """
+        Convert ticket_status integer to display string.
+        0 -> "Cash"
+        1 -> "UPI"
+        None/Other -> "Unknown"
+        """
+        if obj.ticket_status == 0:
+            return "Cash"
+        elif obj.ticket_status == 1:
+            return "UPI"
+        return "Unknown"
+    
+    def get_ticket_type_display(self, obj):
+        """
+        Convert ticket_type code to display string.
+        Maps: "0" -> "Full", "1" -> "Half", etc.
+        For unknown values (future combinations), returns the raw value.
+        """
+        if obj.ticket_type and obj.ticket_type in self.TICKET_TYPE_MAPPING:
+            return self.TICKET_TYPE_MAPPING[obj.ticket_type]
+        elif obj.ticket_type:
+            # Return raw value for unknown/future ticket types
+            return obj.ticket_type
+        return "Unknown"
+    
+    def get_formatted_ticket_date(self, obj):
+        """
+        Format date as DD-MM-YYYY for frontend display.
+        Returns None if ticket_date is None.
+        """
+        if obj.ticket_date:
+            return obj.ticket_date.strftime('%d-%m-%Y')
+        return None
 
 
 class TripCloseDataSerializer(serializers.ModelSerializer):
