@@ -98,7 +98,7 @@ class TicketDataSerializer(serializers.ModelSerializer):
         '3': 'Physical',
         '4': 'Luggage'
     }
-
+    
     # Add display fields
     payment_mode_display = serializers.SerializerMethodField()
     ticket_type_display = serializers.SerializerMethodField()
@@ -112,19 +112,19 @@ class TicketDataSerializer(serializers.ModelSerializer):
             'device_id',
             'trip_number',
             'ticket_number',
-            'ticket_date',  # Original date field
-            'formatted_ticket_date',  # Display format DD-MM-YYYY
+            'ticket_date',
+            'formatted_ticket_date',
             'ticket_time',
             'from_stage',
             'to_stage',
-            'ticket_type',  # Original field (stores "0", "1", etc.)
-            'ticket_type_display',  # Display format ("Full", "Half", etc.)
+            'ticket_type',
+            'ticket_type_display',
             'full_count',
             'half_count',
             'st_count',
             'phy_count',
             'lugg_count',
-            'total_tickets',  # Total tickets count
+            'total_tickets',
             'ticket_amount',
             'lugg_amount',
             'adjust_amount',
@@ -135,21 +135,16 @@ class TicketDataSerializer(serializers.ModelSerializer):
             'ladies_count',
             'senior_count',
             'transaction_id',
-            'ticket_status',  # Original field (stores 0 or 1)
-            'payment_mode_display',  # Display format ("Cash" or "UPI")
+            'ticket_status',
+            'payment_mode_display',
             'reference_number',
-            'branch_code',  # Will be null for now
+            'branch_code',
             'created_at',
+            # EXCLUDED: raw_payload, company_code
         ]
-        # EXCLUDED: raw_payload, company_code
     
     def get_payment_mode_display(self, obj):
-        """
-        Convert ticket_status integer to display string.
-        0 -> "Cash"
-        1 -> "UPI"
-        None/Other -> "Unknown"
-        """
+        """Convert ticket_status integer to display string"""
         if obj.ticket_status == 0:
             return "Cash"
         elif obj.ticket_status == 1:
@@ -157,48 +152,59 @@ class TicketDataSerializer(serializers.ModelSerializer):
         return "Unknown"
     
     def get_ticket_type_display(self, obj):
-        """
-        Convert ticket_type code to display string.
-        Maps: "0" -> "Full", "1" -> "Half", etc.
-        For unknown values (future combinations), returns the raw value.
-        """
+        """Convert ticket_type code to display string"""
         if obj.ticket_type and obj.ticket_type in self.TICKET_TYPE_MAPPING:
             return self.TICKET_TYPE_MAPPING[obj.ticket_type]
         elif obj.ticket_type:
-            # Return raw value for unknown/future ticket types
             return obj.ticket_type
         return "Unknown"
     
     def get_formatted_ticket_date(self, obj):
-        """
-        Format date as DD-MM-YYYY for frontend display.
-        Returns None if ticket_date is None.
-        """
+        """Format date as DD-MM-YYYY for frontend display"""
         if obj.ticket_date:
             return obj.ticket_date.strftime('%d-%m-%Y')
         return None
 
 
 class TripCloseDataSerializer(serializers.ModelSerializer):
+    # Computed fields
     total_passengers = serializers.SerializerMethodField()
     total_tickets_issued = serializers.SerializerMethodField()
+    
+    # Formatted date fields
+    formatted_start_date = serializers.SerializerMethodField()
+    formatted_end_date = serializers.SerializerMethodField()
 
     class Meta:
         model = TripCloseData
         fields = [
             "id",
             "palmtec_id",
-            "company_code",
+            # EXCLUDED: company_code
+            "branch_code",  
             "schedule",
             "trip_no",
             "route_code",
             "up_down_trip",
+            
+            # Separate date and time fields
+            "start_date",
+            "start_time",
+            "end_date",
+            "end_time",
+            
+            # Formatted dates for display
+            "formatted_start_date",
+            "formatted_end_date",
+            
+            # DateTime fields (keep for complete timestamp)
             "start_datetime",
             "end_datetime",
+            
             "start_ticket_no",
             "end_ticket_no",
 
-            # Passenger counts
+            # Passenger counts (these include both cash + upi combined)
             "full_count",
             "half_count",
             "st1_count",
@@ -207,6 +213,11 @@ class TripCloseDataSerializer(serializers.ModelSerializer):
             "pass_count",
             "ladies_count",
             "senior_count",
+
+            # Total and cash/upi breakdown
+            "total_tickets",
+            "total_cash_tickets",
+            "upi_ticket_count",  # Same as total UPI tickets
 
             # Collections
             "full_collection",
@@ -220,9 +231,9 @@ class TripCloseDataSerializer(serializers.ModelSerializer):
             "expense_amount",
             "total_collection",
 
-            # UPI
-            "upi_ticket_count",
-            "upi_ticket_amount",
+            # Cash/UPI amount breakdown
+            "total_cash_amount",
+            "upi_ticket_amount",  # Same as total UPI amount
 
             # Derived fields
             "total_passengers",
@@ -234,10 +245,24 @@ class TripCloseDataSerializer(serializers.ModelSerializer):
         ]
 
     def get_total_passengers(self, obj):
+        """Get total passengers using model method"""
         return obj.get_total_passengers()
 
     def get_total_tickets_issued(self, obj):
+        """Get total tickets issued from ticket number range"""
         return obj.get_total_tickets_issued()
+
+    def get_formatted_start_date(self, obj):
+        """Format start_date as DD-MM-YYYY"""
+        if obj.start_date:
+            return obj.start_date.strftime('%d-%m-%Y')
+        return None
+
+    def get_formatted_end_date(self, obj):
+        """Format end_date as DD-MM-YYYY"""
+        if obj.end_date:
+            return obj.end_date.strftime('%d-%m-%Y')
+        return None
     
 
 class BranchSerializer(serializers.ModelSerializer):

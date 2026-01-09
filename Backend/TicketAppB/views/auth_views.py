@@ -159,7 +159,7 @@ def protected_view(request):
 # Extract and validate access token from cookies
 def get_user_from_cookie(request):
     access_token = request.COOKIES.get('access_token')
-    
+
     if not access_token:
         return None
 

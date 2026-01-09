@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function TripcloseReport() {
@@ -70,25 +71,61 @@ export default function TripcloseReport() {
     setCurrentPage(1);
   };
 
-  const exportToExcel = () => {
-    const exportData = filteredData.map(item => ({
-      ID: item.id,
-      DeviceID: item.palmtec_id,
-      Route: item.route_code,
-      TripNo: item.trip_no,
-      Schedule: item.schedule,
-      Direction: item.up_down_trip,
-      StartDate: new Date(item.start_datetime).toLocaleDateString(),
-      EndTime: item.end_datetime ? new Date(item.end_datetime).toLocaleTimeString() : "-",
-      Tickets: item.total_tickets_issued,
-      Pax: item.total_passengers,
-      UPI: item.upi_ticket_amount,
-      Expense: item.expense_amount,
-      Total: item.total_collection
-    }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportData), "TripClose");
-    XLSX.writeFile(wb, `trip_close_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+  const exportToExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('TripClose');
+
+    worksheet.columns = [
+      { header: 'ID', key: 'id', width: 10 },
+      { header: 'Device ID', key: 'palmtec_id', width: 16 },
+      { header: 'Route', key: 'route_code', width: 12 },
+      { header: 'Trip No', key: 'trip_no', width: 10 },
+      { header: 'Schedule', key: 'schedule', width: 14 },
+      { header: 'Direction', key: 'up_down_trip', width: 12 },
+      { header: 'Start Date', key: 'start_date', width: 14 },
+      { header: 'End Time', key: 'end_time', width: 12 },
+      { header: 'Tickets', key: 'total_tickets_issued', width: 12 },
+      { header: 'Passengers', key: 'total_passengers', width: 14 },
+      { header: 'UPI Amount', key: 'upi_ticket_amount', width: 14 },
+      { header: 'Expense Amount', key: 'expense_amount', width: 14 },
+      { header: 'Total Collection', key: 'total_collection', width: 16 },
+    ];
+
+    filteredData.forEach(item => {
+      worksheet.addRow({
+        id: item.id,
+        palmtec_id: item.palmtec_id,
+        route_code: item.route_code,
+        trip_no: item.trip_no,
+        schedule: item.schedule,
+        up_down_trip: item.up_down_trip,
+        start_date: new Date(item.start_datetime).toLocaleDateString(),
+        end_time: item.end_datetime
+          ? new Date(item.end_datetime).toLocaleTimeString()
+          : '-',
+        total_tickets_issued: item.total_tickets_issued,
+        total_passengers: item.total_passengers,
+        upi_ticket_amount: item.upi_ticket_amount,
+        expense_amount: item.expense_amount,
+        total_collection: item.total_collection,
+      });
+    });
+
+    // Header styling
+    worksheet.getRow(1).font = { bold: true };
+
+    // Freeze header row
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `trip_close_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
   };
 
   if (loading)

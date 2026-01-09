@@ -149,7 +149,7 @@ class Branch(models.Model):
 
 
 class TransactionData(models.Model):
-    # UPDATED: Payment Mode Choices
+    # Payment Mode Choices
     class PaymentMode(models.IntegerChoices):
         CASH = 0, 'Cash'
         UPI = 1, 'UPI'
@@ -172,7 +172,6 @@ class TransactionData(models.Model):
     phy_count         = models.IntegerField(default=0)
     lugg_count        = models.IntegerField(default=0)
 
-    # Total tickets field
     total_tickets     = models.IntegerField(default=0)
 
     ticket_amount     = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -191,7 +190,6 @@ class TransactionData(models.Model):
 
     transaction_id    = models.CharField(max_length=50, null=True, blank=True)
 
-    # Changed to IntegerField with choices (0 for cash, 1 for upi)
     ticket_status     = models.IntegerField(
         choices=PaymentMode.choices,
         default=PaymentMode.CASH,
@@ -201,7 +199,6 @@ class TransactionData(models.Model):
 
     reference_number  = models.CharField(max_length=50, null=True, blank=True)
 
-    # models.PROTECT to NOT delete tickets if company is deleted
     company_code = models.ForeignKey(
         Company,
         on_delete=models.PROTECT,
@@ -211,7 +208,6 @@ class TransactionData(models.Model):
         blank=True
     )
 
-    # Branch foreign key
     branch_code = models.ForeignKey(
         'Branch',
         on_delete=models.SET_NULL,
@@ -221,13 +217,13 @@ class TransactionData(models.Model):
     )
 
     raw_payload       = models.TextField()
+
     created_at        = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "transaction_data"
         indexes = [
             models.Index(fields=["device_id", "ticket_date"]),
-            models.Index(fields=["total_tickets", "ticket_date"]),
             models.Index(fields=["company_code"]),
             models.Index(fields=["branch_code"]),
         ]
@@ -247,7 +243,6 @@ class TransactionData(models.Model):
     def __str__(self):
         return f"{self.ticket_number} - {self.device_id}"
     
-    # Property method for backup calculation
     @property
     def calculate_total_tickets(self):
         """Calculate total tickets from all count fields"""
@@ -268,7 +263,25 @@ class TripCloseData(models.Model):
         help_text="Device identifier (PalmtecID)"
     )
     
-    company_code = models.ForeignKey(Company,on_delete=models.PROTECT, related_name='trips',db_index=True,null=True,blank=True,help_text="Company code")
+    company_code = models.ForeignKey(
+        Company,
+        on_delete=models.PROTECT,
+        related_name='trips',
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text="Company code"
+    )
+
+    # NEW: Branch foreign key
+    branch_code = models.ForeignKey(
+        Branch,
+        on_delete=models.SET_NULL,
+        related_name='trip_closes',
+        null=True,
+        blank=True,
+        help_text="Branch code"
+    )
     
     schedule = models.IntegerField(
         help_text="Schedule number"
@@ -287,6 +300,32 @@ class TripCloseData(models.Model):
     up_down_trip = models.CharField(
         max_length=1,
         help_text="Trip direction indicator (U/D)"
+    )
+    
+    # NEW: Separate date and time fields for efficient querying
+    start_date = models.DateField(
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text="Trip start date (extracted from start_datetime)"
+    )
+    
+    start_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Trip start time (extracted from start_datetime)"
+    )
+    
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Trip end date (extracted from end_datetime)"
+    )
+    
+    end_time = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Trip end time (extracted from end_datetime)"
     )
     
     start_datetime = models.DateTimeField(
@@ -352,6 +391,20 @@ class TripCloseData(models.Model):
         default=0,
         validators=[MinValueValidator(0)],
         help_text="Senior citizen passengers (sSenior + uSenior)"
+    )
+
+    # NEW: Total tickets field (sum of all passenger counts)
+    total_tickets = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Total tickets issued (sum of all counts including pass)"
+    )
+
+    # NEW: Cash tickets breakdown
+    total_cash_tickets = models.IntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Total cash tickets (total_tickets - upi_ticket_count)"
     )
     
     full_collection = models.DecimalField(
@@ -432,6 +485,15 @@ class TripCloseData(models.Model):
         validators=[MinValueValidator(Decimal('0.00'))],
         help_text="Total collection (fTotalColl)"
     )
+
+    # NEW: Cash amount breakdown
+    total_cash_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text="Total cash collection (total_collection - upi_ticket_amount)"
+    )
     
     upi_ticket_count = models.IntegerField(
         default=0,
@@ -472,6 +534,9 @@ class TripCloseData(models.Model):
             models.Index(fields=['route_code', 'start_datetime']),
             models.Index(fields=['start_datetime']),
             models.Index(fields=["company_code"]),
+            models.Index(fields=['start_date']),  # NEW: Date index
+            models.Index(fields=['company_code', 'start_date']),  # NEW: Combined index
+            models.Index(fields=['branch_code']),  # NEW: Branch index
         ]
         
         unique_together = [
@@ -484,6 +549,7 @@ class TripCloseData(models.Model):
         return f"Trip {self.trip_no} - {self.route_code} - {self.palmtec_id} ({self.start_datetime})"
     
     def get_total_passengers(self):
+        """Calculate total passengers including pass holders"""
         return (
             self.full_count + 
             self.half_count + 
@@ -495,10 +561,36 @@ class TripCloseData(models.Model):
         )
     
     def get_total_tickets_issued(self):
+        """Calculate total tickets issued from ticket number range"""
         if self.end_ticket_no and self.start_ticket_no:
             return self.end_ticket_no - self.start_ticket_no + 1
         return 0
 
+    # NEW: Backup calculation properties
+    @property
+    def calculate_total_tickets(self):
+        """Calculate total tickets from all passenger counts"""
+        return (
+            self.full_count + 
+            self.half_count + 
+            self.st1_count + 
+            self.luggage_count + 
+            self.physical_count + 
+            self.pass_count + 
+            self.ladies_count + 
+            self.senior_count
+        )
+
+    @property
+    def calculate_cash_tickets(self):
+        """Calculate cash tickets (total - upi)"""
+        return max(0, self.total_tickets - self.upi_ticket_count)
+
+    @property
+    def calculate_cash_amount(self):
+        """Calculate cash amount (total - upi)"""
+        return max(Decimal('0.00'), self.total_collection - self.upi_ticket_amount)
+    
 
 # For reconciliation with TransactionData (bus tickets).
 # Requires MANUAL VERIFICATION by managers before settlement.

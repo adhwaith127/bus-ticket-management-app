@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal,InvalidOperation
-from datetime import datetime,date
+from datetime import datetime
 from rest_framework import status
 from ..models import TransactionData,TripCloseData,Company,MosambeeTransaction
 from django.http import HttpResponse,JsonResponse
@@ -9,10 +9,12 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from ..serializers import TicketDataSerializer,TripCloseDataSerializer
 from rest_framework.decorators import api_view
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, transaction,OperationalError
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.db.models import Count
+from django.utils.dateparse import parse_datetime
+import pytz
 
 
 User=get_user_model()
@@ -73,7 +75,7 @@ def getTransactionDataFromDevice(request):
     response_chars=raw[0:32]
 
     try:
-        company_code = parts[25] if len(parts) > 25 else None
+        company_code = parts[26] if len(parts) > 26 else None
         
         company_instance = Company.objects.filter(company_id=company_code).first()
         if not company_instance:
@@ -164,6 +166,9 @@ def getTransactionDataFromDevice(request):
             raw_payload = raw
         )
 
+        device_response=f'OK#SUCCESS#fn={response_chars}#'
+        return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_200_OK)
+
     except IntegrityError:
         device_response=f'OK#SUCCESS#fn={response_chars}#'
         return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_200_OK)
@@ -172,43 +177,95 @@ def getTransactionDataFromDevice(request):
         logger.exception("Transaction parsing failed")
         return HttpResponse("ERROR",status=status.HTTP_500_INTERNAL_SERVER_ERROR,content_type="text/plain")
 
-    device_response=f'OK#SUCCESS#fn={response_chars}#'
-    return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_201_CREATED)
 
 
 @api_view(['GET'])
 def get_all_transaction_data(request):
-    # validate user
+    """
+    Fetch transaction data with support for cursor-based polling.
+    
+    Query Parameters:
+    - from_date: Start date (YYYY-MM-DD) - required
+    - to_date: End date (YYYY-MM-DD) - required
+    - since: ISO timestamp for incremental updates (optional)
+    """
     user = get_user_from_cookie(request)
     if not user:
         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
-    
+
     try:
-        from_date=request.GET.get('from_date')
-        to_date=request.GET.get('to_date')
-        if not from_date or not to_date:
-            return Response({'error': 'Missing date params'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # convert to objects for datefield in db
-        from_date_obj = datetime.strptime(from_date, '%Y-%m-%d').date()
-        to_date_obj   = datetime.strptime(to_date, '%Y-%m-%d').date()
-
-        # Filter by user's company if user has a company assigned
-        if user.company:
-            ticketdata = TransactionData.objects.filter(
-                company_code=user.company,
-                ticket_date__gte=from_date_obj,
-                ticket_date__lte=to_date_obj).order_by('created_at')
-        else:
-            # If no company assigned, return empty data
-            ticketdata = TransactionData.objects.none()
+        # Get date range from query parameters
+        from_date = request.GET.get('from_date')
+        to_date = request.GET.get('to_date')
+        since_timestamp = request.GET.get('since')  # For polling updates
         
-        # Serializer now handles display transformations
-        serializer = TicketDataSerializer(ticketdata, many=True)
-        return Response({"message": "success", "data": serializer.data}, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Validate required parameters
+        if not from_date or not to_date:
+            return Response(
+                {'error': 'from_date and to_date are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Base queryset filtered by user's company and date range
+        if user.company:
+            queryset = TransactionData.objects.filter(
+                company_code=user.company,
+                ticket_date__gte=from_date,
+                ticket_date__lte=to_date
+            )
+        else:
+            queryset = TransactionData.objects.none()
+        
+        # If 'since' parameter provided, filter for polling updates
+        if since_timestamp:
+            try:
+                # Parse the timestamp - handle different formats
+                # Format from DB: 2026-01-07 05:16:06.134
+                since_dt = parse_datetime(since_timestamp)
+                
+                if since_dt is None:
+                    # Try alternative parsing
+                    since_dt = datetime.fromisoformat(since_timestamp.replace('Z', '+00:00'))
+                
+                if since_dt:
+                    # Make sure we're comparing timezone-aware datetimes
+                    if since_dt.tzinfo is None:
+                        since_dt = pytz.UTC.localize(since_dt)
+                    
+                    # Filter for records created AFTER the cursor timestamp
+                    queryset = queryset.filter(created_at__gt=since_dt)
+                    
+                    logger.info(f"Polling query: since={since_timestamp}, filtered count={queryset.count()}")
+                else:
+                    logger.warning(f"Could not parse since timestamp: {since_timestamp}")
+                    return Response({"message": "success", "data": []}, status=status.HTTP_200_OK)
+                    
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid since timestamp: {since_timestamp}, error: {e}")
+                return Response({"message": "success", "data": []}, status=status.HTTP_200_OK)
+        
+        # Order by created_at descending (newest first) for consistency
+        # Frontend expects newest first
+        queryset = queryset.order_by('-created_at')
+        
+        # Limit results to prevent huge responses
+        queryset = queryset[:500]
+        
+        # Serialize data
+        serializer = TicketDataSerializer(queryset, many=True)
+        
+        return Response({
+            "message": "success", 
+            "data": serializer.data,
+            "count": len(serializer.data)
+        }, status=status.HTTP_200_OK)
+    
+    except OperationalError:
+        return Response({"message": "Error fetching data", "error": str(e)},status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
+    except Exception as e:
+        logger.exception("Error fetching transaction data")
+        return Response({"message": "Data fetching failed", "error": str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt
@@ -244,10 +301,65 @@ def getTripCloseDataFromDevice(request):
                 logger.error("Invalid company code from device: %s", company_code)
                 return HttpResponse("INVALID_COMPANY", status=400, content_type="text/plain")
             
+            # Parse dates and times separately
+            try:
+                start_date = datetime.strptime(parts[5], "%Y-%m-%d").date() if parts[5] else None
+                start_time = datetime.strptime(parts[6], "%H:%M:%S").time() if parts[6] else None
+                end_date = datetime.strptime(parts[7], "%Y-%m-%d").date() if parts[7] else None
+                end_time = datetime.strptime(parts[8], "%H:%M:%S").time() if parts[8] else None
+                
+                start_datetime = datetime.strptime(f"{parts[5]} {parts[6]}", "%Y-%m-%d %H:%M:%S")
+                end_datetime = datetime.strptime(f"{parts[7]} {parts[8]}", "%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError) as e:
+                logger.error("Error parsing dates/times: %s", e)
+                return HttpResponse("INVALID_DATE_TIME", status=400, content_type="text/plain")
+
+            # Parse all count fields
+            full_count = int(parts[11]) if parts[11] else 0
+            half_count = int(parts[12]) if parts[12] else 0
+            st1_count = int(parts[13]) if parts[13] else 0
+            luggage_count = int(parts[14]) if parts[14] else 0
+            physical_count = int(parts[15]) if parts[15] else 0
+            pass_count = int(parts[16]) if parts[16] else 0
+            ladies_count = int(parts[17]) if parts[17] else 0
+            senior_count = int(parts[18]) if parts[18] else 0
+            upi_ticket_count = int(parts[29]) if parts[29] else 0
+
+            # Parse amounts
+            total_collection = Decimal(str(parts[28])) if parts[28] else Decimal('0.00')
+            upi_ticket_amount = Decimal(str(parts[30])) if parts[30] else Decimal('0.00')
+
+            # Calculate totals
+            try:
+                # Total tickets includes all passenger counts (including pass)
+                total_tickets = (full_count + half_count + st1_count + luggage_count + 
+                               physical_count + pass_count + ladies_count + senior_count)
+                
+                # Cash tickets = total - upi
+                total_cash_tickets = total_tickets - upi_ticket_count
+                
+                # Validate: cash tickets should not be negative
+                if total_cash_tickets < 0:
+                    logger.error("Data irregularity: total_cash_tickets is negative (%d)", total_cash_tickets)
+                    return HttpResponse("DATA_IRREGULARITY_CASH_TICKETS", status=400, content_type="text/plain")
+                
+                # Cash amount = total_collection - upi_amount
+                total_cash_amount = total_collection - upi_ticket_amount
+                
+                # Validate: cash amount should not be negative
+                if total_cash_amount < Decimal('0.00'):
+                    logger.error("Data irregularity: total_cash_amount is negative (%s)", total_cash_amount)
+                    return HttpResponse("DATA_IRREGULARITY_CASH_AMOUNT", status=400, content_type="text/plain")
+
+            except (TypeError, ValueError) as e:
+                logger.error("Error calculating totals: %s", e)
+                return HttpResponse("CALCULATION_ERROR", status=400, content_type="text/plain")
+
             trip_data = TripCloseData.objects.create(
                 # Device information
                 palmtec_id=parts[1],
                 company_code=company_instance,
+                branch_code=None,  # Branch (not sent by device yet)
 
                 # Trip identification
                 schedule=int(parts[3]) if parts[3] else 0,
@@ -255,23 +367,33 @@ def getTripCloseDataFromDevice(request):
                 route_code=parts[31],
                 up_down_trip=parts[32] if len(parts) > 32 else '',
 
-                # Trip timing - parse and combine date
-                start_datetime=datetime.strptime(f"{parts[5]} {parts[6]}", "%Y-%m-%d %H:%M:%S"),
-                end_datetime=datetime.strptime(f"{parts[7]} {parts[8]}", "%Y-%m-%d %H:%M:%S"),
+                # Date and time fields (separate)
+                start_date=start_date,
+                start_time=start_time,
+                end_date=end_date,
+                end_time=end_time,
+
+                # Trip timing - datetime fields
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
 
                 # Ticket range
                 start_ticket_no=int(parts[9]) if parts[9] else 0,
                 end_ticket_no=int(parts[10]) if parts[10] else 0,
 
-                # Passenger counts
-                full_count=int(parts[11]) if parts[11] else 0,
-                half_count=int(parts[12]) if parts[12] else 0,
-                st1_count=int(parts[13]) if parts[13] else 0,
-                luggage_count=int(parts[14]) if parts[14] else 0,
-                physical_count=int(parts[15]) if parts[15] else 0,
-                pass_count=int(parts[16]) if parts[16] else 0,
-                ladies_count=int(parts[17]) if parts[17] else 0,
-                senior_count=int(parts[18]) if parts[18] else 0,
+                # Passenger counts (using pre-parsed values)
+                full_count=full_count,
+                half_count=half_count,
+                st1_count=st1_count,
+                luggage_count=luggage_count,
+                physical_count=physical_count,
+                pass_count=pass_count,
+                ladies_count=ladies_count,
+                senior_count=senior_count,
+
+                # Total tickets and cash breakdown
+                total_tickets=total_tickets,
+                total_cash_tickets=total_cash_tickets,
 
                 # Collection amounts - convert to Decimal
                 full_collection=Decimal(str(parts[19])) if parts[19] else Decimal('0.00'),
@@ -285,11 +407,14 @@ def getTripCloseDataFromDevice(request):
                 # Other financial data
                 adjust_collection=Decimal(str(parts[26])) if parts[26] else Decimal('0.00'),
                 expense_amount=Decimal(str(parts[27])) if parts[27] else Decimal('0.00'),
-                total_collection=Decimal(str(parts[28])) if parts[28] else Decimal('0.00'),
+                total_collection=total_collection,
+
+                # Cash amount breakdown
+                total_cash_amount=total_cash_amount,
 
                 # UPI payment data
-                upi_ticket_count=int(parts[29]) if parts[29] else 0,
-                upi_ticket_amount=Decimal(str(parts[30])) if parts[30] else Decimal('0.00'),
+                upi_ticket_count=upi_ticket_count,
+                upi_ticket_amount=upi_ticket_amount,
             )
         
             # Return success response to device
