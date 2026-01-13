@@ -443,26 +443,89 @@ def getTripCloseDataFromDevice(request):
 
 @api_view(['GET'])
 def get_all_trip_close_data(request):
+    """
+    Fetch trip close data with support for cursor-based polling.
+    
+    Query Parameters:
+    - from_date: Start date (YYYY-MM-DD) - required
+    - to_date: End date (YYYY-MM-DD) - required
+    - since: ISO timestamp for incremental updates (optional)
+    """
     user = get_user_from_cookie(request)
     if not user:
-        return JsonResponse({"error": "Authentication required"},status=status.HTTP_401_UNAUTHORIZED)
+        return JsonResponse({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
 
     try:
-        # Return only user's company data
+        # Get date range from query parameters
+        from_date = request.GET.get('from_date')
+        to_date = request.GET.get('to_date')
+        since_timestamp = request.GET.get('since')  # For polling updates
+        
+        # Validate required parameters
+        if not from_date or not to_date:
+            return JsonResponse(
+                {'error': 'from_date and to_date are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Base queryset filtered by user's company and date range
         if user.company:
-            trip_data = TripCloseData.objects.filter(company_code=user.company).order_by("-start_datetime")
+            queryset = TripCloseData.objects.filter(
+                company_code=user.company,
+                start_date__gte=from_date,
+                start_date__lte=to_date
+            )
         else:
-            trip_data = TripCloseData.objects.none()
+            queryset = TripCloseData.objects.none()
+        
+        # If 'since' parameter provided, filter for polling updates
+        if since_timestamp:
+            try:
+                # Parse the timestamp
+                since_dt = parse_datetime(since_timestamp)
 
-        serializer = TripCloseDataSerializer(trip_data, many=True)
+                if since_dt is None:
+                    # Try alternative parsing
+                    since_dt = datetime.fromisoformat(since_timestamp.replace('Z', '+00:00'))
 
-        return JsonResponse(
-            {"message": "success","data": serializer.data},status=status.HTTP_200_OK)
+                if since_dt:
+                    # Make sure we're comparing timezone-aware datetimes
+                    if since_dt.tzinfo is None:
+                        since_dt = pytz.UTC.localize(since_dt)
+
+                    # Filter for records created AFTER the cursor timestamp
+                    queryset = queryset.filter(created_at__gt=since_dt)
+                    
+                    logger.info(f"Trip polling query: since={since_timestamp}, filtered count={queryset.count()}")
+                else:
+                    logger.warning(f"Could not parse since timestamp: {since_timestamp}")
+                    return JsonResponse({"message": "success", "data": []}, status=status.HTTP_200_OK)
+                    
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Invalid since timestamp: {since_timestamp}, error: {e}")
+                return JsonResponse({"message": "success", "data": []}, status=status.HTTP_200_OK)
+        
+        # Order by created_at descending (newest first)
+        queryset = queryset.order_by('-created_at')
+        
+        # Limit results to prevent huge responses
+        queryset = queryset[:500]
+        
+        # Serialize data
+        serializer = TripCloseDataSerializer(queryset, many=True)
+        
+        return JsonResponse({
+            "message": "success", 
+            "data": serializer.data,
+            "count": len(serializer.data)
+        }, status=status.HTTP_200_OK)
+
+    except OperationalError:
+        return JsonResponse({"message": "Error fetching data"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
     except Exception as e:
-        return JsonResponse({"message": f"{e}"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-
+        logger.exception("Error fetching trip close data")
+        return JsonResponse({"message": f"{e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # handles mosambee Merchant Posting
 @api_view(['GET'])
