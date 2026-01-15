@@ -597,12 +597,10 @@ class TripCloseData(models.Model):
 class MosambeeTransaction(models.Model):
     class ProcessingStatus(models.TextChoices):
         RECEIVED = 'RECEIVED', 'Received'
-        VALIDATING = 'VALIDATING', 'Validating'
         VALIDATED = 'VALIDATED', 'Validated'
         VALIDATION_FAILED = 'VALIDATION_FAILED', 'Validation Failed'
         RECONCILING = 'RECONCILING', 'Reconciling'
         PENDING_VERIFICATION = 'PENDING_VERIFICATION', 'Pending Verification'
-        FAILED = 'FAILED', 'Failed'
     
     class VerificationStatus(models.TextChoices):
         UNVERIFIED = 'UNVERIFIED', 'Unverified'

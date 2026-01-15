@@ -1,6 +1,6 @@
 import logging
 from decimal import Decimal,InvalidOperation
-from datetime import datetime
+from datetime import datetime,timezone
 from rest_framework import status
 from ..models import TransactionData,TripCloseData,Company,MosambeeTransaction
 from django.http import HttpResponse,JsonResponse
@@ -9,12 +9,14 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from ..serializers import TicketDataSerializer,TripCloseDataSerializer
 from rest_framework.decorators import api_view
-from django.db import IntegrityError, transaction,OperationalError
+from django.db import IntegrityError, OperationalError
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.db.models import Count
 from django.utils.dateparse import parse_datetime
 import pytz
+import hashlib
+from django.conf import settings
 
 
 User=get_user_model()
@@ -526,12 +528,3 @@ def get_all_trip_close_data(request):
     except Exception as e:
         logger.exception("Error fetching trip close data")
         return JsonResponse({"message": f"{e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# handles mosambee Merchant Posting
-@api_view(['GET'])
-def store_mosambee_data(request):
-    try:
-        pass
-    
-    except Exception as e:
-        return Response({"message": "Data Entry failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

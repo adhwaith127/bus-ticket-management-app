@@ -53,7 +53,7 @@ export default function ProtectedRoute() {
       }
       
       // Branch admin restrictions: cannot access superadmin pages
-      if (userRole === 'branch_admin') {
+      if (userRole === 'company_admin') {
         if (path.includes('/companies') || 
             path.includes('/users')) {
           window.alert('Access Denied: This page is only for SuperAdmins');
