@@ -8,19 +8,9 @@ from django.conf import settings
 
 class BusType(models.Model):
     """Bus type/category master data"""
-    bustype_code = models.CharField(
-        max_length=50,
-        help_text="Unique bus type code"
-    )
-    name = models.CharField(
-        max_length=100,
-        help_text="Bus type name"
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='bus_types'
-    )
+    bustype_code = models.CharField(max_length=50,help_text="Unique bus type code")
+    name = models.CharField(max_length=100,help_text="Bus type name")
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='bus_types')
     is_active = models.BooleanField(default=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
@@ -54,19 +44,9 @@ class BusType(models.Model):
 
 class EmployeeType(models.Model):
     """Employee type/role master data"""
-    emp_type_code = models.CharField(
-        max_length=50,
-        help_text="Employee type code"
-    )
-    emp_type_name = models.CharField(
-        max_length=100,
-        help_text="Employee type name (Driver, Conductor, Cleaner, etc.)"
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='employee_types'
-    )
+    emp_type_code = models.CharField(max_length=50,help_text="Employee type code")
+    emp_type_name = models.CharField(max_length=100,help_text="Driver, Conductor, Cleaner, etc.")
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='employee_types')
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -98,37 +78,13 @@ class EmployeeType(models.Model):
 
 class Employee(models.Model):
     """Employee master data - drivers, conductors, cleaners"""
-    employee_code = models.CharField(
-        max_length=50,
-        help_text="Unique employee code"
-    )
-    employee_name = models.CharField(
-        max_length=100,
-        help_text="Employee full name"
-    )
-    emp_type = models.ForeignKey(
-        EmployeeType,
-        on_delete=models.PROTECT,
-        related_name='employees'
-    )
-    phone_no = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True
-    )
-    password = models.CharField(
-        max_length=255,
-        help_text="Employee login password (if applicable)"
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='employees'
-    )
-    is_deleted = models.BooleanField(
-        default=False,
-        help_text="Soft delete flag"
-    )
+    employee_code = models.CharField(max_length=50,help_text="Unique employee code")
+    employee_name = models.CharField(max_length=100,help_text="Employee full name")
+    emp_type = models.ForeignKey(EmployeeType,on_delete=models.PROTECT,related_name='employees')
+    phone_no = models.CharField(max_length=20,null=True,blank=True)
+    password = models.CharField(max_length=255,help_text="Employee login password (if applicable)")
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='employees')
+    is_deleted = models.BooleanField(default=False,help_text="Soft delete flag")
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -162,19 +118,9 @@ class Employee(models.Model):
 
 class Currency(models.Model):
     """Currency master data"""
-    currency = models.CharField(
-        max_length=3,
-        help_text="Currency code (e.g., INR, USD)"
-    )
-    country = models.CharField(
-        max_length=50,
-        help_text="Country name"
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='currencies'
-    )
+    currency = models.CharField(max_length=3,help_text="Currency code (e.g., INR, USD)")
+    country = models.CharField(max_length=50,help_text="Country name")
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='currencies')
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -207,23 +153,10 @@ class Currency(models.Model):
 
 class Stage(models.Model):
     """Bus stop/stage master data"""
-    stage_code = models.CharField(
-        max_length=50,
-        help_text="Unique stage code"
-    )
-    stage_name = models.CharField(
-        max_length=100,
-        help_text="Stage/stop name"
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='stages'
-    )
-    is_deleted = models.BooleanField(
-        default=False,
-        help_text="Soft delete flag"
-    )
+    stage_code = models.CharField(max_length=50,help_text="Unique stage code")
+    stage_name = models.CharField(max_length=100,help_text="Stage/stop name")
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='stages')
+    is_deleted = models.BooleanField(default=False,help_text="Soft delete flag")
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -256,74 +189,29 @@ class Stage(models.Model):
 
 class Route(models.Model):
     """Bus route master data"""
-    route_code = models.CharField(
-        max_length=50,
-        help_text="Unique route code"
-    )
-    route_name = models.CharField(
-        max_length=100,
-        help_text="Route name/description"
-    )
+    route_code = models.CharField(max_length=50,help_text="Unique route code")
+    route_name = models.CharField(max_length=100,help_text="Route name/description")
     min_fare = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.00'))],
         help_text="Minimum fare amount"
     )
-    fare_type = models.IntegerField(
-        help_text="Fare calculation type"
-    )
-    bus_type = models.ForeignKey(
-        BusType,
-        on_delete=models.PROTECT,
-        related_name='routes',
-        help_text="Default bus type for route"
-    )
-    use_stop = models.BooleanField(
-        default=False,
-        help_text="Use stop-based fare calculation"
-    )
-    half = models.BooleanField(
-        default=False,
-        help_text="Allow half fare tickets"
-    )
-    luggage = models.BooleanField(
-        default=False,
-        help_text="Allow luggage charges"
-    )
-    student = models.BooleanField(
-        default=False,
-        help_text="Allow student concession"
-    )
-    adjust = models.BooleanField(
-        default=False,
-        help_text="Allow fare adjustment"
-    )
-    conc = models.BooleanField(
-        default=False,
-        help_text="Allow general concession"
-    )
-    ph = models.BooleanField(
-        default=False,
-        help_text="Allow physically handicapped concession"
-    )
-    start_from = models.IntegerField(
-        default=0,
-        help_text="Starting stage number"
-    )
-    pass_allow = models.BooleanField(
-        default=False,
-        help_text="Allow pass holders"
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='routes'
-    )
-    is_deleted = models.BooleanField(
-        default=False,
-        help_text="Soft delete flag"
-    )
+
+    fare_type = models.IntegerField(help_text="Fare calculation type")
+    bus_type = models.ForeignKey(BusType,on_delete=models.PROTECT,related_name='routes',help_text="Bus type for route")
+    use_stop = models.BooleanField(default=False,help_text="Use stop-based fare calculation")
+    half = models.BooleanField(default=False,help_text="Allow half fare tickets")
+    luggage = models.BooleanField(default=False,help_text="Allow luggage charges")
+    student = models.BooleanField(default=False,help_text="Allow student concession")
+    adjust = models.BooleanField(default=False,help_text="Allow fare adjustment")
+    conc = models.BooleanField(default=False,help_text="Allow general concession")
+    ph = models.BooleanField(default=False,help_text="Allow physically handicapped concession")
+    start_from = models.IntegerField(default=0,help_text="Starting stage number")
+    pass_allow = models.BooleanField(default=False,help_text="Allow pass holders")
+    
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='routes')
+    is_deleted = models.BooleanField(default=False,help_text="Soft delete flag")
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -356,19 +244,9 @@ class Route(models.Model):
 
 class RouteStage(models.Model):
     """Route-Stage mapping with sequence"""
-    route = models.ForeignKey(
-        Route,
-        on_delete=models.CASCADE,
-        related_name='route_stages'
-    )
-    stage = models.ForeignKey(
-        Stage,
-        on_delete=models.PROTECT,
-        related_name='stage_routes'
-    )
-    sequence_no = models.IntegerField(
-        help_text="Stage sequence in route (1st stop, 2nd stop, etc.)"
-    )
+    route = models.ForeignKey(Route,on_delete=models.CASCADE,related_name='route_stages')
+    stage = models.ForeignKey(Stage,on_delete=models.PROTECT,related_name='stage_routes')
+    sequence_no = models.IntegerField(help_text="Stage sequence in route (1st stop, 2nd stop, etc.)")
     distance = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -381,11 +259,7 @@ class RouteStage(models.Model):
         blank=True,
         help_text="Stage name in local language"
     )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='route_stages'
-    )
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='route_stages')
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -422,23 +296,9 @@ class RouteStage(models.Model):
 
 class Fare(models.Model):
     """Fare matrix - from stage to stage pricing"""
-    route = models.ForeignKey(
-        Route,
-        on_delete=models.CASCADE,
-        related_name='fares'
-    )
-    from_stage = models.ForeignKey(
-        Stage,
-        on_delete=models.PROTECT,
-        related_name='fares_from',
-        help_text="Starting stage"
-    )
-    to_stage = models.ForeignKey(
-        Stage,
-        on_delete=models.PROTECT,
-        related_name='fares_to',
-        help_text="Destination stage"
-    )
+    route = models.ForeignKey(Route,on_delete=models.CASCADE,related_name='fares')
+    from_stage = models.ForeignKey(Stage,on_delete=models.PROTECT,related_name='fares_from',help_text="Start stage")
+    to_stage = models.ForeignKey(Stage,on_delete=models.PROTECT,related_name='fares_to',help_text="End stage")
     fare_amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -482,21 +342,9 @@ class Fare(models.Model):
 
 class RouteBusType(models.Model):
     """Route-BusType mapping (routes can have multiple allowed bus types)"""
-    route = models.ForeignKey(
-        Route,
-        on_delete=models.CASCADE,
-        related_name='allowed_bus_types'
-    )
-    bus_type = models.ForeignKey(
-        BusType,
-        on_delete=models.PROTECT,
-        related_name='assigned_routes'
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='route_bus_types'
-    )
+    route = models.ForeignKey(Route,on_delete=models.CASCADE,related_name='allowed_bus_types')
+    bus_type = models.ForeignKey(BusType,on_delete=models.PROTECT,related_name='assigned_routes')
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='route_bus_types')
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -536,19 +384,9 @@ class VehicleType(models.Model):
         related_name='vehicles',
         help_text="Bus type/category"
     )
-    bus_reg_num = models.CharField(
-        max_length=50,
-        help_text="Bus registration number"
-    )
-    company = models.ForeignKey(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='vehicles'
-    )
-    is_deleted = models.BooleanField(
-        default=False,
-        help_text="Soft delete flag"
-    )
+    bus_reg_num = models.CharField(max_length=50,help_text="Bus registration number")
+    company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='vehicles')
+    is_deleted = models.BooleanField(default=False,help_text="Soft delete flag")
     
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
@@ -638,12 +476,7 @@ class Settings(models.Model):
     footer1 = models.CharField(max_length=100, null=True, blank=True)
     footer2 = models.CharField(max_length=100, null=True, blank=True)
     
-    palmtec_id = models.CharField(
-        max_length=50,
-        null=True,
-        blank=True,
-        help_text="Device identifier"
-    )
+    palmtec_id = models.CharField(max_length=50,null=True,blank=True,help_text="Device identifier")
     
     # Boolean flags
     roundoff = models.BooleanField(default=False)
@@ -695,11 +528,7 @@ class Settings(models.Model):
 
     currency = models.CharField(max_length=10, null=True, blank=True)
 
-    company = models.OneToOneField(
-        'Company',
-        on_delete=models.CASCADE,
-        related_name='settings'
-    )
+    company = models.OneToOneField('Company',on_delete=models.CASCADE,related_name='settings')
 
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(

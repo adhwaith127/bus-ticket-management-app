@@ -1,8 +1,14 @@
 # Auth models
 from .auth import CustomUser
 
-# Company models  
+AUTH_MODELS = ['CustomUser',]
+
+
+# Company models
 from .company import Company, Branch
+
+COMPANY_MODELS = ['Company','Branch',]
+
 
 # Master data models
 from .master_data import (
@@ -16,36 +22,10 @@ from .master_data import (
     Fare,
     RouteBusType,
     VehicleType,
-    Settings
+    Settings,
 )
 
-# Operations models
-from .operations import (
-    ExpenseMaster,
-    Expense,
-    CrewAssignment,
-    InspectorDetails
-)
-
-# Transaction models
-from .transactions import (
-    TransactionData,
-    TripCloseData
-)
-
-# Payment models
-from .payments import MosambeeTransaction
-
-# Export all for backwards compatibility
-__all__ = [
-    # Auth
-    'CustomUser',
-    
-    # Company
-    'Company',
-    'Branch',
-    
-    # Master Data
+MASTER_DATA_MODELS = [
     'BusType',
     'EmployeeType',
     'Employee',
@@ -57,17 +37,38 @@ __all__ = [
     'RouteBusType',
     'VehicleType',
     'Settings',
-    
-    # Operations
-    'ExpenseMaster',
-    'Expense',
-    'CrewAssignment',
-    'InspectorDetails',
-    
-    # Transactions
-    'TransactionData',
-    'TripCloseData',
-    
-    # Payments
-    'MosambeeTransaction',
 ]
+
+
+# Operations models
+from .operations import (
+    ExpenseMaster,
+    Expense,
+    CrewAssignment,
+    InspectorDetails,
+)
+
+OPERATIONS_MODELS = ['ExpenseMaster','Expense','CrewAssignment','InspectorDetails',]
+
+
+# Transaction models
+from .transactions import (TransactionData,TripCloseData,)
+
+TRANSACTION_MODELS = ['TransactionData','TripCloseData',]
+
+
+# Payment models
+from .payments import MosambeeTransaction
+
+PAYMENT_MODELS = ['MosambeeTransaction',]
+
+
+# Public export surface
+__all__ = (
+    AUTH_MODELS
+    + COMPANY_MODELS
+    + MASTER_DATA_MODELS
+    + OPERATIONS_MODELS
+    + TRANSACTION_MODELS
+    + PAYMENT_MODELS
+)
