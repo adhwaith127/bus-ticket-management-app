@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import MetricCard from "../components/MetricCard";
 import api, { BASE_URL } from "../assets/js/axiosConfig";
 
-export default function BranchDashboard() {
+export default function CompanyDashboard() {
   const storedUser = localStorage.getItem("user")
     ? JSON.parse(localStorage.getItem("user"))
     : null;
@@ -28,7 +28,7 @@ export default function BranchDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/branch-dashboard/?date=${selectedDate}`);
+      const res = await api.get(`${BASE_URL}/company-dashboard/?date=${selectedDate}`);
       if (res.data?.data) setMetrics(res.data.data);
     } catch (err) {
       console.error("Dashboard error:", err);
@@ -59,7 +59,7 @@ export default function BranchDashboard() {
         {/* HEADER */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Branch Dashboard</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Company Dashboard</h1>
             <p className="text-slate-500 text-sm">Welcome back, {username}</p>
           </div>
 

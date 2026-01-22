@@ -276,6 +276,14 @@ def background_license_polling(company_id):
             company.device_count = auth_data.get('TotalCount', 0)
             company.branch_count = auth_data.get('OutletCount', 0)
             
+            # UPDATE: License count from server response
+            number_of_licence = auth_data.get('NumberOfLicence')
+            if number_of_licence:
+                try:
+                    company.number_of_licence = int(number_of_licence)
+                except (ValueError, TypeError):
+                    pass
+
             logger.info(f"[BACKGROUND] Updated license details for company: {company.company_name}")
         
         company.save()
@@ -302,7 +310,6 @@ def background_license_polling(company_id):
                 company.save()
         except:
             pass
-
 
 
 @api_view(['POST'])

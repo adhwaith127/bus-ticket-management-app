@@ -76,11 +76,11 @@ def login_view(request):
     if company:
         if company.product_to_date:
             if date.today()>company.product_to_date:
-                return Response({"error":"License Expired. Contact Administrator"},status=status.HTTP_401_UNAUTHORIZED)
+                return Response({"error":"License Expired. Contact Administrator"},status=status.HTTP_403_FORBIDDEN)
         
         if company.authentication_status:
             if company.authentication_status!=Company.AuthStatus.APPROVED:
-                return Response({"error":"Pending License Approval. Contact Administrator"},status=status.HTTP_401_UNAUTHORIZED)
+                return Response({"error":"Pending License Approval. Contact Administrator"},status=status.HTTP_403_FORBIDDEN)
   
     try:
         user.last_login = timezone.now()
@@ -132,7 +132,6 @@ def login_view(request):
     
     except Exception as e:
         return Response({"message":"Login Failed. Try again later"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
 
 
 @api_view(['POST'])
