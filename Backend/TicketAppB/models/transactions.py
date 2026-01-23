@@ -49,6 +49,7 @@ class TransactionData(models.Model):
 
     transaction_id    = models.CharField(max_length=50, null=True, blank=True)
 
+    # 0 for cash and 1 for upi
     ticket_status     = models.IntegerField(
         choices=PaymentMode.choices,
         default=PaymentMode.CASH,

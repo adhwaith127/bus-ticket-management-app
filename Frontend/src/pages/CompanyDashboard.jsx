@@ -55,7 +55,6 @@ export default function CompanyDashboard() {
   return (
     <div className="min-h-screen bg-slate-100 animate-fade-in">
       <div className="max-w-[1400px] mx-auto p-4">
-
         {/* HEADER */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-6">
           <div>
