@@ -52,7 +52,7 @@ def signup_view(request):
 @api_view(['POST'])
 def login_view(request):
     if not request.data:
-        return Response({"error":"Invalid request"},status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error":"Invalid request.No credentials provided"},status=status.HTTP_400_BAD_REQUEST)
     
     username=request.data.get('username')
     password=request.data.get('password')

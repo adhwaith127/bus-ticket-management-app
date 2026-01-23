@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from ..models import Company
+from ..models import Company,TransactionData,TripCloseData
 from ..serializers import CompanySerializer
 from django.contrib.auth import get_user_model
 from .auth_views import get_user_from_cookie
@@ -11,6 +11,9 @@ import logging
 import threading
 from django.conf import settings
 from datetime import datetime
+import json
+from django.forms.models import model_to_dict
+from django.http import JsonResponse
 
 # Setup logger  
 logger = logging.getLogger(__name__)
@@ -590,17 +593,28 @@ def get_company_dashboard_metrics(request):
     user = get_user_from_cookie(request)
     if not user:
         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    
+    selected_date=request.GET.get('date')
+    if not selected_date:
+        return Response({'error': 'Date input missing'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if isinstance(selected_date,str):
+        selected_date=datetime.strptime(selected_date,"%Y-%m-%d")
 
-    # Filter data by user's company_code
-    # Get today's date for filtering
+    # returns id as int
+    company_id=user.company.id
+    
     # Query TransactionData for payment metrics
     # Query TripCloseData for trip/bus metrics
     # Calculate aggregations using Django's aggregate/annotate
     # Return structured JSON response
 
-    try:
-        pass        
-
+    try:    
+        transaction_queryset = TransactionData.objects.filter(
+                company_code=user.company,
+                ticket_date=selected_date
+            )
+        return JsonResponse(list(transaction_queryset.values()), safe=False)
     # Response structure
     #     {
     #     "collections": {
@@ -623,5 +637,8 @@ def get_company_dashboard_metrics(request):
     #     }
     # }
     
+        return Response({"message": "Successfully retreived data"},status=status.HTTP_200_OK)
+
     except Exception as e:
+        print(e)
         return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

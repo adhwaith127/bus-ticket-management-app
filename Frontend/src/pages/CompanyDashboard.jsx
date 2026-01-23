@@ -28,7 +28,7 @@ export default function CompanyDashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/company-dashboard/?date=${selectedDate}`);
+      const res = await api.get(`${BASE_URL}/get_company_dashboard_metrics/?date=${selectedDate}`);
       if (res.data?.data) setMetrics(res.data.data);
     } catch (err) {
       console.error("Dashboard error:", err);
