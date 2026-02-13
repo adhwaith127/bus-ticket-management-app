@@ -21,6 +21,7 @@ import DealerDashboard from './pages/DealerDashboard'
 import ExecutiveDashboard from './pages/ExecutiveDashboard'
 import DeviceApprovals from './pages/DeviceApprovals'
 import NotFound from './components/NotFound'
+import MdbImport from './pages/MdbImport'
 
 const router = createBrowserRouter([
   {
@@ -83,12 +84,8 @@ const router = createBrowserRouter([
             element: <DeviceApprovals />
           },
           {
-            path: 'dealer-dashboard',
-            element: <DealerDashboard />
-          },
-          {
-            path: 'executive-dashboard',
-            element: <ExecutiveDashboard />
+            path: 'data-import',
+            element: <MdbImport/>
           },
         ]
       }

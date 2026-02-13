@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import auth_views,company_views,user_views,data_views,branch_views,mosambee_views,dealer_views,executive_views,device_approval_views
-
+from .views.mdb_views import MdbImportView
+from .views.mdb_debug_view import MdbDebugView
 
 urlpatterns = [
     # authentication
@@ -63,4 +64,8 @@ urlpatterns = [
     path('create-executive-mapping/', executive_views.create_executive_mapping, name='create_executive_mapping'),
     path('update-executive-mapping/<int:pk>/', executive_views.update_executive_mapping, name='update_executive_mapping'),
     path('executive-dashboard/', executive_views.executive_dashboard, name='executive_dashboard'),
+
+    # mdb upload
+    path('import-mdb/', MdbImportView.as_view(), name='import-mdb'),
+    path('debug-mdb/', MdbDebugView.as_view(), name='debug-mdb'),
 ]
