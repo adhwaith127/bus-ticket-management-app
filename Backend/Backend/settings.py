@@ -15,14 +15,12 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 SECRET_KEY = env('SECRET_KEY')
 
-# don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -140,7 +138,6 @@ CORS_ALLOW_CREDENTIALS = True
 
 # CORS_ALLOW_ALL_ORIGINS = True
 
-
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -159,13 +156,11 @@ SIMPLE_JWT = {
 }
 
 # Cookie Settings for HTTP Testing
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
-
-
 
 # License Server Configuration
 LICENSE_SERVER_BASE_URL = env('LICENSE_SERVER_BASE_URL',default='http://202.88.237.210:8093/LicenceMgmt/public/api')
@@ -179,7 +174,6 @@ PRODUCT_AUTH_URL = f"{LICENSE_SERVER_BASE_URL}{PRODUCT_AUTH_ENDPOINT}"
 # Application Configuration
 APP_VERSION = env('APP_VERSION', default='1.0.0')
 PROJECT_NAME = env('PROJECT_NAME', default='Bus Ticketing System')
-
 
 # Mosambee salt
 MOSAMBEE_SALT=env('MOSAMBEE_SALT', default='448B2EAC08375149D8D352D56D8BD42C30A913C696893EDC')

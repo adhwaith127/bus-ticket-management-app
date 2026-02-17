@@ -6,6 +6,8 @@ import FileUploadStep from '../components/FileUploadStep';
 import ConfigureStep  from '../components/ConfigureStep';
 import ImportResults  from '../components/ImportResults';
 
+const IMPORT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
 // ---------------------------------------------------------------
 // MdbImport — Main Page
 //
@@ -142,7 +144,8 @@ export default function MdbImport() {
 
     try {
       const response = await api.post(`${BASE_URL}/import-mdb/`, formData, {
-        headers: { 'Content-Type': undefined }
+        headers: { 'Content-Type': undefined },
+        timeout: IMPORT_TIMEOUT_MS,
       });
 
       // SUCCESS — response.data must have imported/skipped/table_results shape
@@ -161,7 +164,9 @@ export default function MdbImport() {
 
       let errorMessage = 'Import failed. Please try again.';
 
-      if (responseData) {
+      if (err.code === 'ECONNABORTED') {
+        errorMessage = 'Import timed out. The file is large or server is busy. Please retry and check backend logs.';
+      } else if (responseData) {
         // Server returned JSON with a message field
         if (typeof responseData === 'object') {
           errorMessage = responseData.message || responseData.error || responseData.detail || JSON.stringify(responseData);

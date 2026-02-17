@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import auth_views,company_views,user_views,data_views,branch_views,mosambee_views,dealer_views,executive_views,device_approval_views
+from .views import auth_views,company_views,user_views,data_views,masterdata_views
+from .views import branch_views,mosambee_views,dealer_views,executive_views,device_approval_views
 from .views.mdb_views import MdbImportView
 from .views.mdb_debug_view import MdbDebugView
 
@@ -9,7 +10,6 @@ urlpatterns = [
     path('login/', auth_views.login_view, name='login'),
     path('token/refresh/', auth_views.refresh_token_view, name='token_refresh'),
     path('logout/', auth_views.logout_view, name='logout'),
-    path('release-device/', auth_views.release_device_view, name='release_device'),
     path('protected/', auth_views.protected_view, name='protected'),
     path('verify-auth/', auth_views.verify_auth, name='verify_auth'),
     path('device-approvals/', device_approval_views.get_device_approvals, name='device_approvals'),
@@ -68,4 +68,16 @@ urlpatterns = [
     # mdb upload
     path('import-mdb/', MdbImportView.as_view(), name='import-mdb'),
     path('debug-mdb/', MdbDebugView.as_view(), name='debug-mdb'),
+
+
+    # Master Data
+    path('masterdata/bus-types/', masterdata_views.get_bus_types),
+    path('masterdata/bus-types/create/', masterdata_views.create_bus_type),
+    path('masterdata/bus-types/update/<int:pk>/', masterdata_views.update_bus_type),
+    # ... same for each entity
+    # Dropdowns
+    path('masterdata/dropdowns/bus-types/', masterdata_views.get_bus_types_dropdown),
+    path('masterdata/dropdowns/employee-types/', masterdata_views.get_employee_types_dropdown),
+    path('masterdata/dropdowns/employees/', masterdata_views.get_employees_by_type_dropdown),
+    path('masterdata/dropdowns/vehicles/', masterdata_views.get_vehicles_dropdown),
 ]

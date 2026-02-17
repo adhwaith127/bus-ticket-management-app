@@ -13,36 +13,21 @@ export default function Sidebar() {
   const username = user?.username || user?.name || "User";
 
   const handleLogout = async () => {
+    // Mobile app users have device_uid in localStorage.
+    // Sending it lets the backend set is_active=False to free up the slot.
+    // Browser users won't have it — backend just clears cookies.
+    const deviceUid = localStorage.getItem("device_uid");
+    const body = deviceUid ? { device_uid: deviceUid } : {};
     try {
-      await api.post(`${BASE_URL}/logout/`);
+      await api.post(`${BASE_URL}/logout/`, body);
     } catch {}
     finally {
       localStorage.removeItem("user");
       localStorage.removeItem("authToken");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("userRole");
-      navigate("/login");
-    }
-  };
-
-  const handleReleaseDevice = async () => {
-    const deviceUid = localStorage.getItem("device_uid");
-    if (!deviceUid) {
-      window.alert("No device UID found for release.");
-      return;
-    }
-
-    try {
-      await api.post(`${BASE_URL}/release-device/`, { device_uid: deviceUid });
       localStorage.removeItem("device_uid");
-      localStorage.removeItem("user");
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("userRole");
       navigate("/login");
-    } catch (err) {
-      const message = err.response?.data?.message || err.response?.data?.error || "Failed to release device";
-      window.alert(message);
     }
   };
 
@@ -246,6 +231,17 @@ export default function Sidebar() {
                     {!isCollapsed && <span>Device Approvals</span>}
                   </NavLink>
                 </li>
+
+                <li>
+                  <NavLink
+                    to="/dashboard/data-import"
+                    className={({ isActive }) => linkClass(isActive)}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <i className="fa-solid fa-file-import w-5 text-center text-lg"></i>
+                    {!isCollapsed && <span>MDB Data Import</span>}
+                  </NavLink>
+                </li>
               </>
             )}
 
@@ -393,19 +389,6 @@ export default function Sidebar() {
           </div>
 
           {/* Logout */}
-          {role !== "superadmin" && (
-            <button style={{cursor:"pointer"}}
-              onClick={handleReleaseDevice}
-              className={`mt-2 w-full flex items-center px-3 py-2 rounded-lg transition
-                text-slate-600 hover:bg-amber-50 hover:text-amber-700
-                ${isCollapsed ? "lg:justify-center space-x-0" : "space-x-3"}
-              `}
-            >
-              <i className="fa-solid fa-link-slash w-5 text-center"></i>
-              {!isCollapsed && <span className="text-sm font-medium">Release Device</span>}
-            </button>
-          )}
-
           <button style={{cursor:"pointer"}}
             onClick={handleLogout}
             className={`mt-2 w-full flex items-center px-3 py-2 rounded-lg transition

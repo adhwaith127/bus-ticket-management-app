@@ -277,17 +277,31 @@ def background_license_polling(company_id):
             company.product_from_date = check_datetime(product_from_date).date() if product_from_date else None
             company.product_to_date = check_datetime(product_to_date).date() if product_to_date else None
 
-            company.project_code = auth_data.get('ProjectCode')
-            company.device_count = auth_data.get('TotalCount', 0)
-            company.branch_count = auth_data.get('OutletCount', 0)
-            
-            # UPDATE: License count from server response
+            # NumberOfLicence → number_of_licence
             number_of_licence = auth_data.get('NumberOfLicence')
             if number_of_licence:
                 try:
                     company.number_of_licence = int(number_of_licence)
                 except (ValueError, TypeError):
                     pass
+
+            # NoOfUPIDevice → device_count (default 0)
+            try:
+                company.device_count = int(auth_data.get('NoOfUPIDevice', 0))
+            except (ValueError, TypeError):
+                company.device_count = 0
+
+            # NoOfBranch → branch_count (default 0)
+            try:
+                company.branch_count = int(auth_data.get('NoOfBranch', 0))
+            except (ValueError, TypeError):
+                company.branch_count = 0
+
+            # NoOfMobileDevice → mobile_device_count (default 2)
+            try:
+                company.mobile_device_count = int(auth_data.get('NoOfMobileDevice', 2))
+            except (ValueError, TypeError):
+                company.mobile_device_count = 2
 
             logger.info(f"[BACKGROUND] Updated license details for company: {company.company_name}")
         

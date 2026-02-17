@@ -237,6 +237,6 @@ class MosambeeTransaction(models.Model):
     def can_be_verified_by(self, user):
         return (
             user.is_authenticated and
-            user.role in ['manager', 'admin', 'super_admin'] and
+            user.role in ['manager', 'company_admin', 'superadmin'] and
             self.verification_status == self.VerificationStatus.UNVERIFIED
         )

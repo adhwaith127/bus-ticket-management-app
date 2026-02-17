@@ -5,7 +5,6 @@ from django.core.validators import MinValueValidator
 from django.conf import settings
 
 # Company & Branch models
-
 class Company(models.Model):
     # Authentication Status Choices
     class AuthStatus(models.TextChoices):
@@ -58,9 +57,9 @@ class Company(models.Model):
     product_to_date = models.DateField(null=True, blank=True)
     
     # Additional License Fields
-    project_code = models.CharField(max_length=100, null=True, blank=True)
-    device_count = models.IntegerField(null=True, blank=True)
-    branch_count = models.IntegerField(null=True, blank=True)
+    device_count = models.IntegerField(default=0, null=True, blank=True)       # NoOfUPIDevice
+    branch_count = models.IntegerField(default=0, null=True, blank=True)       # NoOfBranch
+    mobile_device_count = models.IntegerField(default=2, null=True, blank=True) # NoOfMobileDevice
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,29 +1,7 @@
 """
-mdb_views.py — COMPLETE (all 15 importable tables)
+mdb_views.py — MDB import service
 
-TABLES IMPORTED (in dependency order):
-  1.  BusType          ← bustype
-  2.  EmployeeType     ← EMPLOYEETYPE
-  3.  Currency         ← CURRENCY
-  4.  Employee         ← CREW            (needs EmployeeType)
-  5.  Stage            ← STAGE
-  6.  Route            ← ROUTE_DUP       (needs BusType — uses ROUTE_DUP because it has BusTypeName string)
-  7.  RouteStage       ← STAGE           (needs Route + Stage — re-reads STAGE to build route-stage links)
-  8.  RouteBusType     ← ROUTE_DUP       (needs Route + BusType — one entry per route)
-  9.  Fare             ← FARE            (needs Route + Stage)
-  10. VehicleType      ← VEHICLETYPE     (needs BusType)
-  11. Settings         ← SETTINGS        (one row per company)
-  12. ExpenseMaster    ← EXPMASTER
-  13. Expense          ← EXPENSE         (needs Employee)
-  14. CrewAssignment   ← CREWDET         (needs Employee + VehicleType)
-  15. InspectorDetails ← INSPECTORDET    (needs Employee)
-
-NOT IMPORTED (no MDB equivalent):
-  - Company           → already selected in UI
-  - Branch            → no MDB table
-  - Dealer            → no MDB table
-  - DealerCustomerMapping   → no MDB table
-  - ExecutiveCompanyMapping → no MDB table
+Import uses non-DUP MDB tables only.
 """
 
 import os
@@ -128,72 +106,84 @@ class MdbImportService:
     def run(mdb_path, company, user, password=None):
         """
         Reads all MDB tables then processes them in dependency order.
-        Wrapped in transaction.atomic() — nothing saves if something fatal fails.
+        Each table runs in its OWN atomic block — if Fare fails, only
+        Fare rolls back. Everything else stays saved.
+        Re-importing the same file is safe — get_or_create prevents duplicates.
         """
-        raw_tables = MdbReader.read_all_tables(mdb_path, password)
+        raw_tables, read_errors = MdbReader.read_all_tables(mdb_path, password)
+        bus_type_source_map = MdbImportService._build_bus_type_source_map(raw_tables.get('bustype', []))
 
         all_errors     = []
         table_results  = []
         total_imported = 0
         total_skipped  = 0
 
-        with transaction.atomic():
-            # Each tuple: (display_name, raw_table_key, processor_function)
-            # ORDER MATTERS — each table may depend on previously imported ones
-            processors = [
-                # ---- PASS 1: No dependencies ----
-                ('BusType',         'bustype',       MdbImportService._process_bus_types),
-                ('EmployeeType',    'EMPLOYEETYPE',  MdbImportService._process_employee_types),
-                ('Currency',        'CURRENCY',      MdbImportService._process_currency),
-                ('Stage',           'STAGE',         MdbImportService._process_stages),
+        # Each tuple: (display_name, raw_table_key, processor_function)
+        # ORDER MATTERS — each table may depend on previously imported ones
+        processors = [
+            # ---- PASS 1: No dependencies ----
+            ('BusType',         'bustype',       MdbImportService._process_bus_types),
+            ('EmployeeType',    'EMPLOYEETYPE',  MdbImportService._process_employee_types),
+            ('Currency',        'CURRENCY',      MdbImportService._process_currency),
+            ('Stage',           'STAGE',         MdbImportService._process_stages),
 
-                # ---- PASS 2: Depend on Pass 1 ----
-                ('Employee',        'CREW',          MdbImportService._process_employees),
-                # ROUTE_DUP used — has BusTypeName string, ROUTE only has bustype int ID
-                ('Route',           'ROUTE_DUP',     MdbImportService._process_routes),
+            # ---- PASS 2: Depend on Pass 1 ----
+            ('Employee',        'CREW',          MdbImportService._process_employees),
+            ('Route',           'ROUTE',         MdbImportService._process_routes),
 
-                # ---- PASS 3: Depend on Pass 2 ----
-                # RouteStage re-reads STAGE rows to build route-stage links
-                ('RouteStage',      'STAGE',         MdbImportService._process_route_stages),
-                # RouteBusType derived from ROUTE_DUP — one entry per route
-                ('RouteBusType',    'ROUTE_DUP',     MdbImportService._process_route_bus_types),
-                # Fare matrix — needs Route + Stage both existing
-                ('Fare',            'FARE',          MdbImportService._process_fares),
-                # VehicleType needs BusType
-                ('VehicleType',     'VEHICLETYPE',   MdbImportService._process_vehicles),
-                # Settings — one row per company from SETTINGS table
-                ('Settings',        'SETTINGS',      MdbImportService._process_settings),
+            # ---- PASS 3: Depend on Pass 2 ----
+            # RouteStage re-reads STAGE rows to build route-stage links
+            ('RouteStage',      'STAGE',         MdbImportService._process_route_stages),
+            # RouteBusType derived from ROUTE table + bustype id map
+            ('RouteBusType',    'ROUTE',         MdbImportService._process_route_bus_types),
+            # Fare matrix — needs Route + Stage both existing
+            ('Fare',            'FARE',          MdbImportService._process_fares),
+            # VehicleType needs BusType
+            ('VehicleType',     'VEHICLETYPE',   MdbImportService._process_vehicles),
+            # Settings — one row per company from SETTINGS table
+            ('Settings',        'SETTINGS',      MdbImportService._process_settings),
 
-                # ---- PASS 4: Depend on Pass 2/3 ----
-                ('ExpenseMaster',   'EXPMASTER',     MdbImportService._process_expense_masters),
-                ('Expense',         'EXPENSE',       MdbImportService._process_expenses),
-                ('CrewAssignment',  'CREWDET',       MdbImportService._process_crew_assignments),
-                ('InspectorDetails','INSPECTORDET',  MdbImportService._process_inspector_details),
-            ]
+            # ---- PASS 4: Depend on Pass 2/3 ----
+            ('ExpenseMaster',   'EXPMASTER',     MdbImportService._process_expense_masters),
+            ('Expense',         'EXPENSE',       MdbImportService._process_expenses),
+            ('CrewAssignment',  'CREWDET',       MdbImportService._process_crew_assignments),
+            ('InspectorDetails','INSPECTORDET',  MdbImportService._process_inspector_details),
+        ]
 
-            for table_name, raw_key, processor_fn in processors:
-                rows = raw_tables.get(raw_key, [])
+        for table_name, raw_key, processor_fn in processors:
+            rows = raw_tables.get(raw_key, [])
 
-                # Rebuild lookups AFTER each table so newly saved rows are findable
-                # e.g. BusType rows saved above are now in lookups when Route runs
-                lookups = MdbImportService._build_lookups(company)
+            # Rebuild lookups AFTER each table so newly saved rows are findable
+            # e.g. BusType rows saved above are now in lookups when Route runs
+            lookups = MdbImportService._build_lookups(company, bus_type_source_map)
 
-                imported, skipped, errors = processor_fn(rows, company, user, lookups)
+            try:
+                # Each table gets its OWN atomic block (savepoint).
+                # If THIS table fails, only THIS table rolls back.
+                with transaction.atomic():
+                    imported, skipped, errors = processor_fn(rows, company, user, lookups)
+            except Exception as e:
+                # Entire table processor crashed (not a row-level skip — a real crash)
+                # Mark all rows in this table as skipped and continue to next table
+                imported = 0
+                skipped  = len(rows)
+                errors   = [f"Table {table_name} failed entirely: {str(e)}"]
 
-                all_errors.extend(errors)
-                total_imported += imported
-                total_skipped  += skipped
-                table_results.append({
-                    'table':    table_name,
-                    'imported': imported,
-                    'skipped':  skipped,
-                })
+            all_errors.extend(errors)
+            total_imported += imported
+            total_skipped  += skipped
+            table_results.append({
+                'table':    table_name,
+                'imported': imported,
+                'skipped':  skipped,
+            })
 
         return {
             'imported':      total_imported,
             'skipped':       total_skipped,
             'table_results': table_results,
             'errors':        all_errors,
+            'read_errors':   read_errors,
         }
 
 
@@ -204,7 +194,7 @@ class MdbImportService:
     # ================================================================
 
     @staticmethod
-    def _build_lookups(company):
+    def _build_lookups(company, bus_type_source_map=None):
         return {
             # BusType: keyed by name lowercase
             # Used by: Route, VehicleType, RouteBusType
@@ -268,7 +258,25 @@ class MdbImportService:
                 str(em.expense_code).strip(): em
                 for em in ExpenseMaster.objects.filter(company=company)
             },
+            # MDB bustype source ID ("1") -> bustype name lowercase ("ordinary")
+            'bus_type_source_map': bus_type_source_map or {},
         }
+
+    @staticmethod
+    def _build_bus_type_source_map(rows):
+        """
+        MDB bustype rows:
+          id, name, comments
+        Build:
+          { normalized_id: lowercase_name }
+        """
+        mapping = {}
+        for row in rows:
+            source_id = MdbImportService._normalize_id(row.get('id'))
+            bt_name = str(row.get('name', '') or '').strip().lower()
+            if source_id and bt_name:
+                mapping[source_id] = bt_name
+        return mapping
 
 
     # ================================================================
@@ -524,27 +532,31 @@ class MdbImportService:
     @staticmethod
     def _process_routes(rows, company, user, lookups):
         """
-        MDB ROUTE_DUP: rutcode, rutname, minfare, faretype, bustype(int),
-                       BusTypeName(string), usestop, Half, luggage, student,
-                       adjust, conc, ph, PASSALLOW
+        MDB ROUTE: rutcode, rutname, minfare, faretype, bustype(int),
+                   usestop, Half, luggage, student, adjust, conc, ph, PASSALLOW
         Django Route: route_code, route_name, min_fare, fare_type,
                       bus_type(FK), use_stop, half, luggage, student,
                       adjust, conc, ph, company
 
-        Uses ROUTE_DUP (not ROUTE) because ROUTE_DUP has BusTypeName as a string.
-        ROUTE only has bustype as an integer which can't be resolved without VEHICLETYPE.
+        Bus type is resolved through:
+          ROUTE.bustype (source id) -> bustype.id/name map -> DB BusType.
         """
         imported, skipped, errors = 0, 0, []
         for i, row in enumerate(rows):
             try:
                 route_code   = str(row.get('rutcode', '') or '').strip()
                 route_name   = str(row.get('rutname', '') or '').strip()
-                bustype_name = str(row.get('BusTypeName', '') or '').strip().lower()
+                raw_bustype_id = row.get('bustype')
 
                 if not route_code:
                     raise ValueError("Missing rutcode")
+
+                source_bustype_id = MdbImportService._normalize_id(raw_bustype_id)
+                bustype_name = lookups['bus_type_source_map'].get(source_bustype_id)
                 if not bustype_name:
-                    raise ValueError("Missing BusTypeName")
+                    raise ValueError(
+                        f"BusType source id '{source_bustype_id}' not found in bustype table map"
+                    )
 
                 bus_type_obj = lookups['bus_types'].get(bustype_name)
                 if not bus_type_obj:
@@ -574,7 +586,7 @@ class MdbImportService:
                 imported += 1
             except Exception as e:
                 skipped += 1
-                errors.append(f"Row {i+1} ROUTE_DUP: {str(e)}")
+                errors.append(f"Row {i+1} ROUTE: {str(e)}")
         return imported, skipped, errors
 
 
@@ -642,20 +654,22 @@ class MdbImportService:
     @staticmethod
     def _process_route_bus_types(rows, company, user, lookups):
         """
-        Source: ROUTE_DUP (same rows as _process_routes)
+        Source: ROUTE (same rows as _process_routes)
         Django RouteBusType: route(FK), bus_type(FK), company
 
-        One RouteBusType entry per route — using the BusTypeName from ROUTE_DUP.
+        One RouteBusType entry per route using ROUTE.bustype source id.
         This records which bus types are allowed on each route.
         """
         imported, skipped, errors = 0, 0, []
         for i, row in enumerate(rows):
             try:
-                route_code   = str(row.get('rutcode',     '') or '').strip()
-                bustype_name = str(row.get('BusTypeName', '') or '').strip().lower()
+                route_code = str(row.get('rutcode', '') or '').strip()
+                raw_bustype_id = row.get('bustype')
+                source_bustype_id = MdbImportService._normalize_id(raw_bustype_id)
+                bustype_name = lookups['bus_type_source_map'].get(source_bustype_id)
 
                 if not route_code or not bustype_name:
-                    raise ValueError("Missing rutcode or BusTypeName")
+                    raise ValueError("Missing rutcode or unresolved bustype source id")
 
                 route = lookups['routes_by_code'].get(route_code)
                 if not route:
@@ -680,47 +694,36 @@ class MdbImportService:
 
     @staticmethod
     def _process_fares(rows, company, user, lookups):
-        """
-        MDB FARE: Number(PK), row(from_stage), col(to_stage), fare, route(route_code)
-        Django Fare: route(FK), from_stage(FK), to_stage(FK), fare_amount, company
-
-        FARE.row  → stage index → looked up in stages_by_code
-        FARE.col  → stage index → looked up in stages_by_code
-        FARE.route → route_code → looked up in routes_by_code
-        """
         imported, skipped, errors = 0, 0, []
         for i, row in enumerate(rows):
             try:
                 route_code = str(row.get('route', '') or '').strip()
-                raw_from   = str(row.get('row',   '') or '').strip()
-                raw_to     = str(row.get('col',   '') or '').strip()
-                fare_amt   = MdbImportService._to_float(row.get('fare'))
+                raw_row    = str(row.get('row',   '') or '').strip()
+                raw_col    = str(row.get('col',   '') or '').strip()
+                raw_number = str(row.get('Number','') or '').strip()
+                fare_amt   = MdbImportService._to_int(row.get('fare'))
 
                 if not route_code:
                     raise ValueError("Missing route code")
 
-                from_code = MdbImportService._normalize_id(raw_from)
-                to_code   = MdbImportService._normalize_id(raw_to)
-
-                route      = lookups['routes_by_code'].get(route_code)
-                from_stage = lookups['stages_by_code'].get(from_code)
-                to_stage   = lookups['stages_by_code'].get(to_code)
-
+                route = lookups['routes_by_code'].get(route_code)
                 if not route:
                     raise ValueError(f"Route '{route_code}' not found")
-                if not from_stage:
-                    raise ValueError(f"From-stage code '{from_code}' not found")
-                if not to_stage:
-                    raise ValueError(f"To-stage code '{to_code}' not found")
+
+                row_val    = MdbImportService._to_int(raw_row)
+                col_val    = MdbImportService._to_int(raw_col)
+                number_val = MdbImportService._to_int(raw_number)
 
                 Fare.objects.get_or_create(
                     company=company,
                     route=route,
-                    from_stage=from_stage,
-                    to_stage=to_stage,
+                    row=row_val,
+                    col=col_val,
                     defaults={
+                        'number':     number_val,
                         'fare_amount': fare_amt,
-                        'created_by':  user,
+                        'route_name': route.route_name,
+                        'created_by': user,
                     }
                 )
                 imported += 1
@@ -1077,7 +1080,7 @@ class MdbReader:
             'CURRENCY',
             'CREW',
             'STAGE',
-            'ROUTE_DUP',
+            'ROUTE',
             'FARE',
             'VEHICLETYPE',
             'SETTINGS',
@@ -1088,16 +1091,18 @@ class MdbReader:
         ]
 
         result = {}
+        read_errors = {}
         for table in tables_to_read:
             try:
                 rows = MdbReader._read_table(mdb_path, table, password)
                 result[table] = rows
             except MdbPasswordError:
                 raise
-            except Exception:
+            except Exception as e:
                 result[table] = []
+                read_errors[table] = str(e)
 
-        return result
+        return result, read_errors
 
     @staticmethod
     def _read_table(mdb_path, table_name, password=None):
