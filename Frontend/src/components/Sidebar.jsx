@@ -6,6 +6,7 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);         // Mobile open/close
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [masterDataOpen, setMasterDataOpen] = useState(false);
   const navigate = useNavigate();
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -123,6 +124,7 @@ export default function Sidebar() {
             onClick={() => {
               setIsCollapsed(!isCollapsed);
               if (!isCollapsed) setReportsOpen(false);
+              if (!isCollapsed) setMasterDataOpen(false);
             }}
             className={`
               hidden lg:flex p-1.5 rounded-lg transition
@@ -315,6 +317,158 @@ export default function Sidebar() {
                           onClick={() => setIsOpen(false)}
                         >
                           Trip Close
+                        </NavLink>
+                      </div>
+                    </div>
+                  )}
+                </li>
+
+                {/* Manage Master Data Dropdown */}
+                <li>
+                  <button style={{"cursor":"pointer"}}
+                    onClick={() => setMasterDataOpen(!masterDataOpen)}
+                    className={`
+                      w-full flex items-center justify-between px-3 py-2.5 text-slate-600 rounded-lg transition
+                      hover:bg-slate-100 hover:text-slate-900 mb-1
+                      ${isCollapsed ? "lg:justify-center" : ""}
+                    `}
+                  >
+                    <div className={`flex items-center ${isCollapsed ? "" : "space-x-3"}`}>
+                      <i className="fa-solid fa-database w-5 text-center text-lg"></i>
+                      {!isCollapsed && <span>Manage Master Data</span>}
+                    </div>
+                    {!isCollapsed && (
+                      <i
+                        className={`fa-solid fa-chevron-down text-xs transition-transform duration-200 ${
+                          masterDataOpen ? "rotate-180" : ""
+                        }`}
+                      ></i>
+                    )}
+                  </button>
+
+                  {!isCollapsed && (
+                    <div
+                      className={`transition-all overflow-hidden ${
+                        masterDataOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                      }`}
+                    >
+                      <div className="pl-4 my-1 border-l-2 border-slate-200 space-y-1">
+                        <NavLink
+                          to="/dashboard/master-data/bus-types"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Bus Types
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/employee-types"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Employee Types
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/stages"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Stages
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/currencies"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Currencies
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/employees"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Employees
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/vehicles"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Vehicles
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/routes"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Routes
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/crew-assignments"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Crew Assignments
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/settings"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Settings
                         </NavLink>
                       </div>
                     </div>

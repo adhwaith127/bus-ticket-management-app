@@ -454,19 +454,34 @@ def update_currency(request, pk):
 # instead of a 404 when settings haven't been set up yet.
 # =============================================================================
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT'])
 def get_settings(request):
     user, company, err = _get_authenticated_company_admin(request)
     if err:
         return err
 
-    try:
-        settings_obj = Settings.objects.get(company=company)
-        serializer = SettingsSerializer(settings_obj)
-        return Response({'message': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
-    except Settings.DoesNotExist:
-        # No settings yet — return empty so frontend shows defaults
-        return Response({'message': 'No settings found', 'data': None}, status=status.HTTP_200_OK)
+    if request.method == 'GET':
+        try:
+            settings_obj = Settings.objects.get(company=company)
+            serializer = SettingsSerializer(settings_obj)
+            return Response({'message': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
+        except Settings.DoesNotExist:
+            # No settings yet — return empty so frontend shows defaults
+            return Response({'message': 'No settings found', 'data': None}, status=status.HTTP_200_OK)
+
+    # PUT: get_or_create to either update existing or create fresh on first save.
+    settings_obj, created = Settings.objects.get_or_create(
+        company=company,
+        defaults={'created_by': user}
+    )
+
+    serializer = SettingsSerializer(settings_obj, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save(updated_by=user)
+        msg = 'Settings created successfully' if created else 'Settings updated successfully'
+        return Response({'message': msg, 'data': serializer.data}, status=status.HTTP_200_OK)
+
+    return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['PUT'])

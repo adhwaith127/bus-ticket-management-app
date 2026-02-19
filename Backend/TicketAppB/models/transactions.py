@@ -12,7 +12,7 @@ class TransactionData(models.Model):
     class PaymentMode(models.IntegerChoices):
         CASH = 0, 'Cash'
         UPI = 1, 'UPI'
-    
+
     request_type      = models.CharField(max_length=20, null=True, blank=True)
     device_id         = models.CharField(max_length=20, null=True, blank=True)
     trip_number       = models.CharField(max_length=20, null=True, blank=True)

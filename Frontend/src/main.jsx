@@ -22,6 +22,15 @@ import ExecutiveDashboard from './pages/ExecutiveDashboard'
 import DeviceApprovals from './pages/DeviceApprovals'
 import NotFound from './components/NotFound'
 import MdbImport from './pages/MdbImport'
+import BusTypeListing from './pages/BusTypeListing'
+import EmployeeTypeListing from './pages/EmployeeTypeListing'
+import StageListing from './pages/StageListing'
+import CurrencyListing from './pages/CurrencyListing'
+import EmployeeListing from './pages/EmployeeListing'
+import VehicleListing from './pages/VehicleListing'
+import RouteListing from './pages/RouteListing'
+import CrewAssignmentListing from './pages/CrewAssignmentListing'
+import SettingsPage from './pages/SettingsPage'
 
 const router = createBrowserRouter([
   {
@@ -86,6 +95,42 @@ const router = createBrowserRouter([
           {
             path: 'data-import',
             element: <MdbImport/>
+          },
+          {
+            path: 'master-data/bus-types',
+            element: <BusTypeListing />
+          },
+          {
+            path: 'master-data/employee-types',
+            element: <EmployeeTypeListing />
+          },
+          {
+            path: 'master-data/stages',
+            element: <StageListing />
+          },
+          {
+            path: 'master-data/currencies',
+            element: <CurrencyListing />
+          },
+          {
+            path: 'master-data/employees',
+            element: <EmployeeListing />
+          },
+          {
+            path: 'master-data/vehicles',
+            element: <VehicleListing />
+          },
+          {
+            path: 'master-data/routes',
+            element: <RouteListing />
+          },
+          {
+            path: 'master-data/crew-assignments',
+            element: <CrewAssignmentListing />
+          },
+          {
+            path: 'master-data/settings',
+            element: <SettingsPage />
           },
         ]
       }

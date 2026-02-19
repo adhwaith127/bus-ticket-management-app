@@ -74,7 +74,37 @@ urlpatterns = [
     path('masterdata/bus-types/', masterdata_views.get_bus_types),
     path('masterdata/bus-types/create/', masterdata_views.create_bus_type),
     path('masterdata/bus-types/update/<int:pk>/', masterdata_views.update_bus_type),
-    # ... same for each entity
+    path('masterdata/employee-types/', masterdata_views.get_employee_types),
+    path('masterdata/employee-types/create/', masterdata_views.create_employee_type),
+    path('masterdata/employee-types/update/<int:pk>/', masterdata_views.update_employee_type),
+
+    path('masterdata/stages/', masterdata_views.get_stages),
+    path('masterdata/stages/create/', masterdata_views.create_stage),
+    path('masterdata/stages/update/<int:pk>/', masterdata_views.update_stage),
+
+    path('masterdata/currencies/', masterdata_views.get_currencies),
+    path('masterdata/currencies/create/', masterdata_views.create_currency),
+    path('masterdata/currencies/update/<int:pk>/', masterdata_views.update_currency),
+
+    path('masterdata/employees/', masterdata_views.get_employees),
+    path('masterdata/employees/create/', masterdata_views.create_employee),
+    path('masterdata/employees/update/<int:pk>/', masterdata_views.update_employee),
+
+    path('masterdata/vehicles/', masterdata_views.get_vehicles),
+    path('masterdata/vehicles/create/', masterdata_views.create_vehicle),
+    path('masterdata/vehicles/update/<int:pk>/', masterdata_views.update_vehicle),
+
+    path('masterdata/routes/', masterdata_views.get_routes),
+    path('masterdata/routes/create/', masterdata_views.create_route),
+    path('masterdata/routes/update/<int:pk>/', masterdata_views.update_route),
+
+    path('masterdata/crew-assignments/', masterdata_views.get_crew_assignments),
+    path('masterdata/crew-assignments/create/', masterdata_views.create_crew_assignment),
+    path('masterdata/crew-assignments/update/<int:pk>/', masterdata_views.update_crew_assignment),
+
+    path('masterdata/settings/', masterdata_views.get_settings),
+    path('masterdata/settings/update/', masterdata_views.update_settings),
+
     # Dropdowns
     path('masterdata/dropdowns/bus-types/', masterdata_views.get_bus_types_dropdown),
     path('masterdata/dropdowns/employee-types/', masterdata_views.get_employee_types_dropdown),

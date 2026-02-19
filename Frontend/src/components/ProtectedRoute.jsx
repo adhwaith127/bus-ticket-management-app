@@ -41,12 +41,14 @@ export default function ProtectedRoute() {
   useEffect(() => {
     if (!loading && isAuthenticated && userRole) {
       const path = location.pathname;
+      const isMasterDataPath = path.includes('/master-data/');
       
       // Superadmin restrictions: cannot access company admin pages
       if (userRole === 'superadmin') {
         if (path.includes('/branches') || 
             path.includes('/ticket-report') || 
-            path.includes('/trip-close-report')) {
+            path.includes('/trip-close-report') ||
+            isMasterDataPath) {
           window.alert('Access Denied: This page is only for Company Admins');
           navigate('/dashboard', { replace: true });
         }
@@ -72,6 +74,7 @@ export default function ProtectedRoute() {
             path.includes('/branches') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report') ||
+            isMasterDataPath ||
             path.includes('/dealers') ||
             path.includes('/dealer-dashboard') ||
             path.includes('/executive-dashboard')) {
@@ -87,6 +90,7 @@ export default function ProtectedRoute() {
             path.includes('/branches') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report') ||
+            isMasterDataPath ||
             path.includes('/dealers') ||
             path.includes('/dealer-dashboard')) {
           window.alert('Access Denied: This page is only for Administrators');
@@ -101,6 +105,7 @@ export default function ProtectedRoute() {
             path.includes('/branches') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report') ||
+            isMasterDataPath ||
             path.includes('/settlements') ||
             path.includes('/dealers') ||
             path.includes('/executive-dashboard')) {
