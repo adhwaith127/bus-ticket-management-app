@@ -981,3 +981,96 @@ class SettingsSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at']
+
+
+
+# =============================================================================
+# RouteStage Serializer - ADD THIS TO serializers.py
+# Place it near the RouteSerializer
+# =============================================================================
+
+class RouteStageSerializer(serializers.ModelSerializer):
+    """
+    Serializer for RouteStage records (stops on a route).
+    Used for inline editing within Route forms.
+    """
+    company    = serializers.PrimaryKeyRelatedField(read_only=True)
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    
+    # Read-only display field for stage name
+    stage_name = serializers.CharField(source='stage.stage_name', read_only=True)
+    stage_code = serializers.CharField(source='stage.stage_code', read_only=True)
+    
+    class Meta:
+        model = RouteStage
+        fields = [
+            'id',
+            'stage',           # writable FK (frontend sends stage ID)
+            'stage_name',      # read-only display
+            'stage_code',      # read-only display
+            'sequence_no',
+            'distance',
+            'stage_local_lang',
+            'company',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'company', 'created_by', 'created_at', 'updated_at', 'stage_name', 'stage_code']
+    
+    def validate_stage(self, value):
+        """Ensure the chosen Stage belongs to this company."""
+        company = self.context.get('company')
+        if company and value.company != company:
+            raise serializers.ValidationError("Selected stage does not belong to your company.")
+        return value
+
+
+# =============================================================================
+# UPDATE the existing RouteSerializer to include nested route_stages
+# =============================================================================
+
+class RouteSerializer(serializers.ModelSerializer):
+    company    = serializers.PrimaryKeyRelatedField(read_only=True)
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    updated_by = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    bus_type_name = serializers.CharField(source='bus_type.name', read_only=True)
+    
+    # NEW: Nested route stages for read (GET)
+    route_stages = RouteStageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model  = Route
+        fields = [
+            'id',
+            'route_code',
+            'route_name',
+            'min_fare',
+            'fare_type',
+            'bus_type',
+            'bus_type_name',
+            'use_stop',
+            'half',
+            'luggage',
+            'student',
+            'adjust',
+            'conc',
+            'ph',
+            'start_from',
+            'pass_allow',
+            'is_deleted',
+            'company',
+            'created_by',
+            'updated_by',
+            'created_at',
+            'updated_at',
+            'route_stages',    # NEW: nested stages list
+        ]
+        read_only_fields = ['id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at', 'bus_type_name', 'route_stages']
+
+    def validate_bus_type(self, value):
+        company = self.context.get('company')
+        if company and value.company != company:
+            raise serializers.ValidationError("Selected bus type does not belong to your company.")
+        return value

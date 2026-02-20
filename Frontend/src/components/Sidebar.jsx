@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import api, { BASE_URL } from "../assets/js/axiosConfig";
+import cacheManager from "../utils/reportCache";
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);         // Mobile open/close
@@ -23,6 +24,9 @@ export default function Sidebar() {
       await api.post(`${BASE_URL}/logout/`, body);
     } catch {}
     finally {
+      // Clear all cache before clearing user storage
+      cacheManager.invalidateAll();
+      
       localStorage.removeItem("user");
       localStorage.removeItem("authToken");
       localStorage.removeItem("refreshToken");

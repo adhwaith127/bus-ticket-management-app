@@ -3,6 +3,7 @@ from .views import auth_views,company_views,user_views,data_views,masterdata_vie
 from .views import branch_views,mosambee_views,dealer_views,executive_views,device_approval_views
 from .views.mdb_views import MdbImportView
 from .views.mdb_debug_view import MdbDebugView
+from .views.masterdata_views import get_stages_dropdown
 
 urlpatterns = [
     # authentication
@@ -110,4 +111,7 @@ urlpatterns = [
     path('masterdata/dropdowns/employee-types/', masterdata_views.get_employee_types_dropdown),
     path('masterdata/dropdowns/employees/', masterdata_views.get_employees_by_type_dropdown),
     path('masterdata/dropdowns/vehicles/', masterdata_views.get_vehicles_dropdown),
+
+    # Stages dropdown for route form
+    path('masterdata/dropdowns/stages/', get_stages_dropdown, name='get_stages_dropdown'),
 ]

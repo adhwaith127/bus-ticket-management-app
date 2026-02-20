@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
+import cacheManager from '../utils/reportCache';
 
 export default function TripcloseReport() {
   // ===== STATE MANAGEMENT =====
@@ -74,19 +75,52 @@ export default function TripcloseReport() {
     };
   }, []);
 
-  // Initialize with today's date and fetch data
+  // Initialize with cached date range or today's date, and fetch data
   useEffect(() => {
-    const today = getTodayDate();
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = user.id;
+
+    // Try to restore previous date range from cache
+    const cachedDateRange = cacheManager.getDateRange('tripclose', userId);
+    let startDate, endDate;
+
+    if (cachedDateRange) {
+      startDate = cachedDateRange.fromDate;
+      endDate = cachedDateRange.toDate;
+    } else {
+      // Default to today if no cached date range
+      const today = getTodayDate();
+      startDate = today;
+      endDate = today;
+    }
+
+    // Update filters with restored/default dates
     setFilters(prev => ({
       ...prev,
-      startDate: today,
-      endDate: today
+      startDate,
+      endDate
     }));
     setAppliedFilters({
-      startDate: today,
-      endDate: today
+      startDate,
+      endDate
     });
-    fetchTripData(today, today);
+
+    // Try to load from cache first
+    const cacheKey = cacheManager.getCacheKey('tripclose', userId, startDate, endDate);
+    const cachedData = cacheManager.get(cacheKey);
+
+    if (cachedData) {
+      // Load from cache
+      setTripData(cachedData);
+      if (cachedData.length > 0) {
+        latestTimestampRef.current = cachedData[0].created_at;
+      }
+      setIsPolling(true);
+      setLastUpdated(new Date());
+    } else {
+      // Fetch from API if no cache
+      fetchTripData(startDate, endDate);
+    }
   }, []);
 
   // Polling effect
@@ -168,6 +202,13 @@ export default function TripcloseReport() {
           // Initial/filter fetch
           const fetchedData = response.data.data || [];
           setTripData(fetchedData);
+          
+          // Cache the data and date range
+          const user = JSON.parse(localStorage.getItem("user") || "{}");
+          const userId = user.id;
+          const cacheKey = cacheManager.getCacheKey('tripclose', userId, startDate, endDate);
+          cacheManager.set(cacheKey, fetchedData);
+          cacheManager.setDateRange('tripclose', userId, startDate, endDate);
           
           if (fetchedData.length > 0) {
             latestTimestampRef.current = fetchedData[0].created_at;
@@ -281,6 +322,12 @@ export default function TripcloseReport() {
     
     setDateError('');
     
+    // Invalidate cache for old date range
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = user.id;
+    const oldCacheKey = cacheManager.getCacheKey('tripclose', userId, appliedFilters.startDate, appliedFilters.endDate);
+    cacheManager.invalidate(oldCacheKey);
+    
     setIsPolling(false);
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -303,6 +350,13 @@ export default function TripcloseReport() {
 
   const clearFilters = () => {
     const today = getTodayDate();
+    
+    // Invalidate cache for current date range
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = user.id;
+    const oldCacheKey = cacheManager.getCacheKey('tripclose', userId, appliedFilters.startDate, appliedFilters.endDate);
+    cacheManager.invalidate(oldCacheKey);
+    
     setFilters({
       startDate: today,
       endDate: today,
