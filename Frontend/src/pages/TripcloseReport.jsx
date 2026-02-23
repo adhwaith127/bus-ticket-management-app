@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
-import cacheManager from '../utils/reportCache';
+// import cacheManager from '../utils/reportCache';
+import cacheManager from '../assets/js/reportCache';
+
 
 export default function TripcloseReport() {
   // ===== STATE MANAGEMENT =====

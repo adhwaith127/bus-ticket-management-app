@@ -11,19 +11,17 @@ from ..models import (
 from ..serializers import (
     BusTypeSerializer, EmployeeTypeSerializer, EmployeeSerializer,
     StageSerializer, RouteSerializer, VehicleTypeSerializer,
-    CurrencySerializer, SettingsSerializer, CrewAssignmentSerializer,RouteStageSerializer,FareSerializer
+    CurrencySerializer, SettingsSerializer, CrewAssignmentSerializer
 )
 from .auth_views import get_user_from_cookie
+
 
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
 # SHARED HELPERS
 # These two functions are used at the top of every single view.
 # Keeping them here avoids repeating the same 10 lines everywhere.
-# =============================================================================
-
 def _get_authenticated_company_admin(request):
     """
     Returns (user, company, error_response).
@@ -75,11 +73,8 @@ def _get_object_or_404(model, pk, company):
         )
 
 
-# =============================================================================
-# SECTION 1 — BUS TYPE
+# BUS TYPE
 # Simple CRUD. No FK dependencies from frontend side.
-# =============================================================================
-
 @api_view(['GET'])
 def get_bus_types(request):
     user, company, err = _get_authenticated_company_admin(request)
@@ -123,11 +118,8 @@ def update_bus_type(request, pk):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 2 — EMPLOYEE TYPE
+# EMPLOYEE TYPE
 # Same simple pattern as BusType.
-# =============================================================================
-
 @api_view(['GET'])
 def get_employee_types(request):
     user, company, err = _get_authenticated_company_admin(request)
@@ -171,16 +163,13 @@ def update_employee_type(request, pk):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 3 — EMPLOYEE
+# EMPLOYEE
 # Has a FK to EmployeeType.
-# Two things to notice here:
+# wo things to notice here:
 #   1. context={'company': company} is passed to the serializer so that
 #      validate_emp_type() can confirm the chosen type belongs to this company.
 #   2. is_deleted is a soft delete flag — no actual DELETE endpoint.
 #      To "delete" an employee the admin sets is_deleted=True via the update endpoint.
-# =============================================================================
-
 @api_view(['GET'])
 def get_employees(request):
     user, company, err = _get_authenticated_company_admin(request)
@@ -232,11 +221,8 @@ def update_employee(request, pk):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 4 — STAGE
+# STAGE
 # Simple CRUD. is_deleted is a soft delete flag here too.
-# =============================================================================
-
 @api_view(['GET'])
 def get_stages(request):
     user, company, err = _get_authenticated_company_admin(request)
@@ -285,23 +271,13 @@ def update_stage(request, pk):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 5 — ROUTE
+# ROUTE
 # Has a FK to BusType (company-validated via serializer context).
-# is_deleted soft delete same as Employee and Stage.
+# s_deleted soft delete same as Employee and Stage.
 # RouteStage inline management is skipped for now — ready to add later.
-# =============================================================================
 
-# =============================================================================
 # UPDATED Route Views - REPLACE in masterdata_views.py
 # Now handles both RouteStage AND RouteBusType inline
-# =============================================================================
-
-from ..models import RouteStage, RouteBusType  # Add RouteBusType to imports at top
-
-# ... keep all other views ...
-
-
 @api_view(['GET'])
 def get_routes(request):
     """
@@ -487,12 +463,9 @@ def _save_route_bus_types(route, bus_type_ids, company, user):
 # ── Dropdown endpoints (keep existing get_stages_dropdown) ───────────────────
 # No changes needed to get_stages_dropdown or get_bus_types_dropdown
 
-# =============================================================================
-# SECTION 6 — VEHICLE TYPE
+# VEHICLE TYPE
 # Has a FK to BusType (company-validated via serializer context).
-# is_deleted soft delete same as above.
-# =============================================================================
-
+# s_deleted soft delete same as above.
 @api_view(['GET'])
 def get_vehicles(request):
     user, company, err = _get_authenticated_company_admin(request)
@@ -541,11 +514,8 @@ def update_vehicle(request, pk):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 7 — CURRENCY
+# CURRENCY
 # Simple CRUD. No FK dependencies.
-# =============================================================================
-
 @api_view(['GET'])
 def get_currencies(request):
     user, company, err = _get_authenticated_company_admin(request)
@@ -589,18 +559,15 @@ def update_currency(request, pk):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 8 — SETTINGS
+# SETTINGS
 # Special case — OneToOne with Company means there is exactly one Settings
-# record per company. So there's no list, no create button.
+# ecord per company. So there's no list, no create button.
 #
 # GET: Try to fetch the settings. If none exists yet, return empty defaults.
 # PUT: Use get_or_create to either update existing or create fresh on first save.
 #
 # _get_object_or_404 is NOT used here because we want graceful empty defaults
 # instead of a 404 when settings haven't been set up yet.
-# =============================================================================
-
 @api_view(['GET', 'PUT'])
 def get_settings(request):
     user, company, err = _get_authenticated_company_admin(request)
@@ -653,18 +620,15 @@ def update_settings(request):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 9 — CREW ASSIGNMENT
+# CREW ASSIGNMENT
 # Links driver + conductor + cleaner + vehicle.
-# Key difference from other views: before saving, we validate that:
+# ey difference from other views: before saving, we validate that:
 #   - driver's emp_type code is 'DRIVER'
 #   - conductor's emp_type code is 'CONDUCTOR' (if provided)
 #   - cleaner's emp_type code is 'CLEANER' (if provided)
 # This validation lives in the VIEW (not serializer) because it requires
 # fetching related objects and checking a nested field — easier to read here.
 # All 4 FK objects are also confirmed to belong to this company.
-# =============================================================================
-
 def _validate_crew_member(employee_id, expected_type_code, company, field_label):
     """
     Fetches an Employee by ID, confirms it belongs to this company,
@@ -786,16 +750,13 @@ def update_crew_assignment(request, pk):
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =============================================================================
-# SECTION 10 — DROPDOWN DATA ENDPOINTS
+# DROPDOWN DATA ENDPOINTS
 # These are lightweight GET-only endpoints used by the frontend to populate
-# dropdown menus in forms. For example:
+# ropdown menus in forms. For example:
 #   - Employee form needs a dropdown of EmployeeTypes
 #   - Vehicle form needs a dropdown of BusTypes
 #   - CrewAssignment form needs dropdowns for drivers, conductors, vehicles
 # All filtered to this company, minimal fields only.
-# =============================================================================
-
 @api_view(['GET'])
 def get_bus_types_dropdown(request):
     """Minimal bus type list for dropdown menus."""
@@ -1017,13 +978,13 @@ def get_stages_dropdown(request):
     return Response({'message': 'Success', 'data': data}, status=status.HTTP_200_OK)
 
 
-
-
 @api_view(['GET'])
 def get_fare_editor(request, route_id):
     """
     Get fare data for a specific route.
-    Returns route info + fare matrix + stage list for building the UI.
+    Returns different structure based on fare_type:
+    - fare_type=1 (Table): Returns 1D array (row=1, col=1..N)
+    - fare_type=2 (Graph): Returns 2D matrix (row=1..N, col=1..N upper triangular)
     """
     user, company, err = _get_authenticated_company_admin(request)
     if err:
@@ -1034,7 +995,7 @@ def get_fare_editor(request, route_id):
     if err:
         return err
     
-    # Get route stages (for table headers/rows)
+    # Get route stages (for both modes)
     stages = route.route_stages.select_related('stage').order_by('sequence_no')
     stage_list = [{
         'sequence_no': rs.sequence_no,
@@ -1043,53 +1004,72 @@ def get_fare_editor(request, route_id):
         'stage_name': rs.stage.stage_name,
     } for rs in stages]
     
+    n_stages = len(stage_list)
+    
     # Get existing fares
     fares = Fare.objects.filter(route=route).order_by('row', 'col')
-    fare_dict = {(f.row, f.col): f.fare_amount for f in fares}
     
-    # Build fare matrix (NxN grid)
-    n_stages = len(stage_list)
-    fare_matrix = []
-    for row_idx in range(n_stages):
-        row_data = []
-        for col_idx in range(n_stages):
-            # row_idx and col_idx are 0-indexed, but we'll use sequence_no (1-indexed) for storage
-            row_seq = stage_list[row_idx]['sequence_no']
-            col_seq = stage_list[col_idx]['sequence_no']
-            fare_amount = fare_dict.get((row_seq, col_seq), 0)
-            row_data.append(fare_amount)
-        fare_matrix.append(row_data)
+    # Build response based on fare_type
+    if route.fare_type == 1:
+        # TABLE FARE (1D) - row=1, col represents number of stages traveled
+        fare_dict = {f.col: f.fare_amount for f in fares if f.row == 1}
+        
+        # Build 1D array: fare_list[i] = fare for traveling (i+1) stages
+        fare_list = [fare_dict.get(i+1, 0) for i in range(n_stages)]
+        
+        return Response({
+            'message': 'Success',
+            'data': {
+                'route': {
+                    'id': route.id,
+                    'route_code': route.route_code,
+                    'route_name': route.route_name,
+                    'fare_type': route.fare_type,
+                },
+                'stages': stage_list,
+                'fare_type_name': 'Table Fare (Distance-Based)',
+                'fare_list': fare_list,  # 1D array for Table Fare
+            }
+        }, status=status.HTTP_200_OK)
     
-    return Response({
-        'message': 'Success',
-        'data': {
-            'route': {
-                'id': route.id,
-                'route_code': route.route_code,
-                'route_name': route.route_name,
-                'fare_type': route.fare_type,
-            },
-            'stages': stage_list,
-            'fare_matrix': fare_matrix,  # NxN matrix where matrix[i][j] = fare from stage i to stage j
-        }
-    }, status=status.HTTP_200_OK)
+    else:  # fare_type == 2
+        # GRAPH FARE (2D Matrix) - row=origin, col=destination
+        fare_dict = {(f.row, f.col): f.fare_amount for f in fares}
+        
+        # Build 2D matrix (upper triangular)
+        fare_matrix = []
+        for row_idx in range(n_stages):
+            row_data = []
+            for col_idx in range(n_stages):
+                row_seq = stage_list[row_idx]['sequence_no']
+                col_seq = stage_list[col_idx]['sequence_no']
+                fare_amount = fare_dict.get((row_seq, col_seq), 0)
+                row_data.append(fare_amount)
+            fare_matrix.append(row_data)
+        
+        return Response({
+            'message': 'Success',
+            'data': {
+                'route': {
+                    'id': route.id,
+                    'route_code': route.route_code,
+                    'route_name': route.route_name,
+                    'fare_type': route.fare_type,
+                },
+                'stages': stage_list,
+                'fare_type_name': 'Graph Fare (Point-to-Point)',
+                'fare_matrix': fare_matrix,  # 2D matrix for Graph Fare
+            }
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
 def update_fare_table(request, route_id):
     """
-    Bulk update fare matrix for a route.
-    Deletes existing fares and recreates them from the submitted matrix.
-    
-    Expected payload:
-    {
-        "fare_matrix": [
-            [0, 10, 20, 30],
-            [10, 0, 12, 22],
-            [20, 12, 0, 10],
-            [30, 22, 10, 0]
-        ]
-    }
+    Bulk update fares for a route.
+    Accepts different payload based on fare_type:
+    - fare_type=1 (Table): { "fare_list": [10, 20, 30, ...] }
+    - fare_type=2 (Graph): { "fare_matrix": [[0,10,20],[10,0,12],[20,12,0]] }
     """
     user, company, err = _get_authenticated_company_admin(request)
     if err:
@@ -1099,52 +1079,42 @@ def update_fare_table(request, route_id):
     if err:
         return err
     
-    fare_matrix = request.data.get('fare_matrix', [])
-    if not fare_matrix or not isinstance(fare_matrix, list):
-        return Response(
-            {'message': 'Invalid fare_matrix format. Expected 2D array.'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
     # Get route stages for validation
     stages = route.route_stages.order_by('sequence_no')
     n_stages = stages.count()
-    
-    # Validate matrix dimensions
-    if len(fare_matrix) != n_stages:
-        return Response(
-            {'message': f'Fare matrix must have {n_stages} rows (number of stages).'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    for i, row in enumerate(fare_matrix):
-        if len(row) != n_stages:
-            return Response(
-                {'message': f'Row {i} must have {n_stages} columns.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+    stage_list = list(stages.values_list('sequence_no', flat=True))
     
     # Delete existing fares for this route
     Fare.objects.filter(route=route).delete()
     
-    # Create new fare records
     fares_to_create = []
-    stage_list = list(stages.values_list('sequence_no', flat=True))
     
-    for i, row in enumerate(fare_matrix):
-        for j, fare_amount in enumerate(row):
-            # Skip zero fares (optional - or you can store them)
+    # ── Handle Table Fare (fare_type=1) ─────────────────────────────────────
+    if route.fare_type == 1:
+        fare_list = request.data.get('fare_list', [])
+        
+        if not fare_list or not isinstance(fare_list, list):
+            return Response(
+                {'message': 'Invalid fare_list format. Expected 1D array.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(fare_list) != n_stages:
+            return Response(
+                {'message': f'fare_list must have {n_stages} entries (number of stages).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create fare records: row=1, col=stage_count, fare_amount=fare
+        for col_idx, fare_amount in enumerate(fare_list):
             if fare_amount == 0:
-                continue
-            
-            row_seq = stage_list[i]
-            col_seq = stage_list[j]
+                continue  # Skip zero fares
             
             fares_to_create.append(
                 Fare(
                     route=route,
-                    row=row_seq,
-                    col=col_seq,
+                    row=1,  # Always row=1 for Table Fare
+                    col=col_idx + 1,  # col = number of stages traveled (1, 2, 3, ...)
                     fare_amount=int(fare_amount),
                     route_name=route.route_name,
                     company=company,
@@ -1152,12 +1122,56 @@ def update_fare_table(request, route_id):
                 )
             )
     
+    # ── Handle Graph Fare (fare_type=2) ─────────────────────────────────────
+    else:  # fare_type == 2
+        fare_matrix = request.data.get('fare_matrix', [])
+        
+        if not fare_matrix or not isinstance(fare_matrix, list):
+            return Response(
+                {'message': 'Invalid fare_matrix format. Expected 2D array.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(fare_matrix) != n_stages:
+            return Response(
+                {'message': f'fare_matrix must have {n_stages} rows (number of stages).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        for i, row in enumerate(fare_matrix):
+            if len(row) != n_stages:
+                return Response(
+                    {'message': f'Row {i} must have {n_stages} columns.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Create fare records: row=from_stage, col=to_stage, fare_amount=fare
+        for i, row in enumerate(fare_matrix):
+            for j, fare_amount in enumerate(row):
+                if fare_amount == 0:
+                    continue  # Skip zero fares
+                
+                row_seq = stage_list[i]
+                col_seq = stage_list[j]
+                
+                fares_to_create.append(
+                    Fare(
+                        route=route,
+                        row=row_seq,  # Origin stage sequence
+                        col=col_seq,  # Destination stage sequence
+                        fare_amount=int(fare_amount),
+                        route_name=route.route_name,
+                        company=company,
+                        created_by=user
+                    )
+                )
+    
     # Bulk create
     if fares_to_create:
         Fare.objects.bulk_create(fares_to_create)
     
+    fare_type_name = 'Table Fare' if route.fare_type == 1 else 'Graph Fare'
     return Response(
-        {'message': f'Fare table updated successfully. {len(fares_to_create)} fare records created.'},
+        {'message': f'{fare_type_name} updated successfully. {len(fares_to_create)} fare records created.'},
         status=status.HTTP_200_OK
     )
-

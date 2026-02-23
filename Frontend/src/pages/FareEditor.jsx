@@ -7,7 +7,15 @@ export default function FareEditor() {
   const [routes, setRoutes]           = useState([]);
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [stages, setStages]           = useState([]);
+  const [fareType, setFareType]       = useState(null);  // 1 or 2
+  const [fareTypeName, setFareTypeName] = useState('');
+  
+  // For Table Fare (1D)
+  const [fareList, setFareList]       = useState([]);
+  
+  // For Graph Fare (2D)
   const [fareMatrix, setFareMatrix]   = useState([]);
+  
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [hasChanges, setHasChanges]   = useState(false);
@@ -31,7 +39,9 @@ export default function FareEditor() {
     if (!routeId) {
       setSelectedRoute(null);
       setStages([]);
+      setFareList([]);
       setFareMatrix([]);
+      setFareType(null);
       return;
     }
 
@@ -39,11 +49,20 @@ export default function FareEditor() {
     setHasChanges(false);
     try {
       const res = await api.get(`${BASE_URL}/masterdata/fares/editor/${routeId}/`);
-      const { route, stages: stageList, fare_matrix } = res.data.data;
+      const { route, stages: stageList, fare_type_name, fare_list, fare_matrix } = res.data.data;
       
       setSelectedRoute(route);
       setStages(stageList);
-      setFareMatrix(fare_matrix);
+      setFareType(route.fare_type);
+      setFareTypeName(fare_type_name);
+      
+      if (route.fare_type === 1) {
+        // Table Fare (1D)
+        setFareList(fare_list || []);
+      } else {
+        // Graph Fare (2D)
+        setFareMatrix(fare_matrix || []);
+      }
     } catch (err) {
       console.error('Error loading fare data:', err);
       window.alert('Failed to load fare data. Please try again.');
@@ -52,32 +71,44 @@ export default function FareEditor() {
     }
   };
 
-  // ── Section 4: Update fare value in matrix ───────────────────────────────
-  const updateFare = (rowIdx, colIdx, value) => {
-    const updatedMatrix = fareMatrix.map((row, i) =>
+  // ── Section 4a: Update fare in 1D list (Table Fare) ──────────────────────
+  const updateTableFare = (index, value) => {
+    const updated = [...fareList];
+    updated[index] = Number(value) || 0;
+    setFareList(updated);
+    setHasChanges(true);
+  };
+
+  // ── Section 4b: Update fare in 2D matrix (Graph Fare) ────────────────────
+  const updateGraphFare = (rowIdx, colIdx, value) => {
+    const updated = fareMatrix.map((row, i) =>
       i === rowIdx
         ? row.map((fare, j) => (j === colIdx ? Number(value) || 0 : fare))
         : row
     );
-    setFareMatrix(updatedMatrix);
+    setFareMatrix(updated);
     setHasChanges(true);
   };
 
-  // ── Section 5: Save fare table ───────────────────────────────────────────
+  // ── Section 5: Save fare data ────────────────────────────────────────────
   const handleSave = async () => {
     if (!selectedRoute) return;
 
     setSaving(true);
     try {
+      const payload = fareType === 1
+        ? { fare_list: fareList }
+        : { fare_matrix: fareMatrix };
+      
       const res = await api.post(
         `${BASE_URL}/masterdata/fares/update/${selectedRoute.id}/`,
-        { fare_matrix: fareMatrix }
+        payload
       );
       
-      window.alert(res.data.message || 'Fare table saved successfully!');
+      window.alert(res.data.message || 'Fares saved successfully!');
       setHasChanges(false);
     } catch (err) {
-      console.error('Error saving fare table:', err);
+      console.error('Error saving fares:', err);
       if (!err.response) return window.alert('Server unreachable. Try later.');
       const { data } = err.response;
       const firstError = data.errors ? Object.values(data.errors)[0][0] : data.message;
@@ -87,9 +118,11 @@ export default function FareEditor() {
     }
   };
 
-  // ── Section 6: Auto-fill helpers ─────────────────────────────────────────
+  // ── Section 6: Helper tools ──────────────────────────────────────────────
   const autoFillSymmetric = () => {
-    // Copy upper triangle to lower triangle (make matrix symmetric)
+    // Only for Graph Fare (2D) - copy upper triangle to lower
+    if (fareType !== 2) return;
+    
     const updated = fareMatrix.map((row, i) =>
       row.map((fare, j) => {
         if (i > j) {
@@ -104,8 +137,12 @@ export default function FareEditor() {
 
   const clearAllFares = () => {
     if (!window.confirm('Clear all fares? This will reset the entire table to zero.')) return;
-    const cleared = fareMatrix.map(row => row.map(() => 0));
-    setFareMatrix(cleared);
+    
+    if (fareType === 1) {
+      setFareList(fareList.map(() => 0));
+    } else {
+      setFareMatrix(fareMatrix.map(row => row.map(() => 0)));
+    }
     setHasChanges(true);
   };
 
@@ -116,7 +153,7 @@ export default function FareEditor() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Fare Editor</h1>
-        <p className="text-slate-500 mt-1">Manage stage-to-stage fare matrix for routes</p>
+        <p className="text-slate-500 mt-1">Manage fare structure for routes</p>
       </div>
 
       {/* Route Selector */}
@@ -134,7 +171,7 @@ export default function FareEditor() {
               <option value="">-- Choose a route to edit fares --</option>
               {routes.map(r => (
                 <option key={r.id} value={r.id}>
-                  {r.route_code} - {r.route_name} ({r.route_stages?.length || 0} stops)
+                  {r.route_code} - {r.route_name} (Type: {r.fare_type}, Stops: {r.route_stages?.length || 0})
                 </option>
               ))}
             </select>
@@ -142,13 +179,15 @@ export default function FareEditor() {
 
           {selectedRoute && (
             <div className="flex gap-2">
-              <button
-                onClick={autoFillSymmetric}
-                className="px-4 py-2.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-              >
-                <i className="fas fa-sync-alt mr-2"></i>
-                Mirror Fares
-              </button>
+              {fareType === 2 && (
+                <button
+                  onClick={autoFillSymmetric}
+                  className="px-4 py-2.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                >
+                  <i className="fas fa-sync-alt mr-2"></i>
+                  Mirror Fares
+                </button>
+              )}
               <button
                 onClick={clearAllFares}
                 className="px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
@@ -161,41 +200,128 @@ export default function FareEditor() {
         </div>
 
         {selectedRoute && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800">
-              <strong>Route:</strong> {selectedRoute.route_code} - {selectedRoute.route_name} |{' '}
-              <strong>Fare Type:</strong> {selectedRoute.fare_type} |{' '}
-              <strong>Stops:</strong> {stages.length}
-            </p>
+          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+            <div className="flex items-start gap-3">
+              <i className={`fas ${fareType === 1 ? 'fa-list-ol' : 'fa-th'} text-blue-600 mt-1`}></i>
+              <div>
+                <p className="text-sm font-medium text-slate-800">
+                  {fareTypeName} (Type {fareType})
+                </p>
+                <p className="text-xs text-slate-600 mt-1">
+                  <strong>Route:</strong> {selectedRoute.route_code} - {selectedRoute.route_name} |{' '}
+                  <strong>Stops:</strong> {stages.length}
+                </p>
+                {fareType === 1 && (
+                  <p className="text-xs text-blue-700 mt-2">
+                    💡 <strong>Table Fare:</strong> Fare is based on the NUMBER of stages traveled, not specific origin/destination.
+                  </p>
+                )}
+                {fareType === 2 && (
+                  <p className="text-xs text-blue-700 mt-2">
+                    💡 <strong>Graph Fare:</strong> Fare is based on SPECIFIC origin → destination stage pairs.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Fare Matrix Table */}
-      {loading ? (
+      {/* Loading State */}
+      {loading && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-slate-800 mx-auto mb-4"></div>
           <p className="text-slate-500">Loading fare data...</p>
         </div>
-      ) : !selectedRoute ? (
+      )}
+
+      {/* Empty State */}
+      {!loading && !selectedRoute && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
           <i className="fas fa-map-marked-alt text-6xl text-slate-300 mb-4"></i>
           <p className="text-slate-500 text-lg">Select a route to start editing fares</p>
         </div>
-      ) : stages.length === 0 ? (
+      )}
+
+      {/* No Stops Warning */}
+      {!loading && selectedRoute && stages.length === 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
           <i className="fas fa-exclamation-triangle text-6xl text-amber-300 mb-4"></i>
           <p className="text-slate-700 text-lg font-medium">No stops defined for this route</p>
           <p className="text-slate-500 mt-2">Please add route stops before editing fares</p>
         </div>
-      ) : (
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* TABLE FARE EDITOR (fare_type=1, 1D List)                            */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {!loading && selectedRoute && fareType === 1 && stages.length > 0 && (
         <>
-          {/* Instructions */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <i className="fas fa-info-circle text-green-600 mt-1"></i>
+              <div className="flex-1 text-sm text-slate-700">
+                <p className="font-medium text-slate-800 mb-1">Table Fare Mode:</p>
+                <ul className="list-disc list-inside space-y-1 text-slate-600">
+                  <li>Each cell represents the fare for traveling <strong>N stages</strong></li>
+                  <li>Example: If "3 Stages" = ₹30, any passenger traveling 3 stages pays ₹30</li>
+                  <li>The system counts stages traveled, not specific origin/destination</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-800">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Stages Traveled
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                    Fare Amount (₹)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {fareList.map((fare, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-slate-800">
+                      {idx + 1} {idx + 1 === 1 ? 'Stage' : 'Stages'}
+                      {idx < stages.length && (
+                        <span className="ml-2 text-xs text-slate-500">
+                          (e.g., {stages[0].stage_name} → {stages[idx].stage_name})
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <input
+                        type="number"
+                        value={fare}
+                        onChange={(e) => updateTableFare(idx, e.target.value)}
+                        min="0"
+                        step="1"
+                        className="w-full max-w-xs px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* GRAPH FARE EDITOR (fare_type=2, 2D Matrix)                          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {!loading && selectedRoute && fareType === 2 && stages.length > 0 && (
+        <>
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-4 mb-6">
             <div className="flex items-start gap-3">
               <i className="fas fa-info-circle text-blue-600 mt-1"></i>
               <div className="flex-1 text-sm text-slate-700">
-                <p className="font-medium text-slate-800 mb-1">How to use:</p>
+                <p className="font-medium text-slate-800 mb-1">Graph Fare Mode:</p>
                 <ul className="list-disc list-inside space-y-1 text-slate-600">
                   <li><strong>Diagonal cells (gray):</strong> Same origin-destination, usually ₹0</li>
                   <li><strong>Upper triangle:</strong> Forward journey fares (Stage A → Stage B)</li>
@@ -206,7 +332,6 @@ export default function FareEditor() {
             </div>
           </div>
 
-          {/* Scrollable table container */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -229,13 +354,11 @@ export default function FareEditor() {
                 <tbody className="divide-y divide-slate-200">
                   {stages.map((rowStage, rowIdx) => (
                     <tr key={rowIdx} className="hover:bg-slate-50 transition-colors">
-                      {/* Row header (stage name) */}
                       <td className="sticky left-0 z-10 bg-slate-100 px-4 py-3 font-medium text-sm text-slate-800 border-r border-slate-300">
                         <div className="font-mono text-slate-500 text-[10px]">{rowStage.stage_code}</div>
                         <div>{rowStage.stage_name}</div>
                       </td>
 
-                      {/* Fare cells */}
                       {stages.map((colStage, colIdx) => {
                         const isDiagonal = rowIdx === colIdx;
                         const isUpperTriangle = colIdx > rowIdx;
@@ -250,7 +373,7 @@ export default function FareEditor() {
                             <input
                               type="number"
                               value={fareMatrix[rowIdx]?.[colIdx] || 0}
-                              onChange={(e) => updateFare(rowIdx, colIdx, e.target.value)}
+                              onChange={(e) => updateGraphFare(rowIdx, colIdx, e.target.value)}
                               min="0"
                               step="1"
                               className={`w-full px-2 py-1.5 text-center border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm ${
@@ -271,37 +394,39 @@ export default function FareEditor() {
               </table>
             </div>
           </div>
-
-          {/* Save button */}
-          <div className="mt-6 flex items-center justify-between bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-            <div className="flex items-center gap-2">
-              {hasChanges && (
-                <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full">
-                  <i className="fas fa-exclamation-circle mr-1"></i>
-                  Unsaved changes
-                </span>
-              )}
-            </div>
-            
-            <button
-              onClick={handleSave}
-              disabled={saving || !hasChanges}
-              className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-              {saving ? (
-                <>
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-save mr-2"></i>
-                  Save Fare Table
-                </>
-              )}
-            </button>
-          </div>
         </>
+      )}
+
+      {/* Save Button */}
+      {!loading && selectedRoute && stages.length > 0 && (
+        <div className="mt-6 flex items-center justify-between bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+          <div className="flex items-center gap-2">
+            {hasChanges && (
+              <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-medium rounded-full">
+                <i className="fas fa-exclamation-circle mr-1"></i>
+                Unsaved changes
+              </span>
+            )}
+          </div>
+          
+          <button
+            onClick={handleSave}
+            disabled={saving || !hasChanges}
+            className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {saving ? (
+              <>
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                Saving...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-save mr-2"></i>
+                Save Fares
+              </>
+            )}
+          </button>
+        </div>
       )}
 
     </div>
