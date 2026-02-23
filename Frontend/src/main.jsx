@@ -17,8 +17,6 @@ import TripcloseReport from './pages/TripcloseReport'
 import BranchListing from './pages/BranchListing'
 import SettlementPage from './pages/SettlementPage'
 import DealerManagement from './pages/DealerManagement'
-import DealerDashboard from './pages/DealerDashboard'
-import ExecutiveDashboard from './pages/ExecutiveDashboard'
 import DeviceApprovals from './pages/DeviceApprovals'
 import NotFound from './components/NotFound'
 import MdbImport from './pages/MdbImport'
@@ -30,6 +28,7 @@ import EmployeeListing from './pages/EmployeeListing'
 import VehicleListing from './pages/VehicleListing'
 import RouteListing from './pages/RouteListing'
 import CrewAssignmentListing from './pages/CrewAssignmentListing'
+import FareEditor from './pages/FareEditor'
 import SettingsPage from './pages/SettingsPage'
 
 const router = createBrowserRouter([
@@ -123,6 +122,10 @@ const router = createBrowserRouter([
           {
             path: 'master-data/routes',
             element: <RouteListing />
+          },
+          {
+            path: 'master-data/fares',
+            element: <FareEditor />
           },
           {
             path: 'master-data/crew-assignments',

@@ -6,12 +6,12 @@ from rest_framework.response import Response
 from ..models import (
     BusType, EmployeeType, Employee,
     Stage, Route, VehicleType,
-    Currency, Settings, CrewAssignment,RouteStage
+    Currency, Settings, CrewAssignment,RouteStage,RouteBusType,Fare
 )
 from ..serializers import (
     BusTypeSerializer, EmployeeTypeSerializer, EmployeeSerializer,
     StageSerializer, RouteSerializer, VehicleTypeSerializer,
-    CurrencySerializer, SettingsSerializer, CrewAssignmentSerializer,RouteStageSerializer
+    CurrencySerializer, SettingsSerializer, CrewAssignmentSerializer,RouteStageSerializer,FareSerializer
 )
 from .auth_views import get_user_from_cookie
 
@@ -292,8 +292,21 @@ def update_stage(request, pk):
 # RouteStage inline management is skipped for now — ready to add later.
 # =============================================================================
 
+# =============================================================================
+# UPDATED Route Views - REPLACE in masterdata_views.py
+# Now handles both RouteStage AND RouteBusType inline
+# =============================================================================
+
+from ..models import RouteStage, RouteBusType  # Add RouteBusType to imports at top
+
+# ... keep all other views ...
+
+
 @api_view(['GET'])
 def get_routes(request):
+    """
+    Fetch routes with nested route_stages and route_bus_types.
+    """
     user, company, err = _get_authenticated_company_admin(request)
     if err:
         return err
@@ -303,7 +316,11 @@ def get_routes(request):
     if not show_deleted:
         qs = qs.filter(is_deleted=False)
 
-    qs = qs.select_related('bus_type').order_by('id')
+    qs = qs.select_related('bus_type').prefetch_related(
+        'route_stages__stage',
+        'route_bus_types__bus_type'  # NEW: prefetch allowed bus types
+    ).order_by('id')
+    
     serializer = RouteSerializer(qs, many=True)
     return Response({'message': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
 
@@ -316,10 +333,34 @@ def create_route(request):
 
     serializer = RouteSerializer(data=request.data, context={'company': company})
     if serializer.is_valid():
-        serializer.save(company=company, created_by=user)
-        return Response({'message': 'Route created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
+        route = serializer.save(company=company, created_by=user)
+        
+        # ── Handle nested route_stages ──────────────────────────────────
+        route_stages_data = request.data.get('route_stages', [])
+        if route_stages_data:
+            _save_route_stages(route, route_stages_data, company, user)
+        
+        # ── Handle nested allowed_bus_types ─────────────────────────────
+        allowed_bus_type_ids = request.data.get('allowed_bus_types', [])
+        if allowed_bus_type_ids:
+            _save_route_bus_types(route, allowed_bus_type_ids, company, user)
+        
+        # Re-fetch route with stages and bus types to return complete data
+        route_with_nested = Route.objects.prefetch_related(
+            'route_stages__stage',
+            'route_bus_types__bus_type'
+        ).get(pk=route.id)
+        return_serializer = RouteSerializer(route_with_nested)
+        
+        return Response(
+            {'message': 'Route created successfully', 'data': return_serializer.data},
+            status=status.HTTP_201_CREATED
+        )
 
-    return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(
+        {'message': 'Validation failed', 'errors': serializer.errors},
+        status=status.HTTP_400_BAD_REQUEST
+    )
 
 
 @api_view(['PUT'])
@@ -334,11 +375,117 @@ def update_route(request, pk):
 
     serializer = RouteSerializer(obj, data=request.data, partial=True, context={'company': company})
     if serializer.is_valid():
-        serializer.save(updated_by=user)
-        return Response({'message': 'Route updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
+        route = serializer.save(updated_by=user)
+        
+        # ── Handle nested route_stages ──────────────────────────────────
+        if 'route_stages' in request.data:
+            route_stages_data = request.data.get('route_stages', [])
+            RouteStage.objects.filter(route=route).delete()
+            if route_stages_data:
+                _save_route_stages(route, route_stages_data, company, user)
+        
+        # ── Handle nested allowed_bus_types ─────────────────────────────
+        if 'allowed_bus_types' in request.data:
+            allowed_bus_type_ids = request.data.get('allowed_bus_types', [])
+            RouteBusType.objects.filter(route=route).delete()
+            if allowed_bus_type_ids:
+                _save_route_bus_types(route, allowed_bus_type_ids, company, user)
+        
+        # Re-fetch route with nested data
+        route_with_nested = Route.objects.prefetch_related(
+            'route_stages__stage',
+            'route_bus_types__bus_type'
+        ).get(pk=route.id)
+        return_serializer = RouteSerializer(route_with_nested)
+        
+        return Response(
+            {'message': 'Route updated successfully', 'data': return_serializer.data},
+            status=status.HTTP_200_OK
+        )
 
-    return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(
+        {'message': 'Validation failed', 'errors': serializer.errors},
+        status=status.HTTP_400_BAD_REQUEST
+    )
 
+
+# ── Helper function for RouteStage (EXISTING - no changes) ──────────────────
+def _save_route_stages(route, stages_data, company, user):
+    """
+    Helper to bulk create RouteStage records.
+    Validates that all stage IDs belong to this company.
+    """
+    from ..models import Stage
+    
+    stage_ids = [s['stage'] for s in stages_data if 'stage' in s]
+    valid_stages = Stage.objects.filter(
+        id__in=stage_ids,
+        company=company
+    ).values_list('id', flat=True)
+    valid_stage_set = set(valid_stages)
+    
+    route_stages_to_create = []
+    for stage_data in stages_data:
+        stage_id = stage_data.get('stage')
+        if not stage_id or stage_id not in valid_stage_set:
+            continue
+        
+        route_stages_to_create.append(
+            RouteStage(
+                route=route,
+                stage_id=stage_id,
+                sequence_no=stage_data.get('sequence_no', 0),
+                distance=stage_data.get('distance', 0),
+                stage_local_lang=stage_data.get('stage_local_lang', ''),
+                company=company,
+                created_by=user
+            )
+        )
+    
+    if route_stages_to_create:
+        RouteStage.objects.bulk_create(route_stages_to_create)
+
+
+# ── NEW: Helper function for RouteBusType ────────────────────────────────────
+def _save_route_bus_types(route, bus_type_ids, company, user):
+    """
+    Helper to bulk create RouteBusType records.
+    Validates that all bus_type IDs belong to this company.
+    
+    Expected bus_type_ids format:
+    [1, 3, 5]  # List of BusType IDs
+    """
+    from ..models import BusType
+    
+    # Validate all bus types belong to this company
+    valid_bus_types = BusType.objects.filter(
+        id__in=bus_type_ids,
+        company=company
+    ).values_list('id', flat=True)
+    valid_bus_type_set = set(valid_bus_types)
+    
+    # Create RouteBusType records
+    route_bus_types_to_create = []
+    for bus_type_id in bus_type_ids:
+        if bus_type_id not in valid_bus_type_set:
+            continue
+        
+        route_bus_types_to_create.append(
+            RouteBusType(
+                route=route,
+                bus_type_id=bus_type_id,
+                company=company,
+                created_by=user
+            )
+        )
+    
+    # Bulk create for efficiency
+    if route_bus_types_to_create:
+        RouteBusType.objects.bulk_create(route_bus_types_to_create)
+
+
+# ── Dropdown endpoints (keep existing get_stages_dropdown) ───────────────────
+# No changes needed to get_stages_dropdown or get_bus_types_dropdown
 
 # =============================================================================
 # SECTION 6 — VEHICLE TYPE
@@ -868,3 +1015,149 @@ def get_stages_dropdown(request):
         .order_by('stage_name')
     )
     return Response({'message': 'Success', 'data': data}, status=status.HTTP_200_OK)
+
+
+
+
+@api_view(['GET'])
+def get_fare_editor(request, route_id):
+    """
+    Get fare data for a specific route.
+    Returns route info + fare matrix + stage list for building the UI.
+    """
+    user, company, err = _get_authenticated_company_admin(request)
+    if err:
+        return err
+    
+    # Get route
+    route, err = _get_object_or_404(Route, route_id, company)
+    if err:
+        return err
+    
+    # Get route stages (for table headers/rows)
+    stages = route.route_stages.select_related('stage').order_by('sequence_no')
+    stage_list = [{
+        'sequence_no': rs.sequence_no,
+        'stage_id': rs.stage.id,
+        'stage_code': rs.stage.stage_code,
+        'stage_name': rs.stage.stage_name,
+    } for rs in stages]
+    
+    # Get existing fares
+    fares = Fare.objects.filter(route=route).order_by('row', 'col')
+    fare_dict = {(f.row, f.col): f.fare_amount for f in fares}
+    
+    # Build fare matrix (NxN grid)
+    n_stages = len(stage_list)
+    fare_matrix = []
+    for row_idx in range(n_stages):
+        row_data = []
+        for col_idx in range(n_stages):
+            # row_idx and col_idx are 0-indexed, but we'll use sequence_no (1-indexed) for storage
+            row_seq = stage_list[row_idx]['sequence_no']
+            col_seq = stage_list[col_idx]['sequence_no']
+            fare_amount = fare_dict.get((row_seq, col_seq), 0)
+            row_data.append(fare_amount)
+        fare_matrix.append(row_data)
+    
+    return Response({
+        'message': 'Success',
+        'data': {
+            'route': {
+                'id': route.id,
+                'route_code': route.route_code,
+                'route_name': route.route_name,
+                'fare_type': route.fare_type,
+            },
+            'stages': stage_list,
+            'fare_matrix': fare_matrix,  # NxN matrix where matrix[i][j] = fare from stage i to stage j
+        }
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def update_fare_table(request, route_id):
+    """
+    Bulk update fare matrix for a route.
+    Deletes existing fares and recreates them from the submitted matrix.
+    
+    Expected payload:
+    {
+        "fare_matrix": [
+            [0, 10, 20, 30],
+            [10, 0, 12, 22],
+            [20, 12, 0, 10],
+            [30, 22, 10, 0]
+        ]
+    }
+    """
+    user, company, err = _get_authenticated_company_admin(request)
+    if err:
+        return err
+    
+    route, err = _get_object_or_404(Route, route_id, company)
+    if err:
+        return err
+    
+    fare_matrix = request.data.get('fare_matrix', [])
+    if not fare_matrix or not isinstance(fare_matrix, list):
+        return Response(
+            {'message': 'Invalid fare_matrix format. Expected 2D array.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Get route stages for validation
+    stages = route.route_stages.order_by('sequence_no')
+    n_stages = stages.count()
+    
+    # Validate matrix dimensions
+    if len(fare_matrix) != n_stages:
+        return Response(
+            {'message': f'Fare matrix must have {n_stages} rows (number of stages).'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    for i, row in enumerate(fare_matrix):
+        if len(row) != n_stages:
+            return Response(
+                {'message': f'Row {i} must have {n_stages} columns.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    # Delete existing fares for this route
+    Fare.objects.filter(route=route).delete()
+    
+    # Create new fare records
+    fares_to_create = []
+    stage_list = list(stages.values_list('sequence_no', flat=True))
+    
+    for i, row in enumerate(fare_matrix):
+        for j, fare_amount in enumerate(row):
+            # Skip zero fares (optional - or you can store them)
+            if fare_amount == 0:
+                continue
+            
+            row_seq = stage_list[i]
+            col_seq = stage_list[j]
+            
+            fares_to_create.append(
+                Fare(
+                    route=route,
+                    row=row_seq,
+                    col=col_seq,
+                    fare_amount=int(fare_amount),
+                    route_name=route.route_name,
+                    company=company,
+                    created_by=user
+                )
+            )
+    
+    # Bulk create
+    if fares_to_create:
+        Fare.objects.bulk_create(fares_to_create)
+    
+    return Response(
+        {'message': f'Fare table updated successfully. {len(fares_to_create)} fare records created.'},
+        status=status.HTTP_200_OK
+    )
+
