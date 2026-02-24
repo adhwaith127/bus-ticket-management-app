@@ -349,19 +349,6 @@ export default function Sidebar() {
                           Employees
                         </NavLink>
                         <NavLink
-                          to="/dashboard/master-data/routes"
-                          className={({ isActive }) =>
-                            `block px-3 py-2 rounded-lg text-sm transition ${
-                              isActive
-                                ? "text-indigo-600 bg-indigo-50 font-medium"
-                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
-                            }`
-                          }
-                          onClick={() => setIsOpen(false)}
-                        >
-                          Routes
-                        </NavLink>
-                        <NavLink
                           to="/dashboard/master-data/stages"
                           className={({ isActive }) =>
                             `block px-3 py-2 rounded-lg text-sm transition ${
@@ -373,6 +360,19 @@ export default function Sidebar() {
                           onClick={() => setIsOpen(false)}
                         >
                           Stages
+                        </NavLink>
+                        <NavLink
+                          to="/dashboard/master-data/routes"
+                          className={({ isActive }) =>
+                            `block px-3 py-2 rounded-lg text-sm transition ${
+                              isActive
+                                ? "text-indigo-600 bg-indigo-50 font-medium"
+                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                            }`
+                          }
+                          onClick={() => setIsOpen(false)}
+                        >
+                          Routes
                         </NavLink>
                         <NavLink
                           to="/dashboard/master-data/vehicles"
