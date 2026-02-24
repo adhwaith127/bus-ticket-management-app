@@ -157,17 +157,18 @@ export default function SettingsPage() {
 
       <div className="space-y-6">
 
-        {/* ── Fare Percentages & Amounts ───────────────────────────────────────── */}
-        <Section title="Fare Percentages & Amounts" loading={loading}>
+        {/* ── Device & Access ──────────────────────────────────────────────────── */}
+        <Section title="Device & Access" loading={loading}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <NumberField label="Half Fare (%)" name="half_per" value={formData.half_per} onChange={handleChange} loading={loading} />
-            <NumberField label="Concession (%)" name="con_per" value={formData.con_per} onChange={handleChange} loading={loading} />
-            <NumberField label="PH Concession (%)" name="phy_per" value={formData.phy_per} onChange={handleChange} loading={loading} />
-            <NumberField label="Student Max Amount" name="st_max_amt" value={formData.st_max_amt} onChange={handleChange} loading={loading} />
-            <NumberField label="Student Min Concession" name="st_min_con" value={formData.st_min_con} onChange={handleChange} loading={loading} />
-            <NumberField label="Rounding Amount" name="round_amt" value={formData.round_amt} onChange={handleChange} loading={loading} />
-            <NumberField label="Luggage Unit Rate" name="luggage_unit_rate" value={formData.luggage_unit_rate} onChange={handleChange} loading={loading} />
-            <NumberField label="ST Roundoff Amount" name="st_roundoff_amt" value={formData.st_roundoff_amt} onChange={handleChange} loading={loading} />
+            <TextField label="Device ID (PalmtecID)" name="palmtec_id" value={formData.palmtec_id} onChange={handleChange} loading={loading} />
+            <TextField label="User Password" name="user_pwd" value={formData.user_pwd} onChange={handleChange} loading={loading} />
+            <TextField label="Master Password" name="master_pwd" value={formData.master_pwd} onChange={handleChange} loading={loading} />
+            <TextField label="Currency" name="currency" value={formData.currency} onChange={handleChange} placeholder="e.g. INR" loading={loading} />
+            <NumberField label="Language Option" name="language_option" value={formData.language_option} onChange={handleChange} loading={loading} />
+            <NumberField label="Report Flag" name="report_flag" value={formData.report_flag} onChange={handleChange} loading={loading} />
+            <NumberField label="Report Font" name="report_font" value={formData.report_font} onChange={handleChange} loading={loading} />
+            <NumberField label="Default Stage" name="default_stage" value={formData.default_stage} onChange={handleChange} loading={loading} />
+            <NumberField label="Stage Updation Msg" name="stage_updation_msg" value={formData.stage_updation_msg} onChange={handleChange} loading={loading} />
           </div>
         </Section>
 
@@ -184,18 +185,18 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        {/* ── Device & Access ──────────────────────────────────────────────────── */}
-        <Section title="Device & Access" loading={loading}>
+
+        {/* ── Fare Percentages & Amounts ───────────────────────────────────────── */}
+        <Section title="Fare Percentages & Amounts" loading={loading}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <TextField label="Device ID (PalmtecID)" name="palmtec_id" value={formData.palmtec_id} onChange={handleChange} loading={loading} />
-            <TextField label="User Password" name="user_pwd" value={formData.user_pwd} onChange={handleChange} loading={loading} />
-            <TextField label="Master Password" name="master_pwd" value={formData.master_pwd} onChange={handleChange} loading={loading} />
-            <TextField label="Currency" name="currency" value={formData.currency} onChange={handleChange} placeholder="e.g. INR" loading={loading} />
-            <NumberField label="Language Option" name="language_option" value={formData.language_option} onChange={handleChange} loading={loading} />
-            <NumberField label="Report Flag" name="report_flag" value={formData.report_flag} onChange={handleChange} loading={loading} />
-            <NumberField label="Report Font" name="report_font" value={formData.report_font} onChange={handleChange} loading={loading} />
-            <NumberField label="Default Stage" name="default_stage" value={formData.default_stage} onChange={handleChange} loading={loading} />
-            <NumberField label="Stage Updation Msg" name="stage_updation_msg" value={formData.stage_updation_msg} onChange={handleChange} loading={loading} />
+            <NumberField label="Half Fare (%)" name="half_per" value={formData.half_per} onChange={handleChange} loading={loading} />
+            <NumberField label="Concession (%)" name="con_per" value={formData.con_per} onChange={handleChange} loading={loading} />
+            <NumberField label="PH Concession (%)" name="phy_per" value={formData.phy_per} onChange={handleChange} loading={loading} />
+            <NumberField label="Student Max Amount" name="st_max_amt" value={formData.st_max_amt} onChange={handleChange} loading={loading} />
+            <NumberField label="Student Min Concession" name="st_min_con" value={formData.st_min_con} onChange={handleChange} loading={loading} />
+            <NumberField label="Rounding Amount" name="round_amt" value={formData.round_amt} onChange={handleChange} loading={loading} />
+            <NumberField label="Luggage Unit Rate" name="luggage_unit_rate" value={formData.luggage_unit_rate} onChange={handleChange} loading={loading} />
+            <NumberField label="ST Roundoff Amount" name="st_roundoff_amt" value={formData.st_roundoff_amt} onChange={handleChange} loading={loading} />
           </div>
         </Section>
 
