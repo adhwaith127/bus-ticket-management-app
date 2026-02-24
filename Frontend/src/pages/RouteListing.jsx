@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
+import SearchBar from '../components/SearchBar';
+import { useFilteredList } from '../assets/js/useFilteredList';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 const ROUTE_FLAGS = [
@@ -35,7 +37,13 @@ export default function RouteListing() {
   };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Section 2: Fetch on mount ────────────────────────────────────────────
+  // ── Section 2a: Search & Filter Logic ────────────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+    routes,
+    ['route_code', 'route_name']
+  );
+
+  // ── Section 2b: Fetch on mount ────────────────────────────────────────────
   useEffect(() => { fetchBusTypes(); fetchStages(); }, []);
   useEffect(() => { fetchRoutes(); }, [showDeleted]);
 
@@ -206,7 +214,13 @@ export default function RouteListing() {
           </button>
         </div>
       </div>
-
+      {/* Search Bar */}
+      <SearchBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onReset={resetSearch}
+        placeholder="Search by code or name..."
+      />
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -226,9 +240,9 @@ export default function RouteListing() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr><td colSpan="8" className="px-6 py-8 text-center text-slate-500">Loading...</td></tr>
-              ) : routes.length === 0 ? (
+              ) : filteredItems.length === 0 ? (
                 <tr><td colSpan="8" className="px-6 py-8 text-center text-slate-500">No routes found.</td></tr>
-              ) : routes.map(item => (
+              ) : filteredItems.map(item => (
                 <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="px-6 py-4 text-sm text-slate-500 font-mono">#{item.id}</td>
                   <td className="px-6 py-4 text-sm text-slate-800 font-medium">{item.route_code}</td>

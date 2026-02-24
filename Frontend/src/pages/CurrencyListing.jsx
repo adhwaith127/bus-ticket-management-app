@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
+import SearchBar from '../components/SearchBar';
+import { useFilteredList } from '../assets/js/useFilteredList';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function CurrencyListing() {
@@ -19,7 +21,13 @@ export default function CurrencyListing() {
   const emptyForm = { currency: '', country: '' };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Section 2: Data Fetching ─────────────────────────────────────────────────
+  // ── Section 2: Search & Filter Logic ───────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+    currencies,
+    ['currency', 'country']
+  );
+
+  // ── Section 3a: Data Fetching ────────────────────────────────────────────────
   useEffect(() => { fetchCurrencies(); }, []);
 
   const fetchCurrencies = async () => {
@@ -61,11 +69,11 @@ export default function CurrencyListing() {
     }
   };
 
-  // ── Section 3: Pagination Logic ──────────────────────────────────────────────
+  // ── Section 3b: Pagination Logic ─────────────────────────────────────────────
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = currencies.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(currencies.length / itemsPerPage);
+  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
   const getPageNumbers = () => {
     let startPage = Math.max(1, currentPage - 1);
@@ -112,6 +120,14 @@ export default function CurrencyListing() {
           <span className="font-medium">Create Currency</span>
         </button>
       </div>
+
+      {/* Search Bar */}
+      <SearchBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onReset={resetSearch}
+        placeholder="Search by currency code or country..."
+      />
 
       {/* Enhanced Table */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
@@ -179,7 +195,7 @@ export default function CurrencyListing() {
         </div>
 
         {/* Pagination */}
-        {!loading && currencies.length > 0 && totalPages > 1 && (
+        {!loading && filteredItems.length > 0 && totalPages > 1 && (
           <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div className="text-sm text-slate-600">

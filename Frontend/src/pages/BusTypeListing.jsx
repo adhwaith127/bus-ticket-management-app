@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
+import SearchBar from '../components/SearchBar';
+import { useFilteredList } from '../assets/js/useFilteredList';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function BusTypeListing() {
@@ -20,7 +22,13 @@ export default function BusTypeListing() {
   const emptyForm = { bustype_code: '', name: '', is_active: true };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Section 2: Data Fetching ─────────────────────────────────────────────────
+  // ── Section 2: Search & Filter Logic ───────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+    busTypes,
+    ['bustype_code', 'name']
+  );
+
+  // ── Section 3a: Data Fetching ────────────────────────────────────────────────
   useEffect(() => { fetchBusTypes(); }, []);
 
   const fetchBusTypes = async () => {
@@ -62,13 +70,13 @@ export default function BusTypeListing() {
     }
   };
 
-  // ── Section 3: Pagination Logic ──────────────────────────────────────────────
+  // ── Section 3b: Pagination Logic ─────────────────────────────────────────────
   // Calculate which items to display on current page
   // Example: Page 2 with 10 items per page shows items 10-19
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = busTypes.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(busTypes.length / itemsPerPage);
+  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
   // Generate array of page numbers to display (max 3 at a time)
   // Logic: Show current page ± 1, but keep within bounds
@@ -141,6 +149,14 @@ export default function BusTypeListing() {
           <span className="font-medium">Create Bus Type</span>
         </button>
       </div>
+
+      {/* Search Bar */}
+      <SearchBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onReset={resetSearch}
+        placeholder="Search by code or name..."
+      />
 
       {/* Enhanced Table Card */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
@@ -219,7 +235,7 @@ export default function BusTypeListing() {
         </div>
 
         {/* Pagination Controls - Only show if there's data and multiple pages */}
-        {!loading && busTypes.length > 0 && totalPages > 1 && (
+        {!loading && filteredItems.length > 0 && totalPages > 1 && (
           <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div className="text-sm text-slate-600">

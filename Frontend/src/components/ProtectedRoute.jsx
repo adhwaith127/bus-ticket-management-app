@@ -45,7 +45,7 @@ export default function ProtectedRoute() {
       
       // Superadmin restrictions: cannot access company admin pages
       if (userRole === 'superadmin') {
-        if (path.includes('/branches') || 
+        if (path.includes('/depots') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report') ||
             isMasterDataPath) {
@@ -71,7 +71,7 @@ export default function ProtectedRoute() {
         if (path.includes('/companies') || 
             path.includes('/users') ||
             path.includes('/device-approvals') ||
-            path.includes('/branches') || 
+            path.includes('/depots') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report') ||
             isMasterDataPath ||
@@ -87,7 +87,7 @@ export default function ProtectedRoute() {
         if (path.includes('/companies') || 
             path.includes('/users') ||
             path.includes('/device-approvals') ||
-            path.includes('/branches') || 
+            path.includes('/depots') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report') ||
             isMasterDataPath ||
@@ -102,7 +102,7 @@ export default function ProtectedRoute() {
         if (path.includes('/companies') || 
             path.includes('/users') ||
             path.includes('/device-approvals') ||
-            path.includes('/branches') || 
+            path.includes('/depots') || 
             path.includes('/ticket-report') || 
             path.includes('/trip-close-report') ||
             isMasterDataPath ||

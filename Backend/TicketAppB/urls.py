@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import auth_views,company_views,user_views,data_views,masterdata_views
-from .views import branch_views,mosambee_views,dealer_views,executive_views,device_approval_views
+from .views import depot_views,mosambee_views,dealer_views,executive_views,device_approval_views
 from .views.mdb_views import MdbImportView
 from .views.mdb_debug_view import MdbDebugView
 
@@ -30,10 +30,10 @@ urlpatterns = [
     path('validate-company-license/<int:pk>/', company_views.validate_company_license, name='validate_company_license'),
     path("get_company_dashboard_metrics/", company_views.get_company_dashboard_metrics,name='company_dashboard_data'),
 
-    # branch data
-    path("branches/", branch_views.get_all_branches,name='get_all_branches'),
-    path("create-branch/", branch_views.create_branch,name='create_branch'),
-    path("update-branch-details/<int:pk>/", branch_views.update_branch_details,name='update_branch_details'),
+    # depot data
+    path("depots/", depot_views.get_all_depots,name='get_all_depots'),
+    path("create-depot/", depot_views.create_depot,name='create_depot'),
+    path("update-depot-details/<int:pk>/", depot_views.update_depot_details,name='update_depot_details'),
 
     # ticket data
     path('getTicket/',data_views.getTransactionDataFromDevice,name='get_transaction_data'),

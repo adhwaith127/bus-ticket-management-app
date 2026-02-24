@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.conf import settings
-from .company import Company,Branch
+from .company import Company, Depot
 
 # Transaction models (TransactionData, TripCloseData)
 
@@ -68,8 +68,8 @@ class TransactionData(models.Model):
         blank=True
     )
 
-    branch_code = models.ForeignKey(
-        'Branch',
+    depot_code = models.ForeignKey(
+        'Depot',
         on_delete=models.SET_NULL,
         related_name='transactions',
         null=True,
@@ -85,7 +85,7 @@ class TransactionData(models.Model):
         indexes = [
             models.Index(fields=["device_id", "ticket_date"]),
             models.Index(fields=["company_code"]),
-            models.Index(fields=["branch_code"]),
+            models.Index(fields=["depot_code"]),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -133,14 +133,14 @@ class TripCloseData(models.Model):
         help_text="Company code"
     )
 
-    # Branch foreign key
-    branch_code = models.ForeignKey(
-        Branch,
+    # Depot foreign key
+    depot_code = models.ForeignKey(
+        Depot,
         on_delete=models.SET_NULL,
         related_name='trip_closes',
         null=True,
         blank=True,
-        help_text="Branch code"
+        help_text="Depot code"
     )
     
     schedule = models.IntegerField(
@@ -396,7 +396,7 @@ class TripCloseData(models.Model):
             models.Index(fields=["company_code"]),
             models.Index(fields=['start_date']),  # Date index
             models.Index(fields=['company_code', 'start_date']),  # Combined index
-            models.Index(fields=['branch_code']),  # Branch index
+            models.Index(fields=['depot_code']),  # Depot index
         ]
         
         unique_together = [

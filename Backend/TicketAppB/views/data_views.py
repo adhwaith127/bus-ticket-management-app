@@ -112,7 +112,7 @@ def getTransactionDataFromDevice(request):
         except (ValueError, TypeError) as e:
             logger.error("Error parsing ticket_status: %s, defaulting to 0 (Cash)", e)
             ticket_status = 0
-        
+
         transaction = TransactionData.objects.create(
             request_type = parts[0] if len(parts) > 0 else None,
             device_id    = parts[1] if len(parts) > 1 else None,
@@ -162,8 +162,8 @@ def getTransactionDataFromDevice(request):
             # Company foreign key
             company_code     = company_instance,
 
-            # Branch code (currently null, device doesn't send yet)
-            branch_code = None,
+            # Depot code (currently null, device doesn't send yet)
+            depot_code = None,
 
             raw_payload = raw
         )
@@ -175,8 +175,8 @@ def getTransactionDataFromDevice(request):
         device_response=f'OK#SUCCESS#fn={response_chars}#'
         return HttpResponse(device_response, content_type="text/plain", status=status.HTTP_200_OK)
 
-    except Exception:
-        logger.exception("Transaction parsing failed")
+    except Exception as e:
+        logger.exception(f"Transaction parsing failed: {e}")
         return HttpResponse("ERROR",status=status.HTTP_500_INTERNAL_SERVER_ERROR,content_type="text/plain")
 
 
@@ -361,7 +361,7 @@ def getTripCloseDataFromDevice(request):
                 # Device information
                 palmtec_id=parts[1],
                 company_code=company_instance,
-                branch_code=None,  # Branch (not sent by device yet)
+                depot_code=None,  # Depot (not sent by device yet)
 
                 # Trip identification
                 schedule=int(parts[3]) if parts[3] else 0,

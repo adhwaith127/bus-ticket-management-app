@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company,CustomUser,Branch
+from .models import Company,CustomUser,Depot
 from .models import TransactionData,TripCloseData,MosambeeTransaction
 from .models import DealerCustomerMapping,ExecutiveCompanyMapping,UserDeviceMapping
 from .models import Dealer,CrewAssignment,BusType,EmployeeType,Stage,Currency,Employee,VehicleType
@@ -33,7 +33,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'product_from_date',
             'product_to_date',
             'device_count',
-            'branch_count',
+            'depot_count',
             'mobile_device_count',
             'created_at',
             'updated_at',
@@ -50,7 +50,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'product_from_date',
             'product_to_date',
             'device_count',
-            'branch_count',
+            'depot_count',
             'mobile_device_count',
             'created_at',
             'updated_at',
@@ -267,7 +267,7 @@ class TicketDataSerializer(serializers.ModelSerializer):
             'ticket_status',
             'payment_mode_display',
             'reference_number',
-            'branch_code',
+            'depot_code',
             'created_at',
             # EXCLUDED: raw_payload, company_code
         ]
@@ -310,7 +310,7 @@ class TripCloseDataSerializer(serializers.ModelSerializer):
             "id",
             "palmtec_id",
             # EXCLUDED: company_code
-            "branch_code",  
+            "depot_code",  
             "schedule",
             "trip_no",
             "route_code",
@@ -394,17 +394,17 @@ class TripCloseDataSerializer(serializers.ModelSerializer):
         return None
     
 
-class BranchSerializer(serializers.ModelSerializer):
+class DepotSerializer(serializers.ModelSerializer):
     company = serializers.PrimaryKeyRelatedField(read_only=True)
     created_by = serializers.PrimaryKeyRelatedField(read_only=True)
     
     class Meta:
-        model=Branch
+        model=Depot
         fields=[
             'id',
             'company',
-            'branch_code',
-            'branch_name',
+            'depot_code',
+            'depot_name',
             'address',
             'city',
             'state',

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
+import SearchBar from '../components/SearchBar';
+import { useFilteredList } from '../assets/js/useFilteredList';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function EmployeeListing() {
@@ -21,7 +23,13 @@ export default function EmployeeListing() {
   const emptyForm = { employee_code: '', employee_name: '', emp_type: '', phone_no: '', password: '', is_deleted: false };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Section 2: Data Fetching ─────────────────────────────────────────────────
+  // ── Section 2: Search & Filter Logic ─────────────────────────────────────────────────────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+    employees,
+    ['employee_code', 'employee_name', 'phone_no']
+  );
+
+  // ── Section 3a: Data Fetching ─────────────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchEmpTypes();
   }, []);
@@ -80,11 +88,11 @@ export default function EmployeeListing() {
     }
   };
 
-  // ── Section 3: Pagination Logic ──────────────────────────────────────────────
+  // ── Section 3b: Pagination Logic ─────────────────────────────────────────────
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = employees.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(employees.length / itemsPerPage);
+  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
   const getPageNumbers = () => {
     let startPage = Math.max(1, currentPage - 1);
@@ -154,7 +162,13 @@ export default function EmployeeListing() {
           </button>
         </div>
       </div>
-
+      {/* Search Bar */}
+      <SearchBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onReset={resetSearch}
+        placeholder="Search by code, name, or phone..."
+      />
       {/* Enhanced Table */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
         <div className="overflow-x-auto">
@@ -236,7 +250,7 @@ export default function EmployeeListing() {
         </div>
 
         {/* Pagination */}
-        {!loading && employees.length > 0 && totalPages > 1 && (
+        {!loading && filteredItems.length > 0 && totalPages > 1 && (
           <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div className="text-sm text-slate-600">

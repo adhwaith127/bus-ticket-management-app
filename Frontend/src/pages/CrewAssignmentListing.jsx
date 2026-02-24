@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
+import SearchBar from '../components/SearchBar';
+import { useFilteredList } from '../assets/js/useFilteredList';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function CrewAssignmentListing() {
@@ -25,7 +27,13 @@ export default function CrewAssignmentListing() {
   const emptyForm = { driver: '', conductor: '', cleaner: '', vehicle: '' };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Section 2: Data Fetching ─────────────────────────────────────────────────
+  // ── Section 2a: Search & Filter Logic ────────────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+    assignments,
+    ['driver', 'conductor', 'cleaner', 'vehicle']
+  );
+
+  // ── Section 2b: Data Fetching ─────────────────────────────────────────────────
   useEffect(() => {
     fetchAssignments();
     fetchDropdowns();
@@ -98,11 +106,11 @@ export default function CrewAssignmentListing() {
     }
   };
 
-  // ── Section 3: Pagination Logic ──────────────────────────────────────────────
+  // ── Section 3b: Pagination Logic ──────────────────────────────────────────────
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = assignments.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(assignments.length / itemsPerPage);
+  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
 
   const getPageNumbers = () => {
     let startPage = Math.max(1, currentPage - 1);
@@ -204,7 +212,13 @@ export default function CrewAssignmentListing() {
           <span className="font-medium">Create Assignment</span>
         </button>
       </div>
-
+      {/* Search Bar */}
+      <SearchBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        onReset={resetSearch}
+        placeholder="Search by driver, conductor, cleaner, or vehicle..."
+      />
       {/* Enhanced Table */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
         <div className="overflow-x-auto">

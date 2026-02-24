@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
-export default function BranchListing() {
-  const [branches, setBranches] = useState([]);
+export default function DepotListing() {
+  const [depots, setDepots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [submitting, setSubmitting] = useState(false);
-  const [editingBranch, setEditingBranch] = useState(null);
+  const [editingDepot, setEditingDepot] = useState(null);
 
   const [formData, setFormData] = useState({
-    branch_code: '',
-    branch_name: '',
+    depot_code: '',
+    depot_name: '',
     address: '',
     city: '',
     state: '',
@@ -20,43 +20,43 @@ export default function BranchListing() {
   });
 
   useEffect(() => {
-    fetchBranches();
+    fetchDepots();
   }, []);
 
-  const fetchBranches = async () => {
+  const fetchDepots = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/branches/`);
-      setBranches(res.data?.data || []);
+      const res = await api.get(`${BASE_URL}/depots/`);
+      setDepots(res.data?.data || []);
     } catch (err) {
-      console.error("Error fetching branches:", err);
-      setBranches([]);
+      console.error("Error fetching depots:", err);
+      setDepots([]);
     } finally {
       setLoading(false);
     }
   };
 
   const resetFormData = () => {
-    setFormData({ branch_code:'', branch_name:'', address:'', city:'', state:'', zip_code:'' });
+    setFormData({ depot_code:'', depot_name:'', address:'', city:'', state:'', zip_code:'' });
   };
 
   const openCreateModal = () => {
     resetFormData();
-    setEditingBranch(null);
+    setEditingDepot(null);
     setModalMode('create');
     setIsModalOpen(true);
   };
 
-  const openViewModal = (branch) => {
-    setEditingBranch(branch);
-    setFormData(branch);
+  const openViewModal = (depot) => {
+    setEditingDepot(depot);
+    setFormData(depot);
     setModalMode('view');
     setIsModalOpen(true);
   };
 
-  const openEditModal = (branch) => {
-    setEditingBranch(branch);
-    setFormData(branch);
+  const openEditModal = (depot) => {
+    setEditingDepot(depot);
+    setFormData(depot);
     setModalMode('edit');
     setIsModalOpen(true);
   };
@@ -72,16 +72,16 @@ export default function BranchListing() {
     try {
       let response;
       if (modalMode === 'edit') {
-        response = await api.put(`${BASE_URL}/update-branch-details/${editingBranch.id}/`, formData);
+        response = await api.put(`${BASE_URL}/update-depot-details/${editingDepot.id}/`, formData);
       } else {
-        response = await api.post(`${BASE_URL}/create-branch/`, formData);
+        response = await api.post(`${BASE_URL}/create-depot/`, formData);
       }
 
       if (response?.status === 200 || response?.status === 201) {
         window.alert(response.data.message || 'Success');
         setIsModalOpen(false);
         resetFormData();
-        fetchBranches();
+        fetchDepots();
       }
     } catch (err) {
       if (!err.response) return window.alert('Server unreachable. Try later.');
@@ -104,9 +104,9 @@ export default function BranchListing() {
   const getStatusLabel = (active) => active ? "Active" : "Inactive";
 
   const getModalTitle = () => {
-    if (modalMode === 'view') return 'Branch Details';
-    if (modalMode === 'edit') return 'Edit Branch';
-    return 'Create Branch';
+    if (modalMode === 'view') return 'Depot Details';
+    if (modalMode === 'edit') return 'Edit Depot';
+    return 'Create Depot';
   };
 
   return (
@@ -114,14 +114,14 @@ export default function BranchListing() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Branch Management</h1>
-          <p className="text-slate-500 mt-1">Manage company branches</p>
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Depot Management</h1>
+          <p className="text-slate-500 mt-1">Manage company depots</p>
         </div>
         <button 
           onClick={openCreateModal}
           className="flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
         >
-          <span className="font-medium">+ Create Branch</span>
+          <span className="font-medium">+ Create Depot</span>
         </button>
       </div>
 
@@ -145,32 +145,32 @@ export default function BranchListing() {
                 <tr>
                   <td colSpan="6" className="px-6 py-8 text-center text-slate-500">Loading...</td>
                 </tr>
-              ) : branches.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-8 text-center text-slate-500">No branches found.</td></tr>
+              ) : depots.length === 0 ? (
+                <tr><td colSpan="6" className="px-6 py-8 text-center text-slate-500">No depots found.</td></tr>
               ) : (
-                branches.map(branch => (
-                  <tr key={branch.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-6 py-4 text-sm text-slate-500 font-mono">#{branch.id}</td>
-                    <td className="px-6 py-4 text-sm text-slate-800 font-medium">{branch.branch_code}</td>
-                    <td className="px-6 py-4 text-sm text-slate-800">{branch.branch_name}</td>
+                depots.map(depot => (
+                  <tr key={depot.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4 text-sm text-slate-500 font-mono">#{depot.id}</td>
+                    <td className="px-6 py-4 text-sm text-slate-800 font-medium">{depot.depot_code}</td>
+                    <td className="px-6 py-4 text-sm text-slate-800">{depot.depot_name}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">
-                      {branch.address}, {branch.city}, {branch.state}, {branch.zip_code}
+                      {depot.address}, {depot.city}, {depot.state}, {depot.zip_code}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeColor(branch.is_active)}`}>
-                        {getStatusLabel(branch.is_active)}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeColor(depot.is_active)}`}>
+                        {getStatusLabel(depot.is_active)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center space-x-2">
                         <button 
-                          onClick={() => openViewModal(branch)}
+                          onClick={() => openViewModal(depot)}
                           className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
                         >
                           View
                         </button>
                         <button 
-                          onClick={() => openEditModal(branch)}
+                          onClick={() => openEditModal(depot)}
                           className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                         >
                           Edit
@@ -189,11 +189,11 @@ export default function BranchListing() {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
         <form className="space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Branch Code *</label>
+            <label className="text-sm font-medium text-slate-700">Depot Code *</label>
             <input
               type="text"
-              name="branch_code"
-              value={formData.branch_code}
+              name="depot_code"
+              value={formData.depot_code}
               onChange={handleInputChange}
               readOnly={isReadOnly}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-slate-500 read-only:bg-slate-50"
@@ -201,11 +201,11 @@ export default function BranchListing() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Branch Name *</label>
+            <label className="text-sm font-medium text-slate-700">Depot Name *</label>
             <input
               type="text"
-              name="branch_name"
-              value={formData.branch_name}
+              name="depot_name"
+              value={formData.depot_name}
               onChange={handleInputChange}
               readOnly={isReadOnly}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-slate-500 read-only:bg-slate-50"
@@ -278,7 +278,7 @@ export default function BranchListing() {
                 disabled={submitting}
                 className="px-4 py-2 text-sm font-medium text-white bg-slate-800 rounded-lg hover:bg-slate-700 shadow-md disabled:opacity-50"
               >
-                {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Branch' : 'Save Branch'}
+                {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update Depot' : 'Save Depot'}
               </button>
             )}
           </div>

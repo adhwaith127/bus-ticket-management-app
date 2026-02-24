@@ -292,11 +292,11 @@ def background_license_polling(company_id):
             except (ValueError, TypeError):
                 company.device_count = 0
 
-            # NoOfBranch → branch_count (default 0)
+            # NoOfBranch → depot_count (default 0)
             try:
-                company.branch_count = int(auth_data.get('NoOfBranch', 0))
+                company.depot_count = int(auth_data.get('NoOfBranch', 0))
             except (ValueError, TypeError):
-                company.branch_count = 0
+                company.depot_count = 0
 
             # NoOfMobileDevice → mobile_device_count (default 2)
             try:

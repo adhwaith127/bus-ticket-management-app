@@ -978,25 +978,245 @@ def get_stages_dropdown(request):
     return Response({'message': 'Success', 'data': data}, status=status.HTTP_200_OK)
 
 
+# @api_view(['GET'])
+# def get_fare_editor(request, route_id):
+#     """
+#     Get fare data for a specific route.
+#     Returns different structure based on fare_type:
+#     - fare_type=1 (Table): Returns 1D array (row=1, col=1..N)
+#     - fare_type=2 (Graph): Returns 2D matrix (row=1..N, col=1..N upper triangular)
+#     """
+#     user, company, err = _get_authenticated_company_admin(request)
+#     if err:
+#         return err
+    
+#     # Get route
+#     route, err = _get_object_or_404(Route, route_id, company)
+#     if err:
+#         return err
+    
+#     # Get route stages (for both modes)
+#     stages = route.route_stages.select_related('stage').order_by('sequence_no')
+#     stage_list = [{
+#         'sequence_no': rs.sequence_no,
+#         'stage_id': rs.stage.id,
+#         'stage_code': rs.stage.stage_code,
+#         'stage_name': rs.stage.stage_name,
+#     } for rs in stages]
+    
+#     n_stages = len(stage_list)
+    
+#     # Get existing fares
+#     fares = Fare.objects.filter(route=route).order_by('row', 'col')
+    
+#     # Build response based on fare_type
+#     if route.fare_type == 1:
+#         # TABLE FARE (1D) - row=1, col represents number of stages traveled
+#         fare_dict = {f.col: f.fare_amount for f in fares if f.row == 1}
+        
+#         # Build 1D array: fare_list[i] = fare for traveling (i+1) stages
+#         fare_list = [fare_dict.get(i+1, 0) for i in range(n_stages)]
+        
+#         return Response({
+#             'message': 'Success',
+#             'data': {
+#                 'route': {
+#                     'id': route.id,
+#                     'route_code': route.route_code,
+#                     'route_name': route.route_name,
+#                     'fare_type': route.fare_type,
+#                 },
+#                 'stages': stage_list,
+#                 'fare_type_name': 'Table Fare (Distance-Based)',
+#                 'fare_list': fare_list,  # 1D array for Table Fare
+#             }
+#         }, status=status.HTTP_200_OK)
+    
+#     else:  # fare_type == 2
+#         # GRAPH FARE (2D Matrix) - row=origin, col=destination
+#         fare_dict = {(f.row, f.col): f.fare_amount for f in fares}
+        
+#         # Build 2D matrix (upper triangular)
+#         fare_matrix = []
+#         for row_idx in range(n_stages):
+#             row_data = []
+#             for col_idx in range(n_stages):
+#                 row_seq = stage_list[row_idx]['sequence_no']
+#                 col_seq = stage_list[col_idx]['sequence_no']
+#                 fare_amount = fare_dict.get((row_seq, col_seq), 0)
+#                 row_data.append(fare_amount)
+#             fare_matrix.append(row_data)
+        
+#         return Response({
+#             'message': 'Success',
+#             'data': {
+#                 'route': {
+#                     'id': route.id,
+#                     'route_code': route.route_code,
+#                     'route_name': route.route_name,
+#                     'fare_type': route.fare_type,
+#                 },
+#                 'stages': stage_list,
+#                 'fare_type_name': 'Graph Fare (Point-to-Point)',
+#                 'fare_matrix': fare_matrix,  # 2D matrix for Graph Fare
+#             }
+#         }, status=status.HTTP_200_OK)
+
+
+# @api_view(['POST'])
+# def update_fare_table(request, route_id):
+#     """
+#     Bulk update fares for a route.
+#     Accepts different payload based on fare_type:
+#     - fare_type=1 (Table): { "fare_list": [10, 20, 30, ...] }
+#     - fare_type=2 (Graph): { "fare_matrix": [[0,10,20],[10,0,12],[20,12,0]] }
+#     """
+#     user, company, err = _get_authenticated_company_admin(request)
+#     if err:
+#         return err
+    
+#     route, err = _get_object_or_404(Route, route_id, company)
+#     if err:
+#         return err
+    
+#     # Get route stages for validation
+#     stages = route.route_stages.order_by('sequence_no')
+#     n_stages = stages.count()
+#     stage_list = list(stages.values_list('sequence_no', flat=True))
+    
+#     # Delete existing fares for this route
+#     Fare.objects.filter(route=route).delete()
+    
+#     fares_to_create = []
+    
+#     # ── Handle Table Fare (fare_type=1) ─────────────────────────────────────
+#     if route.fare_type == 1:
+#         fare_list = request.data.get('fare_list', [])
+        
+#         if not fare_list or not isinstance(fare_list, list):
+#             return Response(
+#                 {'message': 'Invalid fare_list format. Expected 1D array.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         if len(fare_list) != n_stages:
+#             return Response(
+#                 {'message': f'fare_list must have {n_stages} entries (number of stages).'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         # Create fare records: row=1, col=stage_count, fare_amount=fare
+#         for col_idx, fare_amount in enumerate(fare_list):
+#             if fare_amount == 0:
+#                 continue  # Skip zero fares
+            
+#             fares_to_create.append(
+#                 Fare(
+#                     route=route,
+#                     row=1,  # Always row=1 for Table Fare
+#                     col=col_idx + 1,  # col = number of stages traveled (1, 2, 3, ...)
+#                     fare_amount=int(fare_amount),
+#                     route_name=route.route_name,
+#                     company=company,
+#                     created_by=user
+#                 )
+#             )
+    
+#     # ── Handle Graph Fare (fare_type=2) ─────────────────────────────────────
+#     else:  # fare_type == 2
+#         fare_matrix = request.data.get('fare_matrix', [])
+        
+#         if not fare_matrix or not isinstance(fare_matrix, list):
+#             return Response(
+#                 {'message': 'Invalid fare_matrix format. Expected 2D array.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         if len(fare_matrix) != n_stages:
+#             return Response(
+#                 {'message': f'fare_matrix must have {n_stages} rows (number of stages).'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+        
+#         for i, row in enumerate(fare_matrix):
+#             if len(row) != n_stages:
+#                 return Response(
+#                     {'message': f'Row {i} must have {n_stages} columns.'},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+        
+#         # Create fare records: row=from_stage, col=to_stage, fare_amount=fare
+#         for i, row in enumerate(fare_matrix):
+#             for j, fare_amount in enumerate(row):
+#                 if fare_amount == 0:
+#                     continue  # Skip zero fares
+                
+#                 row_seq = stage_list[i]
+#                 col_seq = stage_list[j]
+                
+#                 fares_to_create.append(
+#                     Fare(
+#                         route=route,
+#                         row=row_seq,  # Origin stage sequence
+#                         col=col_seq,  # Destination stage sequence
+#                         fare_amount=int(fare_amount),
+#                         route_name=route.route_name,
+#                         company=company,
+#                         created_by=user
+#                     )
+#                 )
+    
+#     # Bulk create
+#     if fares_to_create:
+#         Fare.objects.bulk_create(fares_to_create)
+    
+#     fare_type_name = 'Table Fare' if route.fare_type == 1 else 'Graph Fare'
+#     return Response(
+#         {'message': f'{fare_type_name} updated successfully. {len(fares_to_create)} fare records created.'},
+#         status=status.HTTP_200_OK
+#     )
+
+
+
+
+# =============================================================================
+# KEY CHANGES:
+# =============================================================================
+# 
+# 1. In get_fare_editor() for Graph Fare:
+#    - Changed: fare_dict.get((row_seq, col_seq), 0)
+#    - To:      fare_dict.get((row_idx + 1, col_idx + 1), 0)
+#    - Why:     Fare row/col are always 1-indexed, regardless of sequence_no
+# 
+# 2. In update_fare_table() for Graph Fare:
+#    - Changed: row=row_seq, col=col_seq
+#    - To:      row=i + 1, col=j + 1
+#    - Why:     Always store fares with 1-based indexing for consistency
+# 
+# 3. Added empty stages check to prevent crashes
+# 
+# =============================================================================
+
+
 @api_view(['GET'])
 def get_fare_editor(request, route_id):
     """
     Get fare data for a specific route.
-    Returns different structure based on fare_type:
-    - fare_type=1 (Table): Returns 1D array (row=1, col=1..N)
-    - fare_type=2 (Graph): Returns 2D matrix (row=1..N, col=1..N upper triangular)
+    
+    CRITICAL FIX: RouteStage.sequence_no can start at 0, but Fare row/col typically start at 1.
+    We normalize by using the index position in the stage list (0-based) and adding 1
+    when looking up fares.
     """
     user, company, err = _get_authenticated_company_admin(request)
     if err:
         return err
     
-    # Get route
     route, err = _get_object_or_404(Route, route_id, company)
     if err:
         return err
     
-    # Get route stages (for both modes)
     stages = route.route_stages.select_related('stage').order_by('sequence_no')
+    
     stage_list = [{
         'sequence_no': rs.sequence_no,
         'stage_id': rs.stage.id,
@@ -1004,18 +1224,41 @@ def get_fare_editor(request, route_id):
         'stage_name': rs.stage.stage_name,
     } for rs in stages]
     
+    # CRITICAL: Print stages to debug sequence_no and stage IDs
+    print(stages)
+    print(stage_list)
+    
     n_stages = len(stage_list)
     
-    # Get existing fares
+    if n_stages == 0:
+        return Response({
+            'message': 'No stages defined for this route',
+            'data': {
+                'route': {
+                    'id': route.id,
+                    'route_code': route.route_code,
+                    'route_name': route.route_name,
+                    'fare_type': route.fare_type,
+                },
+                'stages': [],
+                'fare_type_name': 'Table Fare' if route.fare_type == 1 else 'Graph Fare',
+                'fare_list': [],
+                'fare_matrix': [],
+            }
+        }, status=status.HTTP_200_OK)
+    
     fares = Fare.objects.filter(route=route).order_by('row', 'col')
     
-    # Build response based on fare_type
+    # Debug: Print fares to check row/col values and amounts
+    print(fares)  
+    
+    # ── Table Fare (fare_type=1) ────────────────────────────────────────────
     if route.fare_type == 1:
-        # TABLE FARE (1D) - row=1, col represents number of stages traveled
         fare_dict = {f.col: f.fare_amount for f in fares if f.row == 1}
         
         # Build 1D array: fare_list[i] = fare for traveling (i+1) stages
-        fare_list = [fare_dict.get(i+1, 0) for i in range(n_stages)]
+        # col values in DB are 1-indexed (1, 2, 3, ...)
+        fare_list = [fare_dict.get(i + 1, 0) for i in range(n_stages)]
         
         return Response({
             'message': 'Success',
@@ -1028,22 +1271,23 @@ def get_fare_editor(request, route_id):
                 },
                 'stages': stage_list,
                 'fare_type_name': 'Table Fare (Distance-Based)',
-                'fare_list': fare_list,  # 1D array for Table Fare
+                'fare_list': fare_list,
             }
         }, status=status.HTTP_200_OK)
     
-    else:  # fare_type == 2
-        # GRAPH FARE (2D Matrix) - row=origin, col=destination
+    # ── Graph Fare (fare_type=2) ────────────────────────────────────────────
+    else:
         fare_dict = {(f.row, f.col): f.fare_amount for f in fares}
         
-        # Build 2D matrix (upper triangular)
+        # Build 2D matrix
+        # CRITICAL: Fare row/col are 1-indexed (1,1), (1,2), (2,2), ...
+        # We use (i+1, j+1) to look them up
         fare_matrix = []
         for row_idx in range(n_stages):
             row_data = []
             for col_idx in range(n_stages):
-                row_seq = stage_list[row_idx]['sequence_no']
-                col_seq = stage_list[col_idx]['sequence_no']
-                fare_amount = fare_dict.get((row_seq, col_seq), 0)
+                # Use 1-based indexing for fare lookup
+                fare_amount = fare_dict.get((row_idx + 1, col_idx + 1), 0)
                 row_data.append(fare_amount)
             fare_matrix.append(row_data)
         
@@ -1058,7 +1302,7 @@ def get_fare_editor(request, route_id):
                 },
                 'stages': stage_list,
                 'fare_type_name': 'Graph Fare (Point-to-Point)',
-                'fare_matrix': fare_matrix,  # 2D matrix for Graph Fare
+                'fare_matrix': fare_matrix,
             }
         }, status=status.HTTP_200_OK)
 
@@ -1067,9 +1311,9 @@ def get_fare_editor(request, route_id):
 def update_fare_table(request, route_id):
     """
     Bulk update fares for a route.
-    Accepts different payload based on fare_type:
-    - fare_type=1 (Table): { "fare_list": [10, 20, 30, ...] }
-    - fare_type=2 (Graph): { "fare_matrix": [[0,10,20],[10,0,12],[20,12,0]] }
+    
+    CRITICAL FIX: Always store Fare records with row/col starting at 1
+    (even though RouteStage.sequence_no might start at 0).
     """
     user, company, err = _get_authenticated_company_admin(request)
     if err:
@@ -1079,12 +1323,16 @@ def update_fare_table(request, route_id):
     if err:
         return err
     
-    # Get route stages for validation
     stages = route.route_stages.order_by('sequence_no')
     n_stages = stages.count()
-    stage_list = list(stages.values_list('sequence_no', flat=True))
     
-    # Delete existing fares for this route
+    if n_stages == 0:
+        return Response(
+            {'message': 'No stages defined for this route. Add stops before creating fares.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Delete existing fares
     Fare.objects.filter(route=route).delete()
     
     fares_to_create = []
@@ -1105,16 +1353,16 @@ def update_fare_table(request, route_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create fare records: row=1, col=stage_count, fare_amount=fare
+        # Create fare records: row=1, col=1,2,3,...
         for col_idx, fare_amount in enumerate(fare_list):
             if fare_amount == 0:
-                continue  # Skip zero fares
+                continue
             
             fares_to_create.append(
                 Fare(
                     route=route,
-                    row=1,  # Always row=1 for Table Fare
-                    col=col_idx + 1,  # col = number of stages traveled (1, 2, 3, ...)
+                    row=1,
+                    col=col_idx + 1,  # 1-indexed: 1, 2, 3, ...
                     fare_amount=int(fare_amount),
                     route_name=route.route_name,
                     company=company,
@@ -1123,7 +1371,7 @@ def update_fare_table(request, route_id):
             )
     
     # ── Handle Graph Fare (fare_type=2) ─────────────────────────────────────
-    else:  # fare_type == 2
+    else:
         fare_matrix = request.data.get('fare_matrix', [])
         
         if not fare_matrix or not isinstance(fare_matrix, list):
@@ -1134,7 +1382,7 @@ def update_fare_table(request, route_id):
         
         if len(fare_matrix) != n_stages:
             return Response(
-                {'message': f'fare_matrix must have {n_stages} rows (number of stages).'},
+                {'message': f'fare_matrix must have {n_stages} rows.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -1145,20 +1393,17 @@ def update_fare_table(request, route_id):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Create fare records: row=from_stage, col=to_stage, fare_amount=fare
+        # Create fare records: row=1..N, col=1..N (1-indexed)
         for i, row in enumerate(fare_matrix):
             for j, fare_amount in enumerate(row):
                 if fare_amount == 0:
-                    continue  # Skip zero fares
-                
-                row_seq = stage_list[i]
-                col_seq = stage_list[j]
+                    continue
                 
                 fares_to_create.append(
                     Fare(
                         route=route,
-                        row=row_seq,  # Origin stage sequence
-                        col=col_seq,  # Destination stage sequence
+                        row=i + 1,  # 1-indexed: 1, 2, 3, ...
+                        col=j + 1,  # 1-indexed: 1, 2, 3, ...
                         fare_amount=int(fare_amount),
                         route_name=route.route_name,
                         company=company,

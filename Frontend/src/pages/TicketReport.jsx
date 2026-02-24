@@ -21,7 +21,7 @@ export default function TicketReport() {
     startDate: '',
     endDate: '',
     deviceId: 'ALL',
-    branchCode: 'ALL',
+    depotCode: 'ALL',
     paymentMode: 'ALL'
   });
   
@@ -276,13 +276,13 @@ export default function TicketReport() {
   // ===== DYNAMIC DROPDOWN OPTIONS =====
   const getUniqueOptions = () => {
     const deviceIds = [...new Set(transactions.map(t => t.device_id).filter(Boolean))].sort();
-    const branchCodes = [...new Set(transactions.map(t => t.branch_code).filter(Boolean))].sort();
+    const depotCodes = [...new Set(transactions.map(t => t.depot_code).filter(Boolean))].sort();
     const paymentModes = [...new Set(transactions.map(t => t.payment_mode_display).filter(Boolean))].sort();
     
-    return { deviceIds, branchCodes, paymentModes };
+    return { deviceIds, depotCodes, paymentModes };
   };
 
-  const { deviceIds, branchCodes, paymentModes } = getUniqueOptions();
+  const { deviceIds, depotCodes, paymentModes } = getUniqueOptions();
 
   // ===== FILTER LOGIC =====
   const getFilteredData = () =>
@@ -291,8 +291,8 @@ export default function TicketReport() {
         if (t.device_id !== filters.deviceId) return false;
       }
 
-      if (filters.branchCode && filters.branchCode !== 'ALL') {
-        if (t.branch_code !== filters.branchCode) return false;
+      if (filters.depotCode && filters.depotCode !== 'ALL') {
+        if (t.depot_code !== filters.depotCode) return false;
       }
 
       if (filters.paymentMode && filters.paymentMode !== 'ALL') {
@@ -375,7 +375,7 @@ export default function TicketReport() {
       startDate: today,
       endDate: today,
       deviceId: 'ALL',
-      branchCode: 'ALL',
+      depotCode: 'ALL',
       paymentMode: 'ALL'
     });
     setAppliedFilters({
@@ -406,7 +406,7 @@ export default function TicketReport() {
       { header: 'Ticket Number', key: 'ticket_number', width: 16 },
       { header: 'Date', key: 'formatted_ticket_date', width: 14 },
       { header: 'Time', key: 'ticket_time', width: 12 },
-      { header: 'Branch Code', key: 'branch_code', width: 14 },
+      { header: 'Depot Code', key: 'depot_code', width: 14 },
       { header: 'Total Tickets', key: 'total_tickets', width: 14 },
       { header: 'Ticket Amount', key: 'ticket_amount', width: 14 },
       { header: 'Payment Mode', key: 'payment_mode_display', width: 14 },
@@ -437,7 +437,7 @@ export default function TicketReport() {
         ticket_number: t.ticket_number || '-',
         formatted_ticket_date: t.formatted_ticket_date,
         ticket_time: t.ticket_time,
-        branch_code: t.branch_code,
+        depot_code: t.depot_code,
         total_tickets: t.total_tickets,
         ticket_amount: t.ticket_amount,
         payment_mode_display: t.payment_mode_display,
@@ -676,14 +676,14 @@ export default function TicketReport() {
           </div>
 
           <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Branch Code</label>
+            <label className="text-xs font-medium text-slate-500 mb-1">Depot Code</label>
             <select
-              value={filters.branchCode}
-              onChange={(e) => handleClientFilter('branchCode', e.target.value)}
+              value={filters.depotCode}
+              onChange={(e) => handleClientFilter('depotCode', e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
             >
               <option value="ALL">ALL</option>
-              {branchCodes.map(code => (
+              {depotCodes.map(code => (
                 <option key={code} value={code}>{code}</option>
               ))}
             </select>
@@ -749,7 +749,7 @@ export default function TicketReport() {
                 <th className="px-4 py-3 font-semibold">Ticket No</th>
                 <th className="px-4 py-3 font-semibold">Date</th>
                 <th className="px-4 py-3 font-semibold">Time</th>
-                <th className="px-4 py-3 font-semibold">Branch</th>
+                <th className="px-4 py-3 font-semibold">Depot</th>
                 <th className="px-4 py-3 font-semibold">Total Count</th>
                 <th className="px-4 py-3 font-semibold">Amount</th>
                 <th className="px-4 py-3 font-semibold">Payment Type</th>
@@ -771,7 +771,7 @@ export default function TicketReport() {
                     <td className="px-4 py-3">{t.ticket_number || "-"}</td>
                     <td className="px-4 py-3">{t.formatted_ticket_date}</td>
                     <td className="px-4 py-3">{t.ticket_time}</td>
-                    <td className="px-4 py-3">{t.branch_code || "-"}</td>
+                    <td className="px-4 py-3">{t.depot_code || "-"}</td>
                     <td className="px-4 py-3">{t.total_tickets}</td>
                     <td className="px-4 py-3">₹{t.ticket_amount}</td>
                     <td className="px-4 py-3">

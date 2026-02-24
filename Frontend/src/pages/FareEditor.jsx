@@ -312,90 +312,93 @@ export default function FareEditor() {
         </>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* GRAPH FARE EDITOR (fare_type=2, 2D Matrix)                          */}
-      {/* ═══════════════════════════════════════════════════════════════════ */}
-      {!loading && selectedRoute && fareType === 2 && stages.length > 0 && (
-        <>
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <i className="fas fa-info-circle text-blue-600 mt-1"></i>
-              <div className="flex-1 text-sm text-slate-700">
-                <p className="font-medium text-slate-800 mb-1">Graph Fare Mode:</p>
-                <ul className="list-disc list-inside space-y-1 text-slate-600">
-                  <li><strong>Diagonal cells (gray):</strong> Same origin-destination, usually ₹0</li>
-                  <li><strong>Upper triangle:</strong> Forward journey fares (Stage A → Stage B)</li>
-                  <li><strong>Lower triangle:</strong> Return journey fares (Stage B → Stage A)</li>
-                  <li><strong>Mirror Fares:</strong> Copies upper triangle to lower (same fare both ways)</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+{!loading && selectedRoute && fareType === 2 && stages.length > 0 && (
+  <>
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 p-4 mb-6">
+      <div className="flex items-start gap-3">
+        <i className="fas fa-info-circle text-blue-600 mt-1"></i>
+        <div className="flex-1 text-sm text-slate-700">
+          <p className="font-medium text-slate-800 mb-1">Graph Fare Mode:</p>
+          <ul className="list-disc list-inside space-y-1 text-slate-600">
+            <li><strong>Diagonal cells (gray):</strong> Same origin-destination, usually ₹0</li>
+            <li><strong>Upper triangle:</strong> Forward journey fares (Stage A → Stage B)</li>
+            <li><strong>Lower triangle:</strong> Return journey fares (Stage B → Stage A)</li>
+            <li><strong>Mirror Fares:</strong> Copies upper triangle to lower (same fare both ways)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-800">
-                    <th className="sticky left-0 z-20 bg-slate-800 px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider border-r border-slate-700">
-                      From → To
-                    </th>
-                    {stages.map((stage, idx) => (
-                      <th
-                        key={idx}
-                        className="px-4 py-3 text-center text-xs font-semibold text-white uppercase tracking-wider min-w-[100px] border-r border-slate-700"
-                      >
-                        <div className="font-mono text-slate-300 text-[10px]">{stage.stage_code}</div>
-                        <div>{stage.stage_name}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {stages.map((rowStage, rowIdx) => (
-                    <tr key={rowIdx} className="hover:bg-slate-50 transition-colors">
-                      <td className="sticky left-0 z-10 bg-slate-100 px-4 py-3 font-medium text-sm text-slate-800 border-r border-slate-300">
-                        <div className="font-mono text-slate-500 text-[10px]">{rowStage.stage_code}</div>
-                        <div>{rowStage.stage_name}</div>
-                      </td>
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="bg-slate-800">
+              <th className="sticky left-0 z-20 bg-slate-800 px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider border-r border-slate-700">
+                From → To
+              </th>
+              {stages.map((stage, idx) => (
+                <th
+                  key={idx}
+                  className="px-4 py-3 text-center text-xs font-semibold text-white tracking-wider min-w-[100px] border-r border-slate-700"
+                >
+                  {/* PRIMARY: Stage Name (large) */}
+                  <div className="text-sm font-bold mb-1">{stage.stage_name}</div>
+                  {/* SECONDARY: Stage Code (small, muted) */}
+                  <div className="font-mono text-slate-400 text-[9px]">({stage.stage_code})</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {stages.map((rowStage, rowIdx) => (
+              <tr key={rowIdx} className="hover:bg-slate-50 transition-colors">
+                {/* Row header (stage name) */}
+                <td className="sticky left-0 z-10 bg-slate-100 px-4 py-3 text-sm border-r border-slate-300">
+                  {/* PRIMARY: Stage Name (large) */}
+                  <div className="font-semibold text-slate-800">{rowStage.stage_name}</div>
+                  {/* SECONDARY: Stage Code (small, muted) */}
+                  <div className="font-mono text-slate-500 text-[9px]">({rowStage.stage_code})</div>
+                </td>
 
-                      {stages.map((colStage, colIdx) => {
-                        const isDiagonal = rowIdx === colIdx;
-                        const isUpperTriangle = colIdx > rowIdx;
-                        
-                        return (
-                          <td
-                            key={colIdx}
-                            className={`px-2 py-2 text-center border-r border-slate-200 ${
-                              isDiagonal ? 'bg-slate-100' : ''
-                            }`}
-                          >
-                            <input
-                              type="number"
-                              value={fareMatrix[rowIdx]?.[colIdx] || 0}
-                              onChange={(e) => updateGraphFare(rowIdx, colIdx, e.target.value)}
-                              min="0"
-                              step="1"
-                              className={`w-full px-2 py-1.5 text-center border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm ${
-                                isDiagonal
-                                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                  : isUpperTriangle
-                                  ? 'border-blue-300 bg-blue-50 font-semibold'
-                                  : 'border-slate-300 bg-white'
-                              }`}
-                              disabled={isDiagonal}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
+                {/* Fare cells */}
+                {stages.map((colStage, colIdx) => {
+                  const isDiagonal = rowIdx === colIdx;
+                  const isUpperTriangle = colIdx > rowIdx;
+                  
+                  return (
+                    <td
+                      key={colIdx}
+                      className={`px-2 py-2 text-center border-r border-slate-200 ${
+                        isDiagonal ? 'bg-slate-100' : ''
+                      }`}
+                    >
+                      <input
+                        type="number"
+                        value={fareMatrix[rowIdx]?.[colIdx] || 0}
+                        onChange={(e) => updateGraphFare(rowIdx, colIdx, e.target.value)}
+                        min="0"
+                        step="1"
+                        className={`w-full px-2 py-1.5 text-center border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm ${
+                          isDiagonal
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            : isUpperTriangle
+                            ? 'border-blue-300 bg-blue-50 font-semibold'
+                            : 'border-slate-300 bg-white'
+                        }`}
+                        disabled={isDiagonal}
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </>
+)}
 
       {/* Save Button */}
       {!loading && selectedRoute && stages.length > 0 && (

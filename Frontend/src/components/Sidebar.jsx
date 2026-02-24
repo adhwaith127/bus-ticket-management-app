@@ -256,12 +256,12 @@ export default function Sidebar() {
               <>
                 <li>
                   <NavLink
-                    to="/dashboard/branches"
+                    to="/dashboard/depots"
                     className={({ isActive }) => linkClass(isActive)}
                     onClick={() => setIsOpen(false)}
                   >
                     <i className="fa-solid fa-code-branch w-5 text-center text-xl"></i>
-                    {!isCollapsed && <span>Branches</span>}
+                    {!isCollapsed && <span>Depots</span>}
                   </NavLink>
                 </li>
 

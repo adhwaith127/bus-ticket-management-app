@@ -14,7 +14,7 @@ import CompanyListing from './pages/CompanyListing'
 import UserListing from './pages/UserListing'
 import TicketReport from './pages/TicketReport'
 import TripcloseReport from './pages/TripcloseReport'
-import BranchListing from './pages/BranchListing'
+import DepotListing from './pages/DepotListing'
 import SettlementPage from './pages/SettlementPage'
 import DealerManagement from './pages/DealerManagement'
 import DeviceApprovals from './pages/DeviceApprovals'
@@ -68,8 +68,8 @@ const router = createBrowserRouter([
             element: <UserListing />
           },
           {
-            path: 'branches',
-            element: <BranchListing />
+            path: 'depots',
+            element: <DepotListing />
           },
           {
             path: 'ticket-report',

@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.conf import settings
-from .company import Company,Branch
+from .company import Company, Depot
 
 # Payment processing (MosambeeTransaction)
 
