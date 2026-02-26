@@ -101,6 +101,7 @@ urlpatterns = [
     path('masterdata/crew-assignments/', masterdata_views.get_crew_assignments),
     path('masterdata/crew-assignments/create/', masterdata_views.create_crew_assignment),
     path('masterdata/crew-assignments/update/<int:pk>/', masterdata_views.update_crew_assignment),
+    path('masterdata/crew-assignments/delete/<int:pk>/', masterdata_views.delete_crew_assignment),
 
     path('masterdata/settings/', masterdata_views.get_settings),
     path('masterdata/settings/update/', masterdata_views.update_settings),
