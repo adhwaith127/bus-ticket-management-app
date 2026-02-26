@@ -30,13 +30,12 @@ export default function CrewAssignmentListing() {
   // ── Section 2a: Search & Filter Logic ────────────────────────────────────────────
   const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
     assignments,
-    ['driver', 'conductor', 'cleaner', 'vehicle']
+    ['driver_name', 'conductor_name', 'cleaner_name', 'vehicle_reg']
   );
 
   // ── Section 2b: Data Fetching ─────────────────────────────────────────────────
   useEffect(() => {
     fetchAssignments();
-    fetchDropdowns();
   }, []);
 
   const fetchAssignments = async () => {
@@ -53,14 +52,18 @@ export default function CrewAssignmentListing() {
     }
   };
 
-  // Parallel fetch of all dropdown options for better performance
-  const fetchDropdowns = async () => {
+  // Fetch role/vehicle options with assignment-aware filtering
+  const fetchDropdowns = async (assignmentId = null) => {
     try {
+      const sharedParams = {
+        exclude_assigned: 'true',
+        ...(assignmentId ? { assignment_id: assignmentId } : {}),
+      };
       const [driversRes, conductorsRes, cleanersRes, vehiclesRes] = await Promise.all([
-        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'DRIVER' } }),
-        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'CONDUCTOR' } }),
-        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'CLEANER' } }),
-        api.get(`${BASE_URL}/masterdata/dropdowns/vehicles/`),
+        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'DRIVER', ...sharedParams } }),
+        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'CONDUCTOR', ...sharedParams } }),
+        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'CLEANER', ...sharedParams } }),
+        api.get(`${BASE_URL}/masterdata/dropdowns/vehicles/`, { params: sharedParams }),
       ]);
       setDrivers(driversRes.data?.data || []);
       setConductors(conductorsRes.data?.data || []);
@@ -72,13 +75,19 @@ export default function CrewAssignmentListing() {
   };
 
   const handleSubmit = async () => {
+    if (!formData.driver) return window.alert('Driver is required');
+    if (!formData.conductor) return window.alert('Conductor is required');
+    if (!formData.vehicle) return window.alert('Vehicle is required');
+    if (String(formData.driver) === String(formData.conductor)) {
+      return window.alert('Conductor must be different from driver');
+    }
+
     setSubmitting(true);
     try {
-      // Only send non-empty optional fields
       const payload = {
         driver:  formData.driver,
+        conductor: formData.conductor,
         vehicle: formData.vehicle,
-        ...(formData.conductor && { conductor: formData.conductor }),
         ...(formData.cleaner   && { cleaner:   formData.cleaner }),
       };
 
@@ -133,6 +142,7 @@ export default function CrewAssignmentListing() {
     setEditingItem(null);
     setModalMode('create');
     setIsModalOpen(true);
+    fetchDropdowns();
   };
 
   const openViewModal = (item) => {
@@ -157,6 +167,27 @@ export default function CrewAssignmentListing() {
     setEditingItem(item);
     setModalMode('edit');
     setIsModalOpen(true);
+    fetchDropdowns(item.id);
+  };
+
+  const handleDelete = async (item) => {
+    const confirmed = window.confirm(`Delete assignment #${item.id}? This will free the selected crew and vehicle.`);
+    if (!confirmed) return;
+    try {
+      const response = await api.delete(`${BASE_URL}/masterdata/crew-assignments/delete/${item.id}/`);
+      window.alert(response.data?.message || 'Crew assignment deleted successfully');
+      fetchAssignments();
+      if (isModalOpen) {
+        fetchDropdowns(modalMode === 'edit' ? editingItem?.id : null);
+      }
+    } catch (err) {
+      if (!err.response) return window.alert('Server unreachable. Try later.');
+      const { data } = err.response;
+      const firstError = data.errors
+        ? Object.values(data.errors)[0][0]
+        : (data.error || data.message);
+      window.alert(firstError || 'Delete failed');
+    }
   };
 
   const handleInputChange = (e) => {
@@ -173,9 +204,15 @@ export default function CrewAssignmentListing() {
       <label className="text-sm font-semibold text-slate-700">{label}{required ? ' *' : ' (optional)'}</label>
       {isReadOnly ? (
         <input type="text"
-          value={options.find(o => String(o.id) === String(formData[name]))?.employee_name
-              || options.find(o => String(o.id) === String(formData[name]))?.bus_reg_num
-              || '—'}
+          value={
+            (
+              name === 'driver' ? editingItem?.driver_name :
+              name === 'conductor' ? editingItem?.conductor_name :
+              name === 'cleaner' ? editingItem?.cleaner_name :
+              name === 'vehicle' ? editingItem?.vehicle_reg :
+              ''
+            ) || '—'
+          }
           readOnly 
           className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-slate-50 text-slate-600"
         />
@@ -282,6 +319,9 @@ export default function CrewAssignmentListing() {
                       <button onClick={() => openEditModal(item)} className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-150">
                         Edit
                       </button>
+                      <button onClick={() => handleDelete(item)} className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-150">
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -343,7 +383,7 @@ export default function CrewAssignmentListing() {
         <div className="space-y-5">
 
           {renderDropdown('driver',    'Driver',    drivers,    true)}
-          {renderDropdown('conductor', 'Conductor', conductors, false)}
+          {renderDropdown('conductor', 'Conductor', conductors, true)}
           {renderDropdown('cleaner',   'Cleaner',   cleaners,   false)}
           {renderDropdown('vehicle',   'Vehicle',   vehicles,   true)}
 

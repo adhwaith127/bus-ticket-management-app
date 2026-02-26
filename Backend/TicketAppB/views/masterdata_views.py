@@ -19,6 +19,21 @@ from .auth_views import get_user_from_cookie
 logger = logging.getLogger(__name__)
 
 
+def _normalize_role_text(value):
+    """Normalize role text to uppercase alphanumeric for tolerant comparisons."""
+    text = str(value or '').strip().upper()
+    return ''.join(ch for ch in text if ch.isalnum())
+
+
+def _role_matches_expected(emp_type_obj, expected_role):
+    expected_normalized = _normalize_role_text(expected_role)
+    if not expected_normalized:
+        return False
+
+    name_normalized = _normalize_role_text(getattr(emp_type_obj, 'emp_type_name', ''))
+    return expected_normalized == name_normalized
+
+
 # SHARED HELPERS
 # These two functions are used at the top of every single view.
 # Keeping them here avoids repeating the same 10 lines everywhere.
@@ -632,7 +647,7 @@ def update_settings(request):
 def _validate_crew_member(employee_id, expected_type_code, company, field_label):
     """
     Fetches an Employee by ID, confirms it belongs to this company,
-    and confirms its emp_type_code matches the expected role.
+    and confirms its role name matches the expected role.
     Returns (employee_object, error_message_or_None).
     """
     try:
@@ -640,10 +655,83 @@ def _validate_crew_member(employee_id, expected_type_code, company, field_label)
     except Employee.DoesNotExist:
         return None, f'{field_label} not found in your company.'
 
-    if emp.emp_type.emp_type_code != expected_type_code:
+    if not _role_matches_expected(emp.emp_type, expected_type_code):
         return None, f'Selected {field_label} is not of type {expected_type_code}.'
 
     return emp, None
+
+
+def _validate_distinct_roles(driver_id, conductor_id):
+    if str(driver_id) == str(conductor_id):
+        return {'conductor': ['Conductor must be different from driver.']}
+    return None
+
+
+def _validation_failed(errors):
+    return Response(
+        {'message': 'Validation failed', 'errors': errors},
+        status=status.HTTP_400_BAD_REQUEST
+    )
+
+
+def _validate_crew_assignment_payload(company, payload, exclude_assignment_id=None):
+    errors = {}
+    driver_id = payload.get('driver')
+    conductor_id = payload.get('conductor')
+    cleaner_id = payload.get('cleaner')
+    vehicle_id = payload.get('vehicle')
+
+    if not driver_id:
+        errors.setdefault('driver', []).append('Driver is required.')
+    if not conductor_id:
+        errors.setdefault('conductor', []).append('Conductor is required.')
+    if not vehicle_id:
+        errors.setdefault('vehicle', []).append('Vehicle is required.')
+
+    if driver_id and conductor_id:
+        distinct_errors = _validate_distinct_roles(driver_id, conductor_id)
+        if distinct_errors:
+            for field, msgs in distinct_errors.items():
+                errors.setdefault(field, []).extend(msgs)
+
+    if driver_id:
+        _, err_msg = _validate_crew_member(driver_id, 'DRIVER', company, 'Driver')
+        if err_msg:
+            errors.setdefault('driver', []).append(err_msg)
+
+    if conductor_id:
+        _, err_msg = _validate_crew_member(conductor_id, 'CONDUCTOR', company, 'Conductor')
+        if err_msg:
+            errors.setdefault('conductor', []).append(err_msg)
+
+    if cleaner_id:
+        _, err_msg = _validate_crew_member(cleaner_id, 'CLEANER', company, 'Cleaner')
+        if err_msg:
+            errors.setdefault('cleaner', []).append(err_msg)
+
+    if vehicle_id:
+        try:
+            VehicleType.objects.get(pk=vehicle_id, company=company, is_deleted=False)
+        except VehicleType.DoesNotExist:
+            errors.setdefault('vehicle', []).append('Vehicle not found in your company.')
+
+    if errors:
+        return errors
+
+    existing_qs = CrewAssignment.objects.filter(company=company)
+    if exclude_assignment_id:
+        existing_qs = existing_qs.exclude(pk=exclude_assignment_id)
+
+    if existing_qs.filter(driver_id=driver_id).exists():
+        errors.setdefault('driver', []).append('Selected driver is already assigned.')
+    if existing_qs.filter(conductor_id=conductor_id).exists():
+        errors.setdefault('conductor', []).append('Selected conductor is already assigned.')
+    if cleaner_id and existing_qs.filter(cleaner_id=cleaner_id).exists():
+        errors.setdefault('cleaner', []).append('Selected cleaner is already assigned.')
+    if existing_qs.filter(vehicle_id=vehicle_id).exists():
+        errors.setdefault('vehicle', []).append('Selected vehicle is already assigned.')
+
+    return errors
 
 
 @api_view(['GET'])
@@ -665,45 +753,22 @@ def create_crew_assignment(request):
     if err:
         return err
 
-    # --- Validate driver (required) ---
-    driver_id = request.data.get('driver')
-    if not driver_id:
-        return Response({'error': 'Driver is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    driver, err_msg = _validate_crew_member(driver_id, 'DRIVER', company, 'Driver')
-    if err_msg:
-        return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+    serializer_payload = {
+        'driver': request.data.get('driver'),
+        'conductor': request.data.get('conductor'),
+        'cleaner': request.data.get('cleaner') or None,
+        'vehicle': request.data.get('vehicle'),
+    }
+    errors = _validate_crew_assignment_payload(company, serializer_payload)
+    if errors:
+        return _validation_failed(errors)
 
-    # --- Validate conductor (optional) ---
-    conductor = None
-    conductor_id = request.data.get('conductor')
-    if conductor_id:
-        conductor, err_msg = _validate_crew_member(conductor_id, 'CONDUCTOR', company, 'Conductor')
-        if err_msg:
-            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
-
-    # --- Validate cleaner (optional) ---
-    cleaner = None
-    cleaner_id = request.data.get('cleaner')
-    if cleaner_id:
-        cleaner, err_msg = _validate_crew_member(cleaner_id, 'CLEANER', company, 'Cleaner')
-        if err_msg:
-            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
-
-    # --- Validate vehicle (required, must belong to this company) ---
-    vehicle_id = request.data.get('vehicle')
-    if not vehicle_id:
-        return Response({'error': 'Vehicle is required.'}, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        vehicle = VehicleType.objects.get(pk=vehicle_id, company=company)
-    except VehicleType.DoesNotExist:
-        return Response({'error': 'Vehicle not found in your company.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    serializer = CrewAssignmentSerializer(data=request.data)
+    serializer = CrewAssignmentSerializer(data=serializer_payload)
     if serializer.is_valid():
         serializer.save(company=company, created_by=user)
         return Response({'message': 'Crew assignment created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
 
-    return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return _validation_failed(serializer.errors)
 
 
 @api_view(['PUT'])
@@ -716,38 +781,36 @@ def update_crew_assignment(request, pk):
     if err:
         return err
 
-    # Re-validate any crew members that are being changed in this update
-    driver_id = request.data.get('driver')
-    if driver_id:
-        _, err_msg = _validate_crew_member(driver_id, 'DRIVER', company, 'Driver')
-        if err_msg:
-            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+    serializer_payload = {
+        'driver': request.data.get('driver', obj.driver_id),
+        'conductor': request.data.get('conductor', obj.conductor_id),
+        'cleaner': request.data.get('cleaner', obj.cleaner_id) or None,
+        'vehicle': request.data.get('vehicle', obj.vehicle_id),
+    }
+    errors = _validate_crew_assignment_payload(company, serializer_payload, exclude_assignment_id=obj.id)
+    if errors:
+        return _validation_failed(errors)
 
-    conductor_id = request.data.get('conductor')
-    if conductor_id:
-        _, err_msg = _validate_crew_member(conductor_id, 'CONDUCTOR', company, 'Conductor')
-        if err_msg:
-            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
-
-    cleaner_id = request.data.get('cleaner')
-    if cleaner_id:
-        _, err_msg = _validate_crew_member(cleaner_id, 'CLEANER', company, 'Cleaner')
-        if err_msg:
-            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
-
-    vehicle_id = request.data.get('vehicle')
-    if vehicle_id:
-        try:
-            VehicleType.objects.get(pk=vehicle_id, company=company)
-        except VehicleType.DoesNotExist:
-            return Response({'error': 'Vehicle not found in your company.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    serializer = CrewAssignmentSerializer(obj, data=request.data, partial=True)
+    serializer = CrewAssignmentSerializer(obj, data=serializer_payload, partial=False)
     if serializer.is_valid():
         serializer.save(updated_by=user)
         return Response({'message': 'Crew assignment updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
 
-    return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return _validation_failed(serializer.errors)
+
+
+@api_view(['DELETE'])
+def delete_crew_assignment(request, pk):
+    user, company, err = _get_authenticated_company_admin(request)
+    if err:
+        return err
+
+    obj, err = _get_object_or_404(CrewAssignment, pk, company)
+    if err:
+        return err
+
+    obj.delete()
+    return Response({'message': 'Crew assignment deleted successfully'}, status=status.HTTP_200_OK)
 
 
 # DROPDOWN DATA ENDPOINTS
@@ -790,7 +853,7 @@ def get_employee_types_dropdown(request):
 @api_view(['GET'])
 def get_employees_by_type_dropdown(request):
     """
-    Returns employees filtered by emp_type_code query param.
+    Returns employees filtered by role name query param.
     Used by CrewAssignment form to load drivers, conductors, cleaners separately.
     Example: /masterdata/dropdowns/employees/?type=DRIVER
     """
@@ -798,10 +861,37 @@ def get_employees_by_type_dropdown(request):
     if err:
         return err
 
-    emp_type_code = request.query_params.get('type')
+    requested_role = request.query_params.get('type')
+    exclude_assigned = request.query_params.get('exclude_assigned', 'false').lower() == 'true'
+    assignment_id = request.query_params.get('assignment_id')
     qs = Employee.objects.filter(company=company, is_deleted=False).select_related('emp_type')
-    if emp_type_code:
-        qs = qs.filter(emp_type__emp_type_code=emp_type_code)
+    if requested_role:
+        matching_type_ids = [
+            emp_type.id
+            for emp_type in EmployeeType.objects.filter(company=company)
+            if _role_matches_expected(emp_type, requested_role)
+        ]
+        if matching_type_ids:
+            qs = qs.filter(emp_type_id__in=matching_type_ids)
+        else:
+            qs = qs.none()
+
+    if exclude_assigned and requested_role:
+        role_key = _normalize_role_text(requested_role)
+        field_map = {
+            'DRIVER': 'driver_id',
+            'CONDUCTOR': 'conductor_id',
+            'CLEANER': 'cleaner_id',
+        }
+        assignment_field = field_map.get(role_key)
+        if assignment_field:
+            assigned_qs = CrewAssignment.objects.filter(company=company)
+            if assignment_id and str(assignment_id).isdigit():
+                assigned_qs = assigned_qs.exclude(id=int(assignment_id))
+            assigned_ids = assigned_qs.exclude(**{f'{assignment_field}__isnull': True}).values_list(
+                assignment_field, flat=True
+            )
+            qs = qs.exclude(id__in=assigned_ids)
 
     data = list(qs.values('id', 'employee_code', 'employee_name').order_by('employee_name'))
     return Response({'message': 'Success', 'data': data}, status=status.HTTP_200_OK)
@@ -814,11 +904,18 @@ def get_vehicles_dropdown(request):
     if err:
         return err
 
-    data = list(
-        VehicleType.objects.filter(company=company, is_deleted=False)
-        .values('id', 'bus_reg_num')
-        .order_by('bus_reg_num')
-    )
+    exclude_assigned = request.query_params.get('exclude_assigned', 'false').lower() == 'true'
+    assignment_id = request.query_params.get('assignment_id')
+
+    qs = VehicleType.objects.filter(company=company, is_deleted=False)
+    if exclude_assigned:
+        assigned_qs = CrewAssignment.objects.filter(company=company)
+        if assignment_id and str(assignment_id).isdigit():
+            assigned_qs = assigned_qs.exclude(id=int(assignment_id))
+        assigned_vehicle_ids = assigned_qs.values_list('vehicle_id', flat=True)
+        qs = qs.exclude(id__in=assigned_vehicle_ids)
+
+    data = list(qs.values('id', 'bus_reg_num').order_by('bus_reg_num'))
     return Response({'message': 'Success', 'data': data}, status=status.HTTP_200_OK)
 
 

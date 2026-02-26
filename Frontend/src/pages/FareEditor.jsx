@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Select from 'react-select';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
 export default function FareEditor() {
@@ -16,9 +17,12 @@ export default function FareEditor() {
   // For Graph Fare (2D)
   const [fareMatrix, setFareMatrix]   = useState([]);
   
+  const [routesLoading, setRoutesLoading] = useState(true);
+  const [routesError, setRoutesError] = useState(null);
   const [loading, setLoading]         = useState(false);
   const [saving, setSaving]           = useState(false);
   const [hasChanges, setHasChanges]   = useState(false);
+  const routesLoaded = !routesLoading && !routesError;
 
   // ── Section 2: Fetch routes on mount ─────────────────────────────────────
   useEffect(() => {
@@ -26,11 +30,17 @@ export default function FareEditor() {
   }, []);
 
   const fetchRoutes = async () => {
+    setRoutesLoading(true);
+    setRoutesError(null);
     try {
       const res = await api.get(`${BASE_URL}/masterdata/routes/`);
       setRoutes(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching routes:', err);
+      setRoutesError('Failed to load routes. Please retry.');
+      setRoutes([]);
+    } finally {
+      setRoutesLoading(false);
     }
   };
 
@@ -146,6 +156,16 @@ export default function FareEditor() {
     setHasChanges(true);
   };
 
+  const routeOptions = routes.map((route) => ({
+    value: route.id,
+    label: `${route.route_code} - ${route.route_name}`,
+    meta: `Type ${route.fare_type} • Stops ${route.route_stages?.length || 0}`,
+  }));
+
+  const selectedRouteOption = selectedRoute
+    ? routeOptions.find((option) => option.value === selectedRoute.id) || null
+    : null;
+
   // ── Section 7: Render ─────────────────────────────────────────────────────
   return (
     <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
@@ -158,48 +178,87 @@ export default function FareEditor() {
 
       {/* Route Selector */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-        <div className="flex flex-col md:flex-row md:items-end gap-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Select Route
-            </label>
-            <select
-              value={selectedRoute?.id || ''}
-              onChange={(e) => handleRouteSelect(e.target.value)}
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-slate-800"
-            >
-              <option value="">-- Choose a route to edit fares --</option>
-              {routes.map(r => (
-                <option key={r.id} value={r.id}>
-                  {r.route_code} - {r.route_name} (Type: {r.fare_type}, Stops: {r.route_stages?.length || 0})
-                </option>
-              ))}
-            </select>
+        {routesLoading && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-t-slate-700"></div>
+              <p className="text-sm text-slate-600">Loading routes...</p>
+            </div>
+            <div className="mt-4 h-10 rounded-lg bg-slate-200 animate-pulse"></div>
           </div>
+        )}
 
-          {selectedRoute && (
-            <div className="flex gap-2">
-              {fareType === 2 && (
-                <button
-                  onClick={autoFillSymmetric}
-                  className="px-4 py-2.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                >
-                  <i className="fas fa-sync-alt mr-2"></i>
-                  Mirror Fares
-                </button>
-              )}
+        {!routesLoading && routesError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <p className="text-sm font-medium text-red-700">{routesError}</p>
               <button
-                onClick={clearAllFares}
-                className="px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                onClick={fetchRoutes}
+                className="px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-lg hover:bg-red-100 transition-colors"
               >
-                <i className="fas fa-eraser mr-2"></i>
-                Clear All
+                <i className="fas fa-rotate-right mr-2"></i>
+                Retry
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {selectedRoute && (
+        {!routesLoading && !routesError && routes.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+            <i className="fas fa-route text-2xl text-slate-400 mb-2"></i>
+            <p className="text-sm font-medium text-slate-700">No routes available</p>
+            <p className="text-xs text-slate-500 mt-1">Create a route first to edit fares.</p>
+          </div>
+        )}
+
+        {routesLoaded && routes.length > 0 && (
+          <div className="flex flex-col md:flex-row md:items-end gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Select Route
+              </label>
+              <Select
+                options={routeOptions}
+                value={selectedRouteOption}
+                onChange={(option) => handleRouteSelect(option?.value || '')}
+                isSearchable
+                isClearable
+                isDisabled={loading}
+                placeholder="Search by route code or name..."
+                classNamePrefix="fare-route-select"
+                formatOptionLabel={(option) => (
+                  <div className="py-0.5">
+                    <p className="text-sm text-slate-800 font-medium">{option.label}</p>
+                    <p className="text-xs text-slate-500">{option.meta}</p>
+                  </div>
+                )}
+              />
+            </div>
+
+            {selectedRoute && (
+              <div className="flex gap-2">
+                {fareType === 2 && (
+                  <button
+                    onClick={autoFillSymmetric}
+                    className="px-4 py-2.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <i className="fas fa-sync-alt mr-2"></i>
+                    Mirror Fares
+                  </button>
+                )}
+                <button
+                  onClick={clearAllFares}
+                  className="px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  <i className="fas fa-eraser mr-2"></i>
+                  Clear All
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {routesLoaded && selectedRoute && (
           <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
             <div className="flex items-start gap-3">
               <i className={`fas ${fareType === 1 ? 'fa-list-ol' : 'fa-th'} text-blue-600 mt-1`}></i>
@@ -236,7 +295,7 @@ export default function FareEditor() {
       )}
 
       {/* Empty State */}
-      {!loading && !selectedRoute && (
+      {!loading && routesLoaded && routes.length > 0 && !selectedRoute && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
           <i className="fas fa-map-marked-alt text-6xl text-slate-300 mb-4"></i>
           <p className="text-slate-500 text-lg">Select a route to start editing fares</p>
