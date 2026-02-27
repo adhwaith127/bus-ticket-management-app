@@ -32,7 +32,6 @@ api.interceptors.response.use(
         
         // No need to retry these endpoints
         if (originalRequest.url?.includes('/token/refresh/') || 
-            originalRequest.url?.includes('/verify-auth/') ||
             originalRequest.url?.includes('/login/') ||
             originalRequest.url?.includes('/signup/')) { 
             return Promise.reject(error);
@@ -55,7 +54,7 @@ api.interceptors.response.use(
                 
             } catch (refreshError) {
                 console.error('Token refresh failed, redirecting to login');
-                localStorage.removeItem('user'); // Clear user data
+                localStorage.removeItem('user');
                 window.location.href = '/login';
                 return Promise.reject(refreshError);
             }
@@ -66,4 +65,4 @@ api.interceptors.response.use(
 );
 
 export default api;
-export { BASE_URL };
+export { BASE_URL, refreshApi };  // exported refreshApi

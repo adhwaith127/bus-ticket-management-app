@@ -27,7 +27,7 @@ function SubLink({ to, icon: Icon, label, onClose }) {
       to={to}
       onClick={onClose}
       className={({ isActive }) =>
-        `flex items-center gap-2 px-3 py-1 rounded-lg text-sm transition-colors duration-150 ${
+        `flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm transition-colors duration-150 ${
           isActive
             ? "text-indigo-600 bg-indigo-50 font-semibold"
             : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
@@ -118,7 +118,7 @@ function DropdownSection({ icon: Icon, label, isCollapsed, isOpen, onToggle, chi
           isCollapsed || !isOpen ? "max-h-0 opacity-0" : "max-h-[600px] opacity-100"
         }`}
       >
-        <div className="pl-[52px] pr-2 pb-1 space-y-0.5">
+        <div className="pl-[44px] pr-2 pt-1 pb-2 space-y-0.5">
           {children}
         </div>
       </div>
@@ -236,7 +236,7 @@ export default function Sidebar() {
           This means it never competes with logo/text for space and is
           always at the same visual position regardless of collapsed state.
         */}
-        <div className="relative h-19 flex items-center border-b border-slate-200/60 bg-slate-50 flex-shrink-0 px-4">
+        <div className="relative h-20 flex items-center border-b border-slate-200/60 bg-slate-50 flex-shrink-0 px-4">
 
           {/* Logo icon — always at same x position, never moves */}
           <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-md shrink-0">
@@ -353,7 +353,7 @@ export default function Sidebar() {
         </nav>
 
         {/* ── FOOTER ──────────────────────────────────────────────────────── */}
-        <div className="border-t border-slate-200 px-2 pt-3 pb-5 bg-slate-50 flex-shrink-0 space-y-0.5">
+        <div className="border-t border-slate-200 px-2 pt-3 pb-4 bg-slate-50 flex-shrink-0 space-y-0.5">
 
           {/* User chip — avatar pinned left, text collapses */}
           <div className="flex items-center rounded-lg px-2 py-1.5">

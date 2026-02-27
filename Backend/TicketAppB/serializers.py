@@ -767,129 +767,10 @@ class VehicleTypeSerializer(serializers.ModelSerializer):
 
 
 # -----------------------------------------------------------------------------
-# SECTION 4 — Route (simplified — no RouteStage inline for now)
-# fare_type is an integer stored as-is (graph vs table distinction is future work).
-# bus_type FK validated to same company, same as above.
+# SECTION 4 — Route
+# RouteStageSerializer and RouteBusTypeSerializer are defined below (SECTION 4b)
+# before RouteSerializer so Python can reference them when building RouteSerializer.
 # -----------------------------------------------------------------------------
-
-class RouteStageSerializer(serializers.ModelSerializer):
-    """
-    Kept ready for when Route gets inline stage management.
-    Not actively used yet but referenced for future inline editing.
-    """
-    company    = serializers.PrimaryKeyRelatedField(read_only=True)
-    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
-    stage_name = serializers.CharField(source='stage.stage_name', read_only=True)
-
-    class Meta:
-        model  = RouteStage
-        fields = [
-            'id',
-            'stage',         # writable FK
-            'stage_name',    # read-only display
-            'sequence_no',
-            'distance',
-            'stage_local_lang',
-            'company',
-            'created_by',
-        ]
-        read_only_fields = ['id', 'company', 'created_by', 'stage_name']
-
-
-# =============================================================================
-# RouteBusType Serializer - ADD THIS TO serializers.py
-# Place it near the RouteSerializer
-# =============================================================================
-
-class RouteBusTypeSerializer(serializers.ModelSerializer):
-    """
-    Serializer for RouteBusType records (allowed bus types per route).
-    Used for inline editing within Route forms.
-    """
-    company    = serializers.PrimaryKeyRelatedField(read_only=True)
-    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
-    
-    # Read-only display fields
-    bus_type_code = serializers.CharField(source='bus_type.bustype_code', read_only=True)
-    bus_type_name = serializers.CharField(source='bus_type.name', read_only=True)
-    
-    class Meta:
-        model = RouteBusType
-        fields = [
-            'id',
-            'bus_type',       # writable FK (frontend sends bus_type ID)
-            'bus_type_code',  # read-only display
-            'bus_type_name',  # read-only display
-            'company',
-            'created_by',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = ['id', 'company', 'created_by', 'created_at', 'updated_at', 'bus_type_code', 'bus_type_name']
-    
-    def validate_bus_type(self, value):
-        """Ensure the chosen BusType belongs to this company."""
-        company = self.context.get('company')
-        if company and value.company != company:
-            raise serializers.ValidationError("Selected bus type does not belong to your company.")
-        return value
-
-
-# =============================================================================
-# UPDATE the existing RouteSerializer to include nested route_bus_types
-# =============================================================================
-
-class RouteSerializer(serializers.ModelSerializer):
-    company    = serializers.PrimaryKeyRelatedField(read_only=True)
-    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
-    updated_by = serializers.PrimaryKeyRelatedField(read_only=True)
-
-    bus_type_name = serializers.CharField(source='bus_type.name', read_only=True)
-    
-    # Nested route stages for read (GET)
-    route_stages = RouteStageSerializer(many=True, read_only=True)
-    
-    # NEW: Nested allowed bus types for read (GET)
-    route_bus_types = RouteBusTypeSerializer(many=True, read_only=True)
-
-    class Meta:
-        model  = Route
-        fields = [
-            'id',
-            'route_code',
-            'route_name',
-            'min_fare',
-            'fare_type',
-            'bus_type',
-            'bus_type_name',
-            'use_stop',
-            'half',
-            'luggage',
-            'student',
-            'adjust',
-            'conc',
-            'ph',
-            'start_from',
-            'pass_allow',
-            'is_deleted',
-            'company',
-            'created_by',
-            'updated_by',
-            'created_at',
-            'updated_at',
-            'route_stages',      # nested stages list
-            'route_bus_types',   # NEW: nested allowed bus types
-        ]
-        read_only_fields = [
-            'id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at',
-            'bus_type_name', 'route_stages', 'route_bus_types'
-        ]
-
-    def validate_bus_type(self, value):
-        company = self.context.get('company')
-        if company and value.company != company:
-            raise serializers.ValidationError("Selected bus type does not belong to your company.")
-        return value
 
 # -----------------------------------------------------------------------------
 # SECTION 5 — CrewAssignment
@@ -1038,30 +919,30 @@ class SettingsSerializer(serializers.ModelSerializer):
 
 
 
-# =============================================================================
-# RouteStage Serializer - ADD THIS TO serializers.py
-# Place it near the RouteSerializer
-# =============================================================================
+# -----------------------------------------------------------------------------
+# SECTION 4b — Route supporting serializers
+# These must be defined BEFORE RouteSerializer since it references them.
+# -----------------------------------------------------------------------------
 
 class RouteStageSerializer(serializers.ModelSerializer):
     """
     Serializer for RouteStage records (stops on a route).
-    Used for inline editing within Route forms.
+    Used for inline display within Route forms and FareEditor.
+    stage_code is needed by FareEditor matrix headers.
+    validate_stage ensures stages belong to the same company.
     """
     company    = serializers.PrimaryKeyRelatedField(read_only=True)
     created_by = serializers.PrimaryKeyRelatedField(read_only=True)
-    
-    # Read-only display field for stage name
     stage_name = serializers.CharField(source='stage.stage_name', read_only=True)
     stage_code = serializers.CharField(source='stage.stage_code', read_only=True)
-    
+
     class Meta:
         model = RouteStage
         fields = [
             'id',
             'stage',           # writable FK (frontend sends stage ID)
-            'stage_name',      # read-only display
-            'stage_code',      # read-only display
+            'stage_name',      # read-only display — used in RouteListing and FareEditor
+            'stage_code',      # read-only display — used in FareEditor matrix headers
             'sequence_no',
             'distance',
             'stage_local_lang',
@@ -1071,7 +952,7 @@ class RouteStageSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'company', 'created_by', 'created_at', 'updated_at', 'stage_name', 'stage_code']
-    
+
     def validate_stage(self, value):
         """Ensure the chosen Stage belongs to this company."""
         company = self.context.get('company')
@@ -1080,9 +961,37 @@ class RouteStageSerializer(serializers.ModelSerializer):
         return value
 
 
-# =============================================================================
-# UPDATE the existing RouteSerializer to include nested route_stages
-# =============================================================================
+class RouteBusTypeSerializer(serializers.ModelSerializer):
+    """
+    Serializer for RouteBusType records (allowed bus types per route).
+    Frontend does not use this yet — kept ready for future use.
+    """
+    company       = serializers.PrimaryKeyRelatedField(read_only=True)
+    created_by    = serializers.PrimaryKeyRelatedField(read_only=True)
+    bus_type_code = serializers.CharField(source='bus_type.bustype_code', read_only=True)
+    bus_type_name = serializers.CharField(source='bus_type.name', read_only=True)
+
+    class Meta:
+        model = RouteBusType
+        fields = [
+            'id',
+            'bus_type',
+            'bus_type_code',
+            'bus_type_name',
+            'company',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'company', 'created_by', 'created_at', 'updated_at', 'bus_type_code', 'bus_type_name']
+
+    def validate_bus_type(self, value):
+        """Ensure the chosen BusType belongs to this company."""
+        company = self.context.get('company')
+        if company and value.company != company:
+            raise serializers.ValidationError("Selected bus type does not belong to your company.")
+        return value
+
 
 class RouteSerializer(serializers.ModelSerializer):
     company    = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -1090,9 +999,8 @@ class RouteSerializer(serializers.ModelSerializer):
     updated_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
     bus_type_name = serializers.CharField(source='bus_type.name', read_only=True)
-    
-    # NEW: Nested route stages for read (GET)
-    route_stages = RouteStageSerializer(many=True, read_only=True)
+    route_stages  = RouteStageSerializer(many=True, read_only=True)
+    route_bus_types = RouteBusTypeSerializer(many=True, read_only=True)  # future-ready
 
     class Meta:
         model  = Route
@@ -1119,9 +1027,13 @@ class RouteSerializer(serializers.ModelSerializer):
             'updated_by',
             'created_at',
             'updated_at',
-            'route_stages',    # NEW: nested stages list
+            'route_stages',    # used by RouteListing and FareEditor
+            'route_bus_types', # future use
         ]
-        read_only_fields = ['id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at', 'bus_type_name', 'route_stages']
+        read_only_fields = [
+            'id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at',
+            'bus_type_name', 'route_stages', 'route_bus_types',
+        ]
 
     def validate_bus_type(self, value):
         company = self.context.get('company')

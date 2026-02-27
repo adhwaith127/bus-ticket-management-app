@@ -2,41 +2,46 @@ import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
 import SearchBar from '../components/SearchBar';
 import { useFilteredList } from '../assets/js/useFilteredList';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import { usePagination }   from '../assets/js/usePagination';
+import { useModalForm }    from '../assets/js/useModalForm';
+import { submitForm }      from '../assets/js/submitForm';
+import api, { BASE_URL }   from '../assets/js/axiosConfig';
+
+const emptyForm = { stage_code: '', stage_name: '' };
 
 export default function StageListing() {
 
-  // ── Section 1: State Management ──────────────────────────────────────────────
-  const [stages, setStages]           = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode]     = useState('create');
-  const [submitting, setSubmitting]   = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
+  // ── Section 1: State ─────────────────────────────────────────────────────────
+  const [stages, setStages]         = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [showDeleted, setShowDeleted] = useState(false);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const emptyForm = { stage_code: '', stage_name: '' };
-  const [formData, setFormData] = useState(emptyForm);
-
-  // ── Section 2: Search & Filter Logic ───────────────────────────────────────
+  // ── Section 2: Shared Hooks ──────────────────────────────────────────────────
   const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
-    stages,
-    ['stage_code', 'stage_name']
+    stages, ['stage_code', 'stage_name']
   );
 
-  // ── Section 3a: Data Fetching ────────────────────────────────────────────────
+  const {
+    currentItems, currentPage, totalPages,
+    setCurrentPage, indexOfFirstItem, indexOfLastItem, getPageNumbers,
+  } = usePagination(filteredItems);
+
+  const {
+    isModalOpen, setIsModalOpen,
+    modalMode, editingItem,
+    formData, setFormData,
+    submitting, setSubmitting,
+    openCreateModal, openViewModal, openEditModal,
+    handleInputChange, isReadOnly,
+  } = useModalForm(emptyForm);
+
+  // ── Section 3: Data Fetching ─────────────────────────────────────────────────
   useEffect(() => { fetchStages(); }, [showDeleted]);
 
   const fetchStages = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/stages/`, {
-        params: { show_deleted: showDeleted }
-      });
+      const res = await api.get(`${BASE_URL}/masterdata/stages/`, { params: { show_deleted: showDeleted } });
       setStages(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -47,66 +52,19 @@ export default function StageListing() {
     }
   };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      let response;
-      if (modalMode === 'edit') {
-        response = await api.put(`${BASE_URL}/masterdata/stages/update/${editingItem.id}/`, formData);
-      } else {
-        response = await api.post(`${BASE_URL}/masterdata/stages/create/`, formData);
-      }
-      if (response?.status === 200 || response?.status === 201) {
-        window.alert(response.data.message || 'Success');
-        setIsModalOpen(false);
-        setFormData(emptyForm);
-        fetchStages();
-      }
-    } catch (err) {
-      if (!err.response) return window.alert('Server unreachable. Try later.');
-      const { data } = err.response;
-      const firstError = data.errors ? Object.values(data.errors)[0][0] : data.message;
-      window.alert(firstError || 'Validation failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  // ── Section 4: Submit ────────────────────────────────────────────────────────
+  const handleSubmit = () => submitForm({
+    modalMode, editingItem, formData,
+    createUrl: `${BASE_URL}/masterdata/stages/create/`,
+    updateUrl: `${BASE_URL}/masterdata/stages/update/${editingItem?.id}/`,
+    setSubmitting,
+    onSuccess: () => { setIsModalOpen(false); setFormData(emptyForm); fetchStages(); },
+  });
 
-  // ── Section 3b: Pagination Logic ─────────────────────────────────────────────
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-
-  const getPageNumbers = () => {
-    let startPage = Math.max(1, currentPage - 1);
-    let endPage = Math.min(totalPages, startPage + 2);
-    
-    if (endPage - startPage < 2) {
-      startPage = Math.max(1, endPage - 2);
-    }
-    
-    const pages = [];
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
-
-  // ── Section 4: Modal Helpers ─────────────────────────────────────────────────
-  const openCreateModal = () => { setFormData(emptyForm); setEditingItem(null); setModalMode('create'); setIsModalOpen(true); };
-  const openViewModal   = (item) => { setFormData(item); setEditingItem(item); setModalMode('view');   setIsModalOpen(true); };
-  const openEditModal   = (item) => { setFormData(item); setEditingItem(item); setModalMode('edit');   setIsModalOpen(true); };
-
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-  };
-
-  const isReadOnly    = modalMode === 'view';
+  // ── Section 5: Helpers ───────────────────────────────────────────────────────
   const getModalTitle = () => ({ view: 'Stage Details', edit: 'Edit Stage', create: 'Create Stage' }[modalMode]);
 
-  // ── Section 5: Render ────────────────────────────────────────────────────────
+  // ── Section 6: Render ────────────────────────────────────────────────────────
   return (
     <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
 
@@ -120,11 +78,7 @@ export default function StageListing() {
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 bg-white border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-all">
-            <input
-              type="checkbox" checked={showDeleted}
-              onChange={() => setShowDeleted(prev => !prev)}
-              className="w-4 h-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500"
-            />
+            <input type="checkbox" checked={showDeleted} onChange={() => setShowDeleted(p => !p)} className="w-4 h-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
             <span className="font-medium">Show deleted</span>
           </label>
           <button onClick={openCreateModal} className="flex items-center justify-center bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
@@ -133,14 +87,11 @@ export default function StageListing() {
           </button>
         </div>
       </div>
+
       {/* Search Bar */}
-      <SearchBar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onReset={resetSearch}
-        placeholder="Search by code or name..."
-      />
-      {/* Enhanced Table */}
+      <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onReset={resetSearch} placeholder="Search by code or name..." />
+
+      {/* Table */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -155,40 +106,22 @@ export default function StageListing() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800"></div>
-                      <p className="text-slate-500 mt-3">Loading stages...</p>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan="5" className="px-6 py-12 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800"></div>
+                    <p className="text-slate-500 mt-3">Loading stages...</p>
+                  </div>
+                </td></tr>
               ) : currentItems.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="rounded-full bg-slate-100 p-3 mb-3">
-                        <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </div>
-                      <p className="text-slate-500 font-medium">No stages found</p>
-                      <p className="text-slate-400 text-sm mt-1">Create your first stage to get started</p>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan="5" className="px-6 py-12 text-center">
+                  <p className="text-slate-500 font-medium">No stages found</p>
+                  <p className="text-slate-400 text-sm mt-1">Create your first stage to get started</p>
+                </td></tr>
               ) : currentItems.map(item => (
                 <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-150">
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-500 font-mono">#{item.id}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-800 font-semibold">{item.stage_code}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-700">{item.stage_name}</span>
-                  </td>
+                  <td className="px-6 py-4"><span className="text-sm text-slate-500 font-mono">#{item.id}</span></td>
+                  <td className="px-6 py-4"><span className="text-sm text-slate-800 font-semibold">{item.stage_code}</span></td>
+                  <td className="px-6 py-4"><span className="text-sm text-slate-700">{item.stage_name}</span></td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${item.is_deleted ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${item.is_deleted ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
@@ -197,12 +130,8 @@ export default function StageListing() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex justify-end items-center gap-2">
-                      <button onClick={() => openViewModal(item)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all duration-150">
-                        View
-                      </button>
-                      <button onClick={() => openEditModal(item)} className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-150">
-                        Edit
-                      </button>
+                      <button onClick={() => openViewModal(item)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all duration-150">View</button>
+                      <button onClick={() => openEditModal(item)} className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-150">Edit</button>
                     </div>
                   </td>
                 </tr>
@@ -220,39 +149,17 @@ export default function StageListing() {
                 <span className="font-medium text-slate-900">{Math.min(indexOfLastItem, stages.length)}</span> of{' '}
                 <span className="font-medium text-slate-900">{stages.length}</span> results
               </div>
-              
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => prev - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-                >
-                  Previous
-                </button>
-
+                <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150">Previous</button>
                 <div className="flex items-center gap-1">
                   {getPageNumbers().map(pageNum => (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[2.5rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${
-                        currentPage === pageNum
-                          ? 'bg-slate-800 text-white shadow-md'
-                          : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
+                    <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
+                      className={`min-w-[2.5rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${currentPage === pageNum ? 'bg-slate-800 text-white shadow-md' : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'}`}>
                       {pageNum}
                     </button>
                   ))}
                 </div>
-
-                <button
-                  onClick={() => setCurrentPage(prev => prev + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-                >
-                  Next
-                </button>
+                <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150">Next</button>
               </div>
             </div>
           </div>
@@ -265,34 +172,26 @@ export default function StageListing() {
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700">Stage Code *</label>
-            <input
-              type="text" name="stage_code" value={formData.stage_code}
+            <input type="text" name="stage_code" value={formData.stage_code}
               onChange={handleInputChange} readOnly={isReadOnly}
               className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-600 transition-all"
-              placeholder="e.g., STG001"
-            />
+              placeholder="e.g., STG001" />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700">Stage Name *</label>
-            <input
-              type="text" name="stage_name" value={formData.stage_name}
+            <input type="text" name="stage_name" value={formData.stage_name}
               onChange={handleInputChange} readOnly={isReadOnly}
               className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-600 transition-all"
-              placeholder="e.g., Central Station"
-            />
+              placeholder="e.g., Central Station" />
           </div>
 
           {modalMode === 'edit' && (
             <div className="flex items-center gap-3 p-4 bg-rose-50 rounded-xl border border-rose-200">
-              <input
-                type="checkbox" name="is_deleted" id="is_deleted"
+              <input type="checkbox" name="is_deleted" id="is_deleted"
                 checked={formData.is_deleted || false} onChange={handleInputChange}
-                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-              />
-              <label htmlFor="is_deleted" className="text-sm font-medium text-rose-700">
-                Mark as deleted
-              </label>
+                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500" />
+              <label htmlFor="is_deleted" className="text-sm font-medium text-rose-700">Mark as deleted</label>
             </div>
           )}
 
