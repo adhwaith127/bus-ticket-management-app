@@ -44,7 +44,7 @@ export default function Login() {
       };
 
       // API CALL
-      const response = await api.post(`${BASE_URL}/login/`, login_data);
+      const response = await api.post(`${BASE_URL}/login`, login_data);
       
       // TOKEN & USER STORAGE
       if (response.data.token || response.data.access_token) {

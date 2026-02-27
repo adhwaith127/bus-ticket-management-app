@@ -26,7 +26,7 @@ export default function DepotListing() {
   const fetchDepots = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/depots/`);
+      const res = await api.get(`${BASE_URL}/depots`);
       setDepots(res.data?.data || []);
     } catch (err) {
       console.error("Error fetching depots:", err);
@@ -72,9 +72,9 @@ export default function DepotListing() {
     try {
       let response;
       if (modalMode === 'edit') {
-        response = await api.put(`${BASE_URL}/update-depot-details/${editingDepot.id}/`, formData);
+        response = await api.put(`${BASE_URL}/update-depot-details/${editingDepot.id}`, formData);
       } else {
-        response = await api.post(`${BASE_URL}/create-depot/`, formData);
+        response = await api.post(`${BASE_URL}/create-depot`, formData);
       }
 
       if (response?.status === 200 || response?.status === 201) {

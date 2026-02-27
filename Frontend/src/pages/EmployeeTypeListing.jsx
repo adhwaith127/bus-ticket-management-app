@@ -33,7 +33,7 @@ export default function EmployeeTypeListing() {
   const fetchEmpTypes = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/employee-types/`);
+      const res = await api.get(`${BASE_URL}/masterdata/employee-types`);
       setEmpTypes(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -49,9 +49,9 @@ export default function EmployeeTypeListing() {
     try {
       let response;
       if (modalMode === 'edit') {
-        response = await api.put(`${BASE_URL}/masterdata/employee-types/update/${editingItem.id}/`, formData);
+        response = await api.put(`${BASE_URL}/masterdata/employee-types/update/${editingItem.id}`, formData);
       } else {
-        response = await api.post(`${BASE_URL}/masterdata/employee-types/create/`, formData);
+        response = await api.post(`${BASE_URL}/masterdata/employee-types/create`, formData);
       }
       if (response?.status === 200 || response?.status === 201) {
         window.alert(response.data.message || 'Success');

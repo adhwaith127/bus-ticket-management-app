@@ -33,7 +33,7 @@ export default function FareEditor() {
     setRoutesLoading(true);
     setRoutesError(null);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/routes/`);
+      const res = await api.get(`${BASE_URL}/masterdata/routes`);
       setRoutes(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching routes:', err);
@@ -58,7 +58,7 @@ export default function FareEditor() {
     setLoading(true);
     setHasChanges(false);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/fares/editor/${routeId}/`);
+      const res = await api.get(`${BASE_URL}/masterdata/fares/editor/${routeId}`);
       const { route, stages: stageList, fare_type_name, fare_list, fare_matrix } = res.data.data;
       
       setSelectedRoute(route);
@@ -111,7 +111,7 @@ export default function FareEditor() {
         : { fare_matrix: fareMatrix };
       
       const res = await api.post(
-        `${BASE_URL}/masterdata/fares/update/${selectedRoute.id}/`,
+        `${BASE_URL}/masterdata/fares/update/${selectedRoute.id}`,
         payload
       );
       

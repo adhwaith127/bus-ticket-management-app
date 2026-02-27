@@ -163,7 +163,7 @@ export default function Sidebar() {
   const handleLogout = async () => {
     const deviceUid = localStorage.getItem("device_uid");
     const body = deviceUid ? { device_uid: deviceUid } : {};
-    try { await api.post(`${BASE_URL}/logout/`, body); } catch {}
+    try { await api.post(`${BASE_URL}/logout`, body); } catch {}
     finally {
       cacheManager.invalidateAll();
       ["user","authToken","refreshToken","userRole","device_uid"]

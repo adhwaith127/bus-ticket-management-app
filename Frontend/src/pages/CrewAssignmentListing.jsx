@@ -50,7 +50,7 @@ export default function CrewAssignmentListing() {
   const fetchAssignments = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/crew-assignments/`);
+      const res = await api.get(`${BASE_URL}/masterdata/crew-assignments`);
       setAssignments(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -70,10 +70,10 @@ export default function CrewAssignmentListing() {
         ...(assignmentId ? { assignment_id: assignmentId } : {}),
       };
       const [driversRes, conductorsRes, cleanersRes, vehiclesRes] = await Promise.all([
-        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'DRIVER',    ...sharedParams } }),
-        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'CONDUCTOR', ...sharedParams } }),
-        api.get(`${BASE_URL}/masterdata/dropdowns/employees/`, { params: { type: 'CLEANER',   ...sharedParams } }),
-        api.get(`${BASE_URL}/masterdata/dropdowns/vehicles/`,  { params: sharedParams }),
+        api.get(`${BASE_URL}/masterdata/dropdowns/employees`, { params: { type: 'DRIVER',    ...sharedParams } }),
+        api.get(`${BASE_URL}/masterdata/dropdowns/employees`, { params: { type: 'CONDUCTOR', ...sharedParams } }),
+        api.get(`${BASE_URL}/masterdata/dropdowns/employees`, { params: { type: 'CLEANER',   ...sharedParams } }),
+        api.get(`${BASE_URL}/masterdata/dropdowns/vehicles`,  { params: sharedParams }),
       ]);
       setDrivers(driversRes.data?.data     || []);
       setConductors(conductorsRes.data?.data || []);
@@ -134,8 +134,8 @@ export default function CrewAssignmentListing() {
 
     submitForm({
       modalMode, editingItem, formData,
-      createUrl: `${BASE_URL}/masterdata/crew-assignments/create/`,
-      updateUrl: `${BASE_URL}/masterdata/crew-assignments/update/${editingItem?.id}/`,
+      createUrl: `${BASE_URL}/masterdata/crew-assignments/create`,
+      updateUrl: `${BASE_URL}/masterdata/crew-assignments/update/${editingItem?.id}`,
       setSubmitting,
       payload,   // override formData with the cleaned payload
       onSuccess: () => { setIsModalOpen(false); setFormData(emptyForm); fetchAssignments(); },
@@ -146,7 +146,7 @@ export default function CrewAssignmentListing() {
     const confirmed = window.confirm(`Delete assignment #${item.id}? This will free the selected crew and vehicle.`);
     if (!confirmed) return;
     try {
-      const response = await api.delete(`${BASE_URL}/masterdata/crew-assignments/delete/${item.id}/`);
+      const response = await api.delete(`${BASE_URL}/masterdata/crew-assignments/delete/${item.id}`);
       window.alert(response.data?.message || 'Crew assignment deleted successfully');
       fetchAssignments();
     } catch (err) {

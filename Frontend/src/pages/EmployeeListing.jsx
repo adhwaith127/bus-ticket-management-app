@@ -41,7 +41,7 @@ export default function EmployeeListing() {
   const fetchEmployees = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/employees/`, {
+      const res = await api.get(`${BASE_URL}/masterdata/employees`, {
         params: { show_deleted: showDeleted }
       });
       setEmployees(res.data?.data || []);
@@ -56,7 +56,7 @@ export default function EmployeeListing() {
 
   const fetchEmpTypes = async () => {
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/employee-types/`);
+      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/employee-types`);
       setEmpTypes(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching employee types:', err);
@@ -68,9 +68,9 @@ export default function EmployeeListing() {
     try {
       let response;
       if (modalMode === 'edit') {
-        response = await api.put(`${BASE_URL}/masterdata/employees/update/${editingItem.id}/`, formData);
+        response = await api.put(`${BASE_URL}/masterdata/employees/update/${editingItem.id}`, formData);
       } else {
-        response = await api.post(`${BASE_URL}/masterdata/employees/create/`, formData);
+        response = await api.post(`${BASE_URL}/masterdata/employees/create`, formData);
       }
       if (response?.status === 200 || response?.status === 201) {
         window.alert(response.data.message || 'Success');

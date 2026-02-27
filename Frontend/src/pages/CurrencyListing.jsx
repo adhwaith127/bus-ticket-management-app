@@ -33,7 +33,7 @@ export default function CurrencyListing() {
   const fetchCurrencies = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/currencies/`);
+      const res = await api.get(`${BASE_URL}/masterdata/currencies`);
       setCurrencies(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -49,9 +49,9 @@ export default function CurrencyListing() {
     try {
       let response;
       if (modalMode === 'edit') {
-        response = await api.put(`${BASE_URL}/masterdata/currencies/update/${editingItem.id}/`, formData);
+        response = await api.put(`${BASE_URL}/masterdata/currencies/update/${editingItem.id}`, formData);
       } else {
-        response = await api.post(`${BASE_URL}/masterdata/currencies/create/`, formData);
+        response = await api.post(`${BASE_URL}/masterdata/currencies/create`, formData);
       }
       if (response?.status === 200 || response?.status === 201) {
         window.alert(response.data.message || 'Success');

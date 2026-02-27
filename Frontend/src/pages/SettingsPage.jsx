@@ -78,7 +78,7 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/settings/`);
+      const res = await api.get(`${BASE_URL}/masterdata/settings`);
       // Populate form with actual data from server
       setFormData(res.data?.data || {});
     } catch (err) {
@@ -93,7 +93,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await api.put(`${BASE_URL}/masterdata/settings/`, formData);
+      const res = await api.put(`${BASE_URL}/masterdata/settings`, formData);
       if (res?.status === 200) {
         setFormData(res.data?.data || formData);
         setSaved(true);

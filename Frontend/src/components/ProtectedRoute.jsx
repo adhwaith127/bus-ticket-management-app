@@ -19,10 +19,10 @@ export default function ProtectedRoute() {
     try {
       // Step 1: Refresh token first using refreshApi (no interceptor loops)
       // If this fails, the user's session is truly expired → go to login
-      await refreshApi.post(`${BASE_URL}/token/refresh/`);
+      await refreshApi.post(`${BASE_URL}/token/refresh`);
 
       // Step 2: Now verify auth with a guaranteed fresh token
-      const response = await api.get(`${BASE_URL}/verify-auth/`);
+      const response = await api.get(`${BASE_URL}/verify-auth`);
       if (response.data.authenticated) {
         setIsAuthenticated(true);
         setUserRole(response.data.user.role);

@@ -19,8 +19,8 @@
  * Usage example:
  *   await submitForm({
  *     modalMode, editingItem, formData,
- *     createUrl: `${BASE_URL}/masterdata/bus-types/create/`,
- *     updateUrl: `${BASE_URL}/masterdata/bus-types/update/${editingItem?.id}/`,
+ *     createUrl: `${BASE_URL}/masterdata/bus-types/create`,
+ *     updateUrl: `${BASE_URL}/masterdata/bus-types/update/${editingItem?.id}`,
  *     setSubmitting,
  *     onSuccess: () => { closeModal(); setFormData(emptyForm); fetchBusTypes(); },
  *   });

@@ -41,7 +41,7 @@ export default function StageListing() {
   const fetchStages = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/stages/`, { params: { show_deleted: showDeleted } });
+      const res = await api.get(`${BASE_URL}/masterdata/stages`, { params: { show_deleted: showDeleted } });
       setStages(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -55,8 +55,8 @@ export default function StageListing() {
   // ── Section 4: Submit ────────────────────────────────────────────────────────
   const handleSubmit = () => submitForm({
     modalMode, editingItem, formData,
-    createUrl: `${BASE_URL}/masterdata/stages/create/`,
-    updateUrl: `${BASE_URL}/masterdata/stages/update/${editingItem?.id}/`,
+    createUrl: `${BASE_URL}/masterdata/stages/create`,
+    updateUrl: `${BASE_URL}/masterdata/stages/update/${editingItem?.id}`,
     setSubmitting,
     onSuccess: () => { setIsModalOpen(false); setFormData(emptyForm); fetchStages(); },
   });

@@ -51,7 +51,7 @@ export default function RouteListing() {
   const fetchRoutes = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/routes/`, {
+      const res = await api.get(`${BASE_URL}/masterdata/routes`, {
         params: { show_deleted: showDeleted }
       });
       setRoutes(res.data?.data || []);
@@ -65,7 +65,7 @@ export default function RouteListing() {
 
   const fetchBusTypes = async () => {
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/bus-types/`);
+      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/bus-types`);
       setBusTypes(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching bus types:', err);
@@ -75,7 +75,7 @@ export default function RouteListing() {
   // NEW: Fetch stages for dropdown
   const fetchStages = async () => {
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/stages/`);
+      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/stages`);
       setStages(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching stages:', err);
@@ -87,9 +87,9 @@ export default function RouteListing() {
     try {
       let response;
       if (modalMode === 'edit') {
-        response = await api.put(`${BASE_URL}/masterdata/routes/update/${editingItem.id}/`, formData);
+        response = await api.put(`${BASE_URL}/masterdata/routes/update/${editingItem.id}`, formData);
       } else {
-        response = await api.post(`${BASE_URL}/masterdata/routes/create/`, formData);
+        response = await api.post(`${BASE_URL}/masterdata/routes/create`, formData);
       }
       if (response?.status === 200 || response?.status === 201) {
         window.alert(response.data.message || 'Success');

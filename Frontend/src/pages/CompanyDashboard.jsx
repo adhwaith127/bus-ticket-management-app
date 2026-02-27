@@ -50,7 +50,7 @@ export default function CompanyDashboard() {
     setError(null);
     try {
       const res = await api.get(
-        `${BASE_URL}/get_company_dashboard_metrics/?date=${selectedDate}`
+        `${BASE_URL}/get_company_dashboard_metrics?date=${selectedDate}`
       );
       
       if (res.data?.data) {

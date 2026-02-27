@@ -158,7 +158,7 @@ export default function DeviceApprovals() {
     setLoading(true);
     setError("");
     try {
-      const response = await api.get(`${BASE_URL}/device-approvals/`);
+      const response = await api.get(`${BASE_URL}/device-approvals`);
       setPendingRows(response.data?.data?.pending || []);
       setApprovedRows(response.data?.data?.approved || []);
     } catch (err) {
@@ -174,7 +174,7 @@ export default function DeviceApprovals() {
 
   const approveDevice = async (id) => {
     try {
-      await api.post(`${BASE_URL}/device-approvals/${id}/approve/`);
+      await api.post(`${BASE_URL}/device-approvals/${id}/approve`);
       fetchDeviceApprovals();
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.error || "Failed to approve device");
@@ -183,7 +183,7 @@ export default function DeviceApprovals() {
 
   const revokeDevice = async (id) => {
     try {
-      await api.post(`${BASE_URL}/device-approvals/${id}/revoke/`);
+      await api.post(`${BASE_URL}/device-approvals/${id}/revoke`);
       fetchDeviceApprovals();
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.error || "Failed to revoke device");

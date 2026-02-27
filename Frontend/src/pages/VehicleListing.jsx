@@ -43,7 +43,7 @@ export default function VehicleListing() {
   const fetchVehicles = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/vehicles/`, { params: { show_deleted: showDeleted } });
+      const res = await api.get(`${BASE_URL}/masterdata/vehicles`, { params: { show_deleted: showDeleted } });
       setVehicles(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -56,7 +56,7 @@ export default function VehicleListing() {
 
   const fetchBusTypes = async () => {
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/bus-types/`);
+      const res = await api.get(`${BASE_URL}/masterdata/dropdowns/bus-types`);
       setBusTypes(res.data?.data || []);
     } catch (err) {
       console.error('Error fetching bus types:', err);
@@ -66,8 +66,8 @@ export default function VehicleListing() {
   // ── Section 4: Submit ────────────────────────────────────────────────────────
   const handleSubmit = () => submitForm({
     modalMode, editingItem, formData,
-    createUrl: `${BASE_URL}/masterdata/vehicles/create/`,
-    updateUrl: `${BASE_URL}/masterdata/vehicles/update/${editingItem?.id}/`,
+    createUrl: `${BASE_URL}/masterdata/vehicles/create`,
+    updateUrl: `${BASE_URL}/masterdata/vehicles/update/${editingItem?.id}`,
     setSubmitting,
     onSuccess: () => { setIsModalOpen(false); setFormData(emptyForm); fetchVehicles(); },
   });

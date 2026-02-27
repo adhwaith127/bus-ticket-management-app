@@ -79,7 +79,7 @@ export default function MdbImport() {
   const fetchCompanies = async () => {
     setLoadingCompanies(true);
     try {
-      const response = await api.get(`${BASE_URL}/customer-data/`);
+      const response = await api.get(`${BASE_URL}/customer-data`);
       setCompanies(response.data?.data || []);
     } catch (err) {
       console.error('Failed to fetch companies:', err);
@@ -143,7 +143,7 @@ export default function MdbImport() {
     }
 
     try {
-      const response = await api.post(`${BASE_URL}/import-mdb/`, formData, {
+      const response = await api.post(`${BASE_URL}/import-mdb`, formData, {
         headers: { 'Content-Type': undefined },
         timeout: IMPORT_TIMEOUT_MS,
       });

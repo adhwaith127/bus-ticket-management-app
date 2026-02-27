@@ -40,7 +40,7 @@ export default function BusTypeListing() {
   const fetchBusTypes = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/bus-types/`);
+      const res = await api.get(`${BASE_URL}/masterdata/bus-types`);
       setBusTypes(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -54,8 +54,8 @@ export default function BusTypeListing() {
   // ── Section 4: Submit ────────────────────────────────────────────────────────
   const handleSubmit = () => submitForm({
     modalMode, editingItem, formData,
-    createUrl: `${BASE_URL}/masterdata/bus-types/create/`,
-    updateUrl: `${BASE_URL}/masterdata/bus-types/update/${editingItem?.id}/`,
+    createUrl: `${BASE_URL}/masterdata/bus-types/create`,
+    updateUrl: `${BASE_URL}/masterdata/bus-types/update/${editingItem?.id}`,
     setSubmitting,
     onSuccess: () => { setIsModalOpen(false); setFormData(emptyForm); fetchBusTypes(); },
   });
