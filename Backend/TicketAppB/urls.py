@@ -2,7 +2,6 @@ from django.urls import path
 from .views import auth_views,company_views,user_views,data_views,masterdata_views
 from .views import depot_views,mosambee_views,dealer_views,executive_views,device_approval_views
 from .views.mdb_views import MdbImportView
-from .views.mdb_debug_view import MdbDebugView
 
 urlpatterns = [
     # authentication
@@ -67,8 +66,6 @@ urlpatterns = [
 
     # mdb upload
     path('import-mdb/', MdbImportView.as_view(), name='import-mdb'),
-    path('debug-mdb/', MdbDebugView.as_view(), name='debug-mdb'),
-
 
     # Master Data
     path('masterdata/bus-types/', masterdata_views.get_bus_types),
