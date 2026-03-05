@@ -83,7 +83,7 @@ def getTransactionDataFromDevice(request):
         if not company_instance:
             logger.error("Invalid company code from device: %s", company_code)
             return HttpResponse("INVALID_COMPANY", status=400, content_type="text/plain")
-        
+
         # Parse count fields with proper None handling
         full_count = int(parts[8]) if len(parts) > 8 and parts[8] else 0
         half_count = int(parts[9]) if len(parts) > 9 and parts[9] else 0
