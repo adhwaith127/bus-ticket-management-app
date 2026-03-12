@@ -52,10 +52,9 @@ OPERATIONS_MODELS = ['ExpenseMaster','Expense','CrewAssignment','InspectorDetail
 
 
 # Transaction models
-from .transactions import (TransactionData,TripCloseData,)
+from .transactions import (TransactionData,TripCloseData,RawDataLog,)
 
-TRANSACTION_MODELS = ['TransactionData','TripCloseData',]
-
+TRANSACTION_MODELS = ['TransactionData','TripCloseData','RawDataLog',]
 
 # Payment models
 from .payments import MosambeeTransaction

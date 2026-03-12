@@ -242,6 +242,19 @@ PROJECT_NAME = env('PROJECT_NAME', default='Bus Ticketing System')
 # Mosambee salt
 MOSAMBEE_SALT=env('MOSAMBEE_SALT', default='448B2EAC08375149D8D352D56D8BD42C30A913C696893EDC')
 
-
-
+# automatically append slash to URLs (for DRF)
 APPEND_SLASH = False
+
+# Celery Configuration 
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'  # Set to your local time
+
+# Optimization for high-concurrency (Reliability)
+CELERY_TASK_ACKS_LATE = True  # Task isn't "gone" until it's finished
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Prevents one worker from hogging 100 tasks
+CELERY_TASK_REJECT_ON_WORKER_LOST = True # Re-queue if worker crashes

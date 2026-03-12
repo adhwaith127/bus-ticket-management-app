@@ -1,33 +1,29 @@
 import { useState, useEffect } from 'react';
 import Modal from '../components/Modal';
-import SearchBar from '../components/SearchBar';
 import { useFilteredList } from '../assets/js/useFilteredList';
 import api, { BASE_URL } from '../assets/js/axiosConfig';
 
+const emptyForm = { currency: '', country: '' };
+const PAGE_SIZE = 10;
+
 export default function CurrencyListing() {
 
-  // ── Section 1: State Management ──────────────────────────────────────────────
+  // ── Section 1: State ─────────────────────────────────────────────────────────
   const [currencies, setCurrencies]   = useState([]);
   const [loading, setLoading]         = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode]     = useState('create');
   const [submitting, setSubmitting]   = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-
-  // Pagination state
+  const [formData, setFormData]       = useState(emptyForm);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
 
-  const emptyForm = { currency: '', country: '' };
-  const [formData, setFormData] = useState(emptyForm);
-
-  // ── Section 2: Search & Filter Logic ───────────────────────────────────────
+  // ── Section 2: Search & Filter ───────────────────────────────────────────────
   const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
-    currencies,
-    ['currency', 'country']
+    currencies, ['currency', 'country']
   );
 
-  // ── Section 3a: Data Fetching ────────────────────────────────────────────────
+  // ── Section 3: Data Fetching ─────────────────────────────────────────────────
   useEffect(() => { fetchCurrencies(); }, []);
 
   const fetchCurrencies = async () => {
@@ -44,6 +40,7 @@ export default function CurrencyListing() {
     }
   };
 
+  // ── Section 4: Submit ────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
@@ -69,28 +66,7 @@ export default function CurrencyListing() {
     }
   };
 
-  // ── Section 3b: Pagination Logic ─────────────────────────────────────────────
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-
-  const getPageNumbers = () => {
-    let startPage = Math.max(1, currentPage - 1);
-    let endPage = Math.min(totalPages, startPage + 2);
-    
-    if (endPage - startPage < 2) {
-      startPage = Math.max(1, endPage - 2);
-    }
-    
-    const pages = [];
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
-
-  // ── Section 4: Modal Helpers ─────────────────────────────────────────────────
+  // ── Section 5: Modal Helpers ─────────────────────────────────────────────────
   const openCreateModal = () => { setFormData(emptyForm); setEditingItem(null); setModalMode('create'); setIsModalOpen(true); };
   const openViewModal   = (item) => { setFormData(item); setEditingItem(item); setModalMode('view');   setIsModalOpen(true); };
   const openEditModal   = (item) => { setFormData(item); setEditingItem(item); setModalMode('edit');   setIsModalOpen(true); };
@@ -103,180 +79,261 @@ export default function CurrencyListing() {
   const isReadOnly    = modalMode === 'view';
   const getModalTitle = () => ({ view: 'Currency Details', edit: 'Edit Currency', create: 'Create Currency' }[modalMode]);
 
-  // ── Section 5: Render ────────────────────────────────────────────────────────
+  // ── Section 6: Derived / Pagination ──────────────────────────────────────────
+  const totalPages = Math.ceil(filteredItems.length / PAGE_SIZE);
+  const startIdx   = (currentPage - 1) * PAGE_SIZE;
+  const pagedItems = filteredItems.slice(startIdx, startIdx + PAGE_SIZE);
+
+  // Unique countries count
+  const uniqueCountries = new Set(currencies.map(c => c.country)).size;
+
+  // ── Section 7: Render ────────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="flex min-h-screen bg-slate-100">
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* LEFT PANEL                                                           */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <aside className="w-60 shrink-0 bg-slate-800 flex flex-col p-5 gap-5 sticky top-0 h-screen overflow-y-auto">
+
+        {/* Title */}
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent tracking-tight">
-            Currencies
-          </h1>
-          <p className="text-slate-600 mt-1.5">Manage currency master data</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-1">
+            Master Data
+          </p>
+          <h1 className="text-xl font-bold text-white leading-snug">Currencies</h1>
+          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+            Manage currency master data
+          </p>
         </div>
-        <button onClick={openCreateModal} className="flex items-center justify-center bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-          <span className="mr-2 text-lg">+</span>
-          <span className="font-medium">Create Currency</span>
+
+        <div className="border-t border-slate-700" />
+
+        {/* Stats */}
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Overview</p>
+          <div className="bg-slate-700/60 rounded-lg px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-slate-300">Total</span>
+            <span className="text-xl font-bold text-white">{currencies.length}</span>
+          </div>
+          <div className="bg-indigo-900/40 border border-indigo-800/50 rounded-lg px-4 py-3 flex items-center justify-between">
+            <span className="text-sm text-indigo-300">Countries</span>
+            <span className="text-xl font-bold text-indigo-400">{uniqueCountries}</span>
+          </div>
+        </div>
+
+        <div className="border-t border-slate-700" />
+
+        {/* Search */}
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Search</p>
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none"
+              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              placeholder="Code or country…"
+              className="w-full pl-8 pr-3 py-2 text-sm bg-slate-700/60 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500
+                focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+          </div>
+          {searchTerm && (
+            <button
+              onClick={() => { resetSearch(); setCurrentPage(1); }}
+              className="w-full py-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-lg transition-all"
+            >
+              Clear search
+            </button>
+          )}
+        </div>
+
+        <div className="flex-1" />
+
+        {/* Create CTA */}
+        <button
+          onClick={openCreateModal}
+          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-semibold py-2.5 rounded-lg shadow transition-all duration-150"
+        >
+          <span className="text-base leading-none">+</span>
+          Create Currency
         </button>
-      </div>
+      </aside>
 
-      {/* Search Bar */}
-      <SearchBar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onReset={resetSearch}
-        placeholder="Search by currency code or country..."
-      />
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* RIGHT PANEL                                                          */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <main className="flex-1 flex flex-col p-6 gap-4 min-w-0">
 
-      {/* Enhanced Table */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-b border-slate-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Currency Code</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Country</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800"></div>
-                      <p className="text-slate-500 mt-3">Loading currencies...</p>
-                    </div>
-                  </td>
+        {/* Count label */}
+        {!loading && (
+          <p className="text-xs text-slate-400">
+            {filteredItems.length === 0
+              ? 'No results found'
+              : `${filteredItems.length} currenc${filteredItems.length !== 1 ? 'ies' : 'y'} found`}
+          </p>
+        )}
+
+        {/* Table card */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+
+              <thead>
+                <tr className="bg-slate-800">
+                  <th className="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400 w-16">ID</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Currency Code</th>
+                  <th className="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-400">Country</th>
+                  <th className="px-5 py-3.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-400">Actions</th>
                 </tr>
-              ) : currentItems.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="rounded-full bg-slate-100 p-3 mb-3">
-                        <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+
+                {loading && (
+                  <tr><td colSpan="4" className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-[3px] border-slate-200 border-t-slate-700 rounded-full animate-spin" />
+                      <p className="text-sm text-slate-400">Loading currencies…</p>
+                    </div>
+                  </td></tr>
+                )}
+
+                {!loading && pagedItems.length === 0 && (
+                  <tr><td colSpan="4" className="px-5 py-16 text-center">
+                    <p className="text-sm font-semibold text-slate-500">No currencies found</p>
+                    <p className="text-sm text-slate-400 mt-1">Try adjusting your search or create a new one</p>
+                  </td></tr>
+                )}
+
+                {!loading && pagedItems.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors duration-100">
+
+                    <td className="px-5 py-3.5">
+                      <span className="text-sm text-slate-400 font-mono">#{item.id}</span>
+                    </td>
+
+                    <td className="px-5 py-3.5">
+                      <span className="inline-flex px-2.5 py-0.5 rounded-md bg-slate-100 border border-slate-300 text-slate-700 text-sm font-bold tracking-widest uppercase">
+                        {item.currency}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-3.5">
+                      <span className="text-sm font-medium text-slate-800">{item.country}</span>
+                    </td>
+
+                    <td className="px-5 py-3.5">
+                      <div className="flex justify-end items-center gap-1.5">
+                        <button onClick={() => openViewModal(item)}
+                          className="px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-all">
+                          View
+                        </button>
+                        <button onClick={() => openEditModal(item)}
+                          className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all">
+                          Edit
+                        </button>
                       </div>
-                      <p className="text-slate-500 font-medium">No currencies found</p>
-                      <p className="text-slate-400 text-sm mt-1">Create your first currency to get started</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : currentItems.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-150">
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-500 font-mono">#{item.id}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-800 font-bold uppercase">{item.currency}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-700">{item.country}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end items-center gap-2">
-                      <button onClick={() => openViewModal(item)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all duration-150">
-                        View
-                      </button>
-                      <button onClick={() => openEditModal(item)} className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-150">
-                        Edit
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    </td>
 
-        {/* Pagination */}
-        {!loading && filteredItems.length > 0 && totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Showing <span className="font-medium text-slate-900">{indexOfFirstItem + 1}</span> to{' '}
-                <span className="font-medium text-slate-900">{Math.min(indexOfLastItem, currencies.length)}</span> of{' '}
-                <span className="font-medium text-slate-900">{currencies.length}</span> results
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => prev - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-                >
+                  </tr>
+                ))}
+
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {!loading && filteredItems.length > 0 && totalPages > 1 && (
+            <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <p className="text-sm text-slate-500">
+                <span className="font-semibold text-slate-700">{startIdx + 1}</span>
+                {' – '}
+                <span className="font-semibold text-slate-700">{Math.min(startIdx + PAGE_SIZE, filteredItems.length)}</span>
+                {' of '}
+                <span className="font-semibold text-slate-700">{filteredItems.length}</span>
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
                   Previous
                 </button>
-
-                <div className="flex items-center gap-1">
-                  {getPageNumbers().map(pageNum => (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[2.5rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${
-                        currentPage === pageNum
-                          ? 'bg-slate-800 text-white shadow-md'
-                          : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(n => n === 1 || n === totalPages || Math.abs(n - currentPage) <= 1)
+                  .map((pageNum, idx, arr) => (
+                    <span key={pageNum} className="flex items-center gap-1.5">
+                      {idx > 0 && arr[idx - 1] !== pageNum - 1 && (
+                        <span className="text-slate-400 text-sm">…</span>
+                      )}
+                      <button
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`min-w-[2.25rem] px-3 py-1.5 text-sm font-semibold rounded-lg transition-all ${
+                          currentPage === pageNum
+                            ? 'bg-slate-800 text-white shadow-sm'
+                            : 'text-slate-600 bg-white border border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    </span>
                   ))}
-                </div>
-
-                <button
-                  onClick={() => setCurrentPage(prev => prev + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-                >
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
                   Next
                 </button>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </main>
 
-      {/* Modal */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL                                                                */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
-        <div className="space-y-5">
+        <div className="space-y-4">
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Currency Code *</label>
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">
+              Currency Code <span className="text-rose-500">*</span>
+            </label>
             <input
               type="text" name="currency" value={formData.currency}
               onChange={handleInputChange} readOnly={isReadOnly}
-              placeholder="e.g. INR"
-              maxLength={3}
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-600 uppercase transition-all"
+              placeholder="e.g. INR" maxLength={3}
+              className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-500 uppercase transition-all"
             />
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Country *</label>
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-slate-700">
+              Country <span className="text-rose-500">*</span>
+            </label>
             <input
               type="text" name="country" value={formData.country}
               onChange={handleInputChange} readOnly={isReadOnly}
               placeholder="e.g. India"
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-600 transition-all"
+              className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-500 transition-all"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-all">
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200">
+            <button type="button" onClick={() => setIsModalOpen(false)}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-all">
               {isReadOnly ? 'Close' : 'Cancel'}
             </button>
             {!isReadOnly && (
-              <button type="button" onClick={handleSubmit} disabled={submitting} className="px-5 py-2.5 text-sm font-medium text-white bg-slate-800 rounded-xl hover:bg-slate-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update' : 'Save'}
+              <button type="button" onClick={handleSubmit} disabled={submitting}
+                className="px-5 py-2 text-sm font-semibold text-white bg-slate-800 rounded-lg hover:bg-slate-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                {submitting ? 'Saving…' : modalMode === 'edit' ? 'Update' : 'Save'}
               </button>
             )}
           </div>
+
         </div>
       </Modal>
 

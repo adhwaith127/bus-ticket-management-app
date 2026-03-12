@@ -5,8 +5,34 @@ from django.core.validators import MinValueValidator
 from django.conf import settings
 from .company import Company, Depot
 
-# Transaction models (TransactionData, TripCloseData)
 
+class RawDataLog(models.Model):
+    class typeChoices(models.TextChoices):
+        TRANSACTION = 'transaction', 'Transaction'
+        TRIP_CLOSE = 'trip_close', 'Trip Close'
+    
+    class statusChoices(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        PROCESSED = 'processed', 'Processed'
+        FAILED = 'failed', 'Failed'
+
+    raw_payload=models.TextField()
+    source=models.CharField(choices=typeChoices.choices, max_length=20, null=False, blank=False)
+    company_code=models.ForeignKey(Company, on_delete=models.PROTECT, related_name='raw_data', db_index=True, null=True, blank=True)
+    # Celery task only touches `pending` rows
+    status=models.CharField(choices=statusChoices.choices, max_length=20, null=False, blank=False,default=statusChoices.PENDING)
+    error_message=models.TextField(null=True, blank=True)
+    received_at=models.DateTimeField(auto_now_add=True)
+    processed_at=models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table="raw_data_log"
+        indexes=[
+            models.Index(fields=["status","received_at"]),
+        ]   
+
+
+# Transaction models (TransactionData, TripCloseData)
 class TransactionData(models.Model):
     # Payment Mode Choices
     class PaymentMode(models.IntegerChoices):
