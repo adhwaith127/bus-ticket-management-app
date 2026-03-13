@@ -398,7 +398,7 @@ class Fare(models.Model):
 
 class RouteBusType(models.Model):
     """Route-BusType mapping (routes can have multiple allowed bus types)"""
-    route = models.ForeignKey(Route,on_delete=models.CASCADE,related_name='allowed_bus_types')
+    route = models.ForeignKey(Route,on_delete=models.CASCADE,related_name='route_bus_types')
     bus_type = models.ForeignKey(BusType,on_delete=models.PROTECT,related_name='assigned_routes')
     company = models.ForeignKey('Company',on_delete=models.CASCADE,related_name='route_bus_types')
     

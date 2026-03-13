@@ -192,8 +192,9 @@ export default function Sidebar() {
 
   const close = () => setIsOpen(false);
 
-  // NOTE: Width classes must be written explicitly (not via template literals)
-  // so Tailwind JIT can detect and compile them.
+  // Collapsed width: 80px gives icons room to breathe
+  const W_COLLAPSED = "w-[80px]";
+  const W_EXPANDED  = "w-72";
 
   return (
     <>
@@ -219,10 +220,9 @@ export default function Sidebar() {
           fixed top-0 left-0 h-screen z-40 flex flex-col
           bg-slate-50 border-r border-slate-200
           transition-all duration-300 ease-in-out
-          w-72
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
-          ${isCollapsed ? "lg:w-[80px]" : "lg:w-72"}
+          ${isCollapsed ? `lg:${W_COLLAPSED}` : `lg:${W_EXPANDED}`}
         `}
       >
 
@@ -269,6 +269,19 @@ export default function Sidebar() {
               transition-colors duration-150 z-10 shrink-0"
           >
             {isCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+          </button>
+
+          {/* Mobile close button — only visible on small screens */}
+          <button
+            onClick={close}
+            style={{ cursor: "pointer" }}
+            className="lg:hidden ml-auto flex items-center justify-center w-8 h-8 rounded-lg
+              text-slate-400 hover:text-slate-700 hover:bg-slate-100
+              transition-colors duration-150"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
@@ -405,7 +418,7 @@ export default function Sidebar() {
       {/* Desktop spacer — mirrors sidebar width exactly */}
       <div
         className={`hidden lg:block shrink-0 transition-all duration-300 ${
-          isCollapsed ? "w-[80px]" : "w-72"
+          isCollapsed ? W_COLLAPSED : W_EXPANDED
         }`}
       />
     </>
