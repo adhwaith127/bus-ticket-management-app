@@ -1,7 +1,7 @@
 from django.urls import path
+from .views import transport_views, crew_views, settings_views
 from .views import auth_views, company_views, user_views, data_views, mdb_views
 from .views import depot_views, mosambee_views, dealer_views, executive_views, device_approval_views
-from .views import transport_views, crew_views, settings_views
 
 urlpatterns = [
     # authentication
