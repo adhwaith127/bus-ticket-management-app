@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from decimal import Decimal
 from datetime import datetime
 from .models import RawDataLog, TransactionData, TripCloseData, Company
@@ -10,7 +11,7 @@ def process_transaction_data(self, log_id):
         with transaction.atomic():  # outer — keeps select_for_update alive
             
             # Fetch & guard 
-            log = RawDataLog.objects.select_for_update().get(id=log_id)
+            log = RawDataLog.objects.select_related('company_code').select_for_update().get(id=log_id)
 
             if log.status != RawDataLog.statusChoices.PENDING:
                 return f"Log {log_id} already processed."
@@ -85,19 +86,18 @@ def process_transaction_data(self, log_id):
 
             except IntegrityError as ie:
                 # inner savepoint rolled back, outer is still alive — log.save() works
-                log.status = RawDataLog.statusChoices.FAILED
+                log.status = RawDataLog.statusChoices.DUPLICATE
                 log.error_message = str(ie)
                 log.save()
                 return
 
             # Mark processed
             log.status = RawDataLog.statusChoices.PROCESSED
-            log.processed_at = datetime.now()
+            log.processed_at = timezone.now()
             log.save()
 
     except Exception as exc:
-        log = RawDataLog.objects.get(id=log_id)
-        log.status = RawDataLog.statusChoices.FAILED
-        log.error_message = str(exc)
-        log.save()
+        RawDataLog.objects.filter(id=log_id).update(
+            status=RawDataLog.statusChoices.FAILED,
+            error_message=str(exc))
         raise self.retry(exc=exc, countdown=60)

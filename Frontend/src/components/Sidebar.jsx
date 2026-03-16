@@ -192,10 +192,6 @@ export default function Sidebar() {
 
   const close = () => setIsOpen(false);
 
-  // Collapsed width: 80px gives icons room to breathe
-  const W_COLLAPSED = "w-[80px]";
-  const W_EXPANDED  = "w-72";
-
   return (
     <>
       {/* Mobile hamburger */}
@@ -222,7 +218,7 @@ export default function Sidebar() {
           transition-all duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
-          ${isCollapsed ? `lg:${W_COLLAPSED}` : `lg:${W_EXPANDED}`}
+          ${isCollapsed ? "lg:w-[80px]" : "lg:w-72"}
         `}
       >
 
@@ -418,7 +414,7 @@ export default function Sidebar() {
       {/* Desktop spacer — mirrors sidebar width exactly */}
       <div
         className={`hidden lg:block shrink-0 transition-all duration-300 ${
-          isCollapsed ? W_COLLAPSED : W_EXPANDED
+          isCollapsed ? "w-[80px]" : "w-72"
         }`}
       />
     </>

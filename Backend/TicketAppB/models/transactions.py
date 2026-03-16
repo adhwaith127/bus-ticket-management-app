@@ -14,6 +14,7 @@ class RawDataLog(models.Model):
     class statusChoices(models.TextChoices):
         PENDING = 'pending', 'Pending'
         PROCESSED = 'processed', 'Processed'
+        DUPLICATE = 'duplicate', 'Duplicate'
         FAILED = 'failed', 'Failed'
 
     raw_payload=models.TextField()

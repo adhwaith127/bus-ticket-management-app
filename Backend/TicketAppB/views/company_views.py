@@ -14,7 +14,7 @@ from datetime import datetime
 import json
 from django.forms.models import model_to_dict
 from django.http import JsonResponse
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Count
 from django.db.utils import OperationalError, ProgrammingError
 
 
@@ -603,176 +603,9 @@ def update_company_details(request, pk):
     )
 
 
-# get data to be displayed in company dashboard
-# @api_view(['GET'])
-# def get_company_dashboard_metrics(request):
-#     # Get user from cookie and verify authentication
-#     user = get_user_from_cookie(request)
-#     if not user:
-#         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
-    
-#     selected_date=request.GET.get('date')
-#     if not selected_date:
-#         return Response({'error': 'Date input missing'}, status=status.HTTP_400_BAD_REQUEST)
-    
-#     if isinstance(selected_date,str):
-#         try:
-#             selected_date=datetime.strptime(selected_date,"%Y-%m-%d").date()
-#         except ValueError:
-#             return Response({'error': 'Invalid date format'}, status=status.HTTP_400_BAD_REQUEST)
-
-#     # returns id as int
-#     company = user.company
-#     if not company:
-#         return Response({
-#             "message": "success",
-#             "data": {
-#                 "collections": {
-#                     "daily_cash": 0,
-#                     "daily_upi": 0,
-#                     "monthly_total": 0,
-#                 },
-#                 "operations": {
-#                     "buses_active": 0,
-#                     "buses_total": 0,
-#                     "trips_completed": 0,
-#                     "trips_scheduled": 0,
-#                     "routes_active": 0,
-#                     "routes_total": 0,
-#                     "total_passengers": 0,
-#                 },
-#                 "settlements": {
-#                     "total_transactions": 0,
-#                     "verified": 0,
-#                     "pending_verification": 0,
-#                     "failed": 0,
-#                 }
-#             }
-#         }, status=status.HTTP_200_OK)
-    
-#     # Query TransactionData for payment metrics
-#     # Query TripCloseData for trip/bus metrics
-#     # Calculate aggregations using Django's aggregate/annotate
-#     # Return structured JSON response
-
-#     collections = {"daily_cash": 0, "daily_upi": 0, "monthly_total": 0}
-#     operations = {
-#         "buses_active": 0,
-#         "buses_total": 0,
-#         "trips_completed": 0,
-#         "trips_scheduled": 0,
-#         "routes_active": 0,
-#         "routes_total": 0,
-#         "total_passengers": 0,
-#     }
-#     settlements = {
-#         "total_transactions": 0,
-#         "verified": 0,
-#         "pending_verification": 0,
-#         "failed": 0,
-#     }
-
-#     try:
-#         transaction_base = TransactionData.objects.filter(company_code=company,ticket_date=selected_date)
-
-#         daily_cash = transaction_base.filter(
-#             ticket_status=TransactionData.PaymentMode.CASH
-#         ).aggregate(total=Sum('ticket_amount'))['total'] or 0
-
-#         daily_upi = transaction_base.filter(
-#             ticket_status=TransactionData.PaymentMode.UPI
-#         ).aggregate(total=Sum('ticket_amount'))['total'] or 0
-
-#         monthly_total = TransactionData.objects.filter(
-#             company_code=company,
-#             ticket_date__year=selected_date.year,
-#             ticket_date__month=selected_date.month
-#         ).aggregate(total=Sum('ticket_amount'))['total'] or 0
-
-#         collections = {
-#             "daily_cash": float(daily_cash),
-#             "daily_upi": float(daily_upi),
-#             "monthly_total": float(monthly_total),
-#         }
-
-#         total_passengers = transaction_base.aggregate(
-#             total=Sum('total_tickets')
-#         )['total'] or 0
-#         operations["total_passengers"] = int(total_passengers)
-
-#     except (OperationalError, ProgrammingError) as e:
-#         logger.warning(f"Collection metrics unavailable: {str(e)}")
-#     except Exception as e:
-#         logger.exception(f"Collection metrics error: {str(e)}")
-
-#     try:
-#         trips_completed = TripCloseData.objects.filter(company_code=company,start_date=selected_date).count()
-#         operations["trips_completed"] = trips_completed
-#         operations["trips_scheduled"] = trips_completed
-
-#         buses_active = TripCloseData.objects.filter(company_code=company,start_date=selected_date).values('palmtec_id').distinct().count()
-#         operations["buses_active"] = buses_active
-    
-#     except (OperationalError, ProgrammingError) as e:
-#         logger.warning(f"Trip metrics unavailable: {str(e)}")
-#     except Exception as e:
-#         logger.exception(f"Trip metrics error: {str(e)}")
-
-#     try:
-#         operations["buses_total"] = VehicleType.objects.filter(company=company,is_deleted=False).count()
-#         operations["routes_total"] = Route.objects.filter(company=company).count()
-#         operations["routes_active"] = Route.objects.filter(company=company,is_deleted=False).count()
-    
-#     except (OperationalError, ProgrammingError) as e:
-#         logger.warning(f"Route/vehicle metrics unavailable: {str(e)}")
-#     except Exception as e:
-#         logger.exception(f"Route/vehicle metrics error: {str(e)}")
-
-#     try:
-#         settlement_qs = MosambeeTransaction.objects.filter(transaction_date=selected_date,related_ticket__company_code=company)
-
-#         settlements["total_transactions"] = settlement_qs.count()
-#         settlements["verified"] = settlement_qs.filter(
-#             verification_status=MosambeeTransaction.VerificationStatus.VERIFIED).count()
-#         settlements["pending_verification"] = settlement_qs.filter(
-#             verification_status__in=[
-#                 MosambeeTransaction.VerificationStatus.UNVERIFIED,
-#                 MosambeeTransaction.VerificationStatus.FLAGGED,
-#             ]
-#         ).count()
-#         settlements["failed"] = settlement_qs.filter(
-#             verification_status__in=[
-#                 MosambeeTransaction.VerificationStatus.REJECTED,
-#                 MosambeeTransaction.VerificationStatus.DISPUTED,
-#             ]
-#         ).count()
-
-#     except (OperationalError, ProgrammingError) as e:
-#         logger.warning(f"Settlement metrics unavailable: {str(e)}")
-#     except Exception as e:
-#         logger.exception(f"Settlement metrics error: {str(e)}")
-
-#     return Response(
-#         {"message": "success","data": {"collections": collections,"operations": operations,"settlements": settlements}},status=status.HTTP_200_OK)
-
-
+# Returns collections, operations, and settlements data for a given date.
 @api_view(['GET'])
-def get_company_dashboard_metrics(request):
-    """
-    Company dashboard metrics endpoint.
-    Returns collections, operations, and settlements data for a given date.
-    
-    Query params:
-        date (required): YYYY-MM-DD format
-    
-    Returns:
-        {
-            "collections": { daily_cash, daily_upi, monthly_total },
-            "operations": { buses_active, buses_total, trips_completed, trips_scheduled, routes_active, routes_total, total_passengers },
-            "settlements": { total_transactions, verified, pending_verification, failed }
-        }
-    """
-    
+def get_company_dashboard_metrics(request):    
     #  Step 1: Authentication 
     user = get_user_from_cookie(request)
     if not user:
@@ -1002,3 +835,51 @@ def get_company_dashboard_metrics(request):
         },
         status=status.HTTP_200_OK
     )
+
+
+@api_view(['GET'])
+def get_admin_dashboard_data(request):
+    user = get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        all_companies = Company.objects.all()
+        total_companies = Company.objects.count()
+        validated_companies = 0
+        unvalidated_companies = 0
+        expired_companies = 0
+        dashboard_data = {"company_summary": {}, "user_summary": {}}
+        for company in all_companies:
+            if company.authentication_status == "Pending":
+                unvalidated_companies += 1
+            elif company.authentication_status == "Approve":
+                validated_companies += 1
+            elif company.authentication_status == "Expired":
+                expired_companies += 1
+
+        dashboard_data['company_summary'].update({
+            "total_companies": total_companies,
+            "validated_companies": validated_companies,
+            "unvalidated_companies": unvalidated_companies,
+            "expired_companies": expired_companies,
+        })
+
+        all_non_admin_users = User.objects.filter(is_superuser=False).count()
+        users_by_company_qs = (
+            User.objects.filter(is_superuser=False)
+            .values('company__company_name')
+            .annotate(count=Count('id'))
+        )
+        users_by_company = [
+            {"company_name": row["company__company_name"], "count": row["count"]}
+            for row in users_by_company_qs
+        ]
+        dashboard_data['user_summary'].update({
+            "total_users": all_non_admin_users,
+            "users_by_company": users_by_company,
+        })
+
+        return Response({"message": "Success", "data": dashboard_data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"message": "Data fetching failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

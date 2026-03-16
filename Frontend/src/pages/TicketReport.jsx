@@ -15,7 +15,11 @@ export default function TicketReport() {
   const [isPolling, setIsPolling] = useState(false);
   const [pollingPaused, setPollingPaused] = useState(false);
   const [newTicketIds, setNewTicketIds] = useState(new Set());
-  
+
+  // ===== SORT STATE =====
+  // key: field name to sort by | direction: 'asc' or 'desc' | null = no sort active
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+
   // UI filters (what user sees/types)
   const [filters, setFilters] = useState({
     startDate: '',
@@ -129,7 +133,7 @@ export default function TicketReport() {
     if (isPolling && !pollingPaused && isPageVisible && appliedFilters.startDate && appliedFilters.endDate) {
       pollingIntervalRef.current = setInterval(() => {
         pollForNewTransactions();
-      }, 6000); // 6 second intervals
+      }, 10000); // 6 second intervals use 6000, 10 use 10000
 
       return () => {
         if (pollingIntervalRef.current) {
@@ -188,7 +192,7 @@ export default function TicketReport() {
                 return prev; // No new unique tickets
               }
               
-              // Prepend unique new tickets
+              // Prepend unique new tickets — sort will re-order if active
               const updated = [...uniqueNewTickets, ...prev];
               
               // Highlight new tickets
@@ -253,7 +257,6 @@ export default function TicketReport() {
   };
 
   const pollForNewTransactions = async () => {
-    if (!latestTimestampRef.current) return;
     if (isDateRangeEnded()) {
       setPollingPaused(true);
       setIsPolling(false);
@@ -261,11 +264,12 @@ export default function TicketReport() {
     }
 
     try {
-      // Use the stored timestamp for polling
+      // If no timestamp yet (empty data on load), poll without 'since' — full date range fetch
+      // Once data arrives, latestTimestampRef gets set and subsequent polls use 'since'
       await fetchTransactions(
         appliedFilters.startDate,
         appliedFilters.endDate,
-        latestTimestampRef.current
+        latestTimestampRef.current || null
       );
     } catch (err) {
       console.error('Polling error:', err);
@@ -302,7 +306,48 @@ export default function TicketReport() {
       return true;
     });
 
-  const filteredData = getFilteredData();
+  // ===== SORT LOGIC =====
+  // Columns that sort as numbers: total_tickets, ticket_amount
+  // Columns that sort as strings: trip_number, ticket_number, formatted_ticket_date, ticket_time
+  // Date (DD-MM-YYYY) and time (HH:MM:SS) are consistent formats so string compare works correctly
+  const getSortedData = (data) => {
+    if (!sortConfig.key || !sortConfig.direction) return data;
+
+    const numericKeys = ['total_tickets', 'ticket_amount'];
+    const isNumeric = numericKeys.includes(sortConfig.key);
+
+    return [...data].sort((a, b) => {
+      const valA = a[sortConfig.key] ?? '';
+      const valB = b[sortConfig.key] ?? '';
+
+      let comparison;
+      if (isNumeric) {
+        comparison = parseFloat(valA) - parseFloat(valB);
+      } else {
+        comparison = String(valA).localeCompare(String(valB));
+      }
+
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  // Clicking a header cycles: no sort → asc → desc → no sort
+  const handleSort = (key) => {
+    setSortConfig(prev => {
+      if (prev.key !== key) return { key, direction: 'asc' };
+      if (prev.direction === 'asc') return { key, direction: 'desc' };
+      return { key: null, direction: null };
+    });
+    setCurrentPage(1); // reset to page 1 on sort change
+  };
+
+  // Returns the arrow indicator for a given column header
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return <span className="ml-1 text-slate-300">↕</span>;
+    return sortConfig.direction === 'asc'
+      ? <span className="ml-1 text-slate-600">↑</span>
+      : <span className="ml-1 text-slate-600">↓</span>;
+  };
 
   // ===== SUMMARY CALCULATIONS =====
   const calculateSummary = (data) => {
@@ -314,11 +359,13 @@ export default function TicketReport() {
     return { totalTickets, totalAmount, upiCount, cashCount };
   };
 
+  const filteredData = getFilteredData();
+  const sortedData = getSortedData(filteredData);
   const summary = calculateSummary(filteredData);
 
   // ===== PAGINATION =====
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const currentData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+  const currentData = sortedData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const changePage = (p) => setCurrentPage(p);
 
@@ -726,7 +773,7 @@ export default function TicketReport() {
       </div>
 
       <div className="text-sm text-slate-500 mb-3">
-        Showing {currentData.length} of {filteredData.length} transactions
+        Showing {currentData.length} of {sortedData.length} transactions
       </div>
 
       {/* Table */}
@@ -742,16 +789,72 @@ export default function TicketReport() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left border-collapse">
+            {/* ===== TABLE HEADER ===== */}
+            {/* Sortable columns use cursor-pointer and show ↕/↑/↓ icons        */}
+            {/* Non-sortable columns use default cursor (no pointer, no icon)     */}
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wide">
               <tr>
+                {/* Non-sortable */}
                 <th className="px-4 py-3 font-semibold">Device ID</th>
-                <th className="px-4 py-3 font-semibold">Trip No</th>
-                <th className="px-4 py-3 font-semibold">Ticket No</th>
-                <th className="px-4 py-3 font-semibold">Date</th>
-                <th className="px-4 py-3 font-semibold">Time</th>
+
+                {/* Sortable: Trip No */}
+                <th
+                  className="px-4 py-3 font-semibold select-none"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => handleSort('trip_number')}
+                >
+                  Trip No {getSortIcon('trip_number')}
+                </th>
+
+                {/* Sortable: Ticket No */}
+                <th
+                  className="px-4 py-3 font-semibold select-none"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => handleSort('ticket_number')}
+                >
+                  Ticket No {getSortIcon('ticket_number')}
+                </th>
+
+                {/* Sortable: Date */}
+                <th
+                  className="px-4 py-3 font-semibold select-none"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => handleSort('formatted_ticket_date')}
+                >
+                  Date {getSortIcon('formatted_ticket_date')}
+                </th>
+
+                {/* Sortable: Time */}
+                <th
+                  className="px-4 py-3 font-semibold select-none"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => handleSort('ticket_time')}
+                >
+                  Time {getSortIcon('ticket_time')}
+                </th>
+
+                {/* Non-sortable */}
                 <th className="px-4 py-3 font-semibold">Depot</th>
-                <th className="px-4 py-3 font-semibold">Total Count</th>
-                <th className="px-4 py-3 font-semibold">Amount</th>
+
+                {/* Sortable: Total Count */}
+                <th
+                  className="px-4 py-3 font-semibold select-none"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => handleSort('total_tickets')}
+                >
+                  Total Count {getSortIcon('total_tickets')}
+                </th>
+
+                {/* Sortable: Amount */}
+                <th
+                  className="px-4 py-3 font-semibold select-none"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => handleSort('ticket_amount')}
+                >
+                  Amount {getSortIcon('ticket_amount')}
+                </th>
+
+                {/* Non-sortable */}
                 <th className="px-4 py-3 font-semibold">Payment Type</th>
                 <th className="px-4 py-3 font-semibold">Info</th>
               </tr>
@@ -788,7 +891,7 @@ export default function TicketReport() {
                         onClick={() => openModal(t)}
                         className="text-slate-600 hover:text-slate-900 transition"
                         title="View Details"
-                        style={{"cursor":"pointer"}}
+                        style={{ cursor: 'pointer' }}
                       >
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" />
@@ -810,42 +913,6 @@ export default function TicketReport() {
       </div>
 
       {/* Pagination */}
-      {/* {totalPages > 1 && (
-        <div className="flex items-center justify-center space-x-2 mt-6">
-          <button
-            onClick={() => changePage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
-            Prev
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => {
-            const n = i + 1;
-            return (
-              <button
-                key={n}
-                onClick={() => changePage(n)}
-                className={`px-3 py-1.5 rounded-lg border transition ${
-                  currentPage === n 
-                    ? "bg-slate-800 text-white border-slate-800" 
-                    : "border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                {n}
-              </button>
-            );
-          })}
-
-          <button
-            onClick={() => changePage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
-            Next
-          </button>
-        </div>
-      )} */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center space-x-2 mt-6">
           <button
@@ -879,7 +946,6 @@ export default function TicketReport() {
           </button>
         </div>
       )}
-
 
       {/* Modal */}
       {showModal && selectedTransaction && (

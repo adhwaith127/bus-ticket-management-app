@@ -47,7 +47,7 @@ urlpatterns = [
     path('get_settlement_summary', mosambee_views.get_settlement_summary, name='get_settlement_summary'),
     
     # admin dashboard data
-    path('get_admin_data',data_views.get_admin_dashboard_data,name='get_admin_dashboard_data'),
+    path('get_admin_data', company_views.get_admin_dashboard_data, name='get_admin_dashboard_data'),
 
     # dealer data
     path('dealers', dealer_views.get_all_dealers, name='get_all_dealers'),
@@ -101,7 +101,6 @@ urlpatterns = [
     path('masterdata/crew-assignments/delete/<int:pk>', masterdata_views.delete_crew_assignment),
 
     path('masterdata/settings', masterdata_views.get_settings),
-    path('masterdata/settings/update', masterdata_views.update_settings),
 
     # Dropdowns
     path('masterdata/dropdowns/bus-types', masterdata_views.get_bus_types_dropdown),

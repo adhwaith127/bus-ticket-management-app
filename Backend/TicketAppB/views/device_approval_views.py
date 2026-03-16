@@ -6,10 +6,7 @@ from rest_framework.response import Response
 from ..models import UserDeviceMapping
 from ..serializers import UserDeviceMappingSerializer
 from .auth_views import get_user_from_cookie
-
-
-def _is_superadmin(user):
-    return user and user.role == "superadmin"
+from .utils import _is_superadmin
 
 
 @api_view(["GET"])
