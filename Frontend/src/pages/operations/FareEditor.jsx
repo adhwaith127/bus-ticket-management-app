@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 export default function FareEditor() {
 
@@ -179,12 +179,9 @@ export default function FareEditor() {
       {/* Route Selector */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
         {routesLoading && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
-            <div className="flex items-center gap-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-300 border-t-slate-700"></div>
-              <p className="text-sm text-slate-600">Loading routes...</p>
-            </div>
-            <div className="mt-4 h-10 rounded-lg bg-slate-200 animate-pulse"></div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 space-y-3">
+            <div className="h-3.5 w-24 bg-slate-200 rounded-full animate-pulse" />
+            <div className="h-10 rounded-lg bg-slate-200 animate-pulse" />
           </div>
         )}
 
@@ -288,9 +285,15 @@ export default function FareEditor() {
 
       {/* Loading State */}
       {loading && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-slate-800 mx-auto mb-4"></div>
-          <p className="text-slate-500">Loading fare data...</p>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex gap-4 px-6 py-4 border-b border-slate-100">
+              <div className="h-4 w-32 bg-slate-200 rounded-full animate-pulse" />
+              {Array.from({ length: 4 }).map((_, j) => (
+                <div key={j} className="h-4 w-16 bg-slate-200 rounded-full animate-pulse" />
+              ))}
+            </div>
+          ))}
         </div>
       )}
 
@@ -421,7 +424,7 @@ export default function FareEditor() {
                 </td>
 
                 {/* Fare cells */}
-                {stages.map((colStage, colIdx) => {
+                {stages.map((_colStage, colIdx) => {
                   const isDiagonal = rowIdx === colIdx;
                   const isUpperTriangle = colIdx > rowIdx;
                   

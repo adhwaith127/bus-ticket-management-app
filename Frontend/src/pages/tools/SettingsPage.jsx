@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 // ── Section 1: Reusable Field Components ─────────────────────────────────────
 // These components avoid repeating the same label+input pattern throughout the form

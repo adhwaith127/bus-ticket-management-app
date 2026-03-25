@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import Modal from '../components/Modal';
-import SearchBar from '../components/SearchBar';
-import { useFilteredList } from '../assets/js/useFilteredList';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import Modal from '../../components/Modal';
+import SearchBar from '../../components/SearchBar';
+import TableSkeleton from '../../components/TableSkeleton';
+import { useFilteredList } from '../../assets/js/useFilteredList';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 const ROUTE_FLAGS = [
   { name: 'half',       label: 'Half Fare'           },
@@ -239,7 +240,7 @@ export default function RouteListing() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan="8" className="px-6 py-8 text-center text-slate-500">Loading...</td></tr>
+                <TableSkeleton columns={['w-8', 'w-16', 'w-36', 'w-20', 'w-10', 'w-16', 'w-16', 'w-16']} />
               ) : filteredItems.length === 0 ? (
                 <tr><td colSpan="8" className="px-6 py-8 text-center text-slate-500">No routes found.</td></tr>
               ) : filteredItems.map(item => (

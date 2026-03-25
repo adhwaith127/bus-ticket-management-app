@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import api, { BASE_URL, refreshApi } from '../assets/js/axiosConfig';  // imported refreshApi
-import {BarLoader,BeatLoader,BounceLoader,CircleLoader,ClimbingBoxLoader,ClipLoader,ClockLoader,DotLoader,FadeLoader,GridLoader,HashLoader,MoonLoader,PacmanLoader,PropagateLoader,PulseLoader,PuffLoader,RingLoader,RiseLoader,RotateLoader,ScaleLoader,SkewLoader,SquareLoader,SyncLoader} from "react-spinners";
+import { PropagateLoader } from "react-spinners";
 
 export default function ProtectedRoute() {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
@@ -120,26 +120,38 @@ export default function ProtectedRoute() {
     }
   }, [loading, isAuthenticated, userRole, location.pathname, navigate]);
 
-  // Show loading state
-  if (loading) {
+  // Redirect to login if not authenticated
+  if (!loading && !isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // If loading but no cached session → show full screen spinner (first login)
+  const hasCachedSession = !!localStorage.getItem('user');
+  if (loading && !hasCachedSession) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
-        fontSize: '18px'
       }}>
-        <PropagateLoader /> 
+        <PropagateLoader />
       </div>
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  // Render protected content
-  return <Outlet />;
+  // If loading but cached session exists → show page with non-blocking overlay
+  return (
+    <>
+      <Outlet />
+      {loading && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          pointerEvents: 'all',
+        }} />
+      )}
+    </>
+  );
 }

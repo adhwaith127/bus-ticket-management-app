@@ -1,21 +1,22 @@
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from ..models import Company,TransactionData,TripCloseData,Route,VehicleType,MosambeeTransaction
-from ..serializers import CompanySerializer
-from django.contrib.auth import get_user_model
-from .auth_views import get_user_from_cookie
-import requests
+import json
 import time
 import logging
+import requests
 import threading
-from django.conf import settings
 from datetime import datetime
-import json
-from django.forms.models import model_to_dict
+from django.conf import settings
+from rest_framework import status
+from django.db import transaction
 from django.http import JsonResponse
-from django.db.models import Sum, Q, Count
+from ..serializers import CompanySerializer
+from rest_framework.response import Response
+from .auth_views import get_user_from_cookie
+from django.forms.models import model_to_dict
+from django.contrib.auth import get_user_model
+from rest_framework.decorators import api_view
 from django.db.utils import OperationalError, ProgrammingError
+from django.db.models import Sum, Q, Count, Case, When, IntegerField
+from ..models import Company,TransactionData,TripCloseData,Route,VehicleType,MosambeeTransaction
 
 
 # Setup logger  
@@ -48,11 +49,11 @@ def build_license_registration_payload(company):
         "CustomerName": company.company_name,
         "PhoneNumber": company.contact_number,
         "CustomerEmail": company.company_email,
-        "GSTNumber": company.gst_number or '123456',
+        "GSTNumber": company.gst_number or '',
         "CustomerContactPerson": company.contact_person,
         "CustomerContact": company.contact_number,
         "CustomerAddress": company.address,
-        "CustomerAddress2": company.address_2 or "sil",
+        "CustomerAddress2": company.address_2 or '',
         "CustomerState": company.state,
         "CustomerCity": company.city,
         "DeviceModel": "Windows",
@@ -313,13 +314,6 @@ def background_license_polling(company_id):
         logger.error(f"[BACKGROUND] Company not found with ID: {company_id}")
     except Exception as e:
         logger.exception(f"[BACKGROUND] Unexpected error during background polling: {str(e)}")
-        # Try to reset status to Pending if possible
-        try:
-            company = Company.objects.get(id=company_id)
-            company.authentication_status = Company.AuthStatus.PENDING
-            company.save()
-        except:
-            pass
 
     # This ensures status is never stuck in VALIDATING if thread fails
     finally:
@@ -431,41 +425,42 @@ def validate_company_license(request, pk):
             status=status.HTTP_401_UNAUTHORIZED
         )
     
-    try:
-        company = Company.objects.get(pk=pk)
-        logger.info(f"Found company: {company.company_name} (ID: {pk})")
-    except Company.DoesNotExist:
-        logger.error(f"Company not found with ID: {pk}")
-        return Response(
-            {"message": "Company not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    
-    # Check if company is registered
-    if not company.company_id:
-        logger.error(f"Company not registered yet. Cannot validate.")
-        return Response(
-            {
-                "message": "Company not registered with license server yet",
-                "error": "Please register the company first before validating"
-            },
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    # Check if already validating
-    if company.authentication_status == Company.AuthStatus.VALIDATING:
-        logger.info(f"Company already validating: {company.company_name}")
-        return Response(
-            {
-                "message": "License validation already in progress",
-                "status": "Validating"
-            },
-            status=status.HTTP_200_OK
-        )
-    
-    # Set status to Validating
-    company.authentication_status = Company.AuthStatus.VALIDATING
-    company.save()
+    with transaction.atomic():
+        try:
+            company = Company.objects.select_for_update().get(pk=pk)
+            logger.info(f"Found company: {company.company_name} (ID: {pk})")
+        except Company.DoesNotExist:
+            logger.error(f"Company not found with ID: {pk}")
+            return Response(
+                {"message": "Company not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if company is registered
+        if not company.company_id:
+            logger.error(f"Company not registered yet. Cannot validate.")
+            return Response(
+                {
+                    "message": "Company not registered with license server yet",
+                    "error": "Please register the company first before validating"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if already validating
+        if company.authentication_status == Company.AuthStatus.VALIDATING:
+            logger.info(f"Company already validating: {company.company_name}")
+            return Response(
+                {
+                    "message": "License validation already in progress",
+                    "status": "Validating"
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        # Set status to Validating
+        company.authentication_status = Company.AuthStatus.VALIDATING
+        company.save()
     logger.info(f"Set status to 'Validating' for company: {company.company_name}")
     
     # Start background thread
@@ -844,25 +839,19 @@ def get_admin_dashboard_data(request):
         return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
 
     try:
-        all_companies = Company.objects.all()
-        total_companies = Company.objects.count()
-        validated_companies = 0
-        unvalidated_companies = 0
-        expired_companies = 0
+        company_counts = Company.objects.aggregate(
+            total=Count('id'),
+            validated=Count(Case(When(authentication_status=Company.AuthStatus.APPROVED, then=1), output_field=IntegerField())),
+            unvalidated=Count(Case(When(authentication_status=Company.AuthStatus.PENDING, then=1), output_field=IntegerField())),
+            expired=Count(Case(When(authentication_status=Company.AuthStatus.EXPIRED, then=1), output_field=IntegerField())),
+        )
         dashboard_data = {"company_summary": {}, "user_summary": {}}
-        for company in all_companies:
-            if company.authentication_status == "Pending":
-                unvalidated_companies += 1
-            elif company.authentication_status == "Approve":
-                validated_companies += 1
-            elif company.authentication_status == "Expired":
-                expired_companies += 1
 
         dashboard_data['company_summary'].update({
-            "total_companies": total_companies,
-            "validated_companies": validated_companies,
-            "unvalidated_companies": unvalidated_companies,
-            "expired_companies": expired_companies,
+            "total_companies": company_counts['total'],
+            "validated_companies": company_counts['validated'],
+            "unvalidated_companies": company_counts['unvalidated'],
+            "expired_companies": company_counts['expired'],
         })
 
         all_non_admin_users = User.objects.filter(is_superuser=False).count()

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import api, { BASE_URL } from "../assets/js/axiosConfig";
+import api, { BASE_URL } from "../../assets/js/axiosConfig";
+import TableSkeleton from "../../components/TableSkeleton";
 
 const STATUS_LABELS = {
   0: "Pending",
@@ -25,7 +26,7 @@ const fmtDate = (value) => {
 
 // ── Pending / Inactive Table ──
 // Columns: Username | Company | Device Type | Status | Registered On | Last Seen | Action
-const PendingTable = ({ rows, onApprove }) => (
+const PendingTable = ({ rows, onApprove, loading }) => (
   <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
     <table className="w-full text-sm">
       <thead className="bg-slate-50">
@@ -40,7 +41,9 @@ const PendingTable = ({ rows, onApprove }) => (
         </tr>
       </thead>
       <tbody>
-        {rows.length === 0 ? (
+        {loading ? (
+          <TableSkeleton columns={['w-24', 'w-24', 'w-28', 'w-16', 'w-20', 'w-20', 'w-16']} />
+        ) : rows.length === 0 ? (
           <tr>
             <td className="px-4 py-6 text-center text-slate-400" colSpan={7}>
               No records found
@@ -86,7 +89,7 @@ const PendingTable = ({ rows, onApprove }) => (
 // Columns: Username | Company | Device Type | Session | Approved By + At | Last Seen | Action
 // Removed: Status (always Approved), Registered On (shown when pending)
 // Merged: Approved By + Approved At into one stacked cell
-const ApprovedTable = ({ rows, onRevoke }) => (
+const ApprovedTable = ({ rows, onRevoke, loading }) => (
   <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
     <table className="w-full text-sm">
       <thead className="bg-slate-50">
@@ -101,7 +104,9 @@ const ApprovedTable = ({ rows, onRevoke }) => (
         </tr>
       </thead>
       <tbody>
-        {rows.length === 0 ? (
+        {loading ? (
+          <TableSkeleton columns={['w-24', 'w-24', 'w-28', 'w-16', 'w-28', 'w-20', 'w-16']} />
+        ) : rows.length === 0 ? (
           <tr>
             <td className="px-4 py-6 text-center text-slate-400" colSpan={7}>
               No records found
@@ -224,7 +229,7 @@ export default function DeviceApprovals() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 md:p-10 space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Device Approvals</h1>
         <p className="mt-1 text-sm text-slate-500">Approve or revoke user devices.</p>
@@ -266,29 +271,21 @@ export default function DeviceApprovals() {
         </select>
       </div>
 
-      {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-slate-600">
-          Loading device approvals...
-        </div>
-      ) : (
-        <>
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Pending / Inactive
-              <span className="ml-2 text-sm font-normal text-slate-400">({filteredPendingRows.length})</span>
-            </h2>
-            <PendingTable rows={filteredPendingRows} onApprove={approveDevice} />
-          </section>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-800">
+          Pending / Inactive
+          <span className="ml-2 text-sm font-normal text-slate-400">({filteredPendingRows.length})</span>
+        </h2>
+        <PendingTable rows={filteredPendingRows} onApprove={approveDevice} loading={loading} />
+      </section>
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Approved
-              <span className="ml-2 text-sm font-normal text-slate-400">({filteredApprovedRows.length})</span>
-            </h2>
-            <ApprovedTable rows={filteredApprovedRows} onRevoke={revokeDevice} />
-          </section>
-        </>
-      )}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-800">
+          Approved
+          <span className="ml-2 text-sm font-normal text-slate-400">({filteredApprovedRows.length})</span>
+        </h2>
+        <ApprovedTable rows={filteredApprovedRows} onRevoke={revokeDevice} loading={loading} />
+      </section>
     </div>
   );
 }

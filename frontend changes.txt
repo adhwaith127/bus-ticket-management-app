@@ -1,4 +1,10 @@
 Make changes in :
 1) vite.config.js
 2) main.jsx
-3) env - backend base url
+3) env - backend base 
+
+
+
+
+figma design 
+https://www.figma.com/design/9deoqwXlbMf58jJEyzMMgA/FARE-GO-NEW?node-id=0-1&p=f

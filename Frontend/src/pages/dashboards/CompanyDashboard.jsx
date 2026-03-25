@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import MetricCard from "../components/MetricCard";
-import api, { BASE_URL } from "../assets/js/axiosConfig";
+import MetricCard from "../../components/MetricCard";
+import api, { BASE_URL } from "../../assets/js/axiosConfig";
 
 export default function CompanyDashboard() {
   // ── Section 1: User info from localStorage ──────────────────────────────

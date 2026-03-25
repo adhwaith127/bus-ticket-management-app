@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import Modal from '../components/Modal';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import Modal from '../../components/Modal';
+import TableSkeleton from '../../components/TableSkeleton';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 export default function DepotListing() {
   const [depots, setDepots] = useState([]);
@@ -142,9 +143,7 @@ export default function DepotListing() {
 
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500">Loading...</td>
-                </tr>
+                <TableSkeleton columns={['w-8', 'w-16', 'w-28', 'w-40', 'w-16', 'w-16']} />
               ) : depots.length === 0 ? (
                 <tr><td colSpan="6" className="px-6 py-8 text-center text-slate-500">No depots found.</td></tr>
               ) : (

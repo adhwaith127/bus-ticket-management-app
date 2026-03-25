@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 export default function ExecutiveDashboard() {
   const [companies, setCompanies] = useState([]);

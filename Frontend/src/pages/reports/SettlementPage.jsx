@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
+import TableSkeleton from '../../components/TableSkeleton';
 
 export default function SettlementPage() {
   // ===== STATE MANAGEMENT =====
@@ -250,7 +251,7 @@ export default function SettlementPage() {
 
   // ===== MAIN RENDER =====
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-slate-50">
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
       
       {/* HEADER & LAST UPDATED */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
@@ -431,7 +432,9 @@ export default function SettlementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {currentData.length ? (
+              {isRefreshing && !currentData.length ? (
+                <TableSkeleton columns={['w-24', 'w-28', 'w-20', 'w-16', 'w-16', 'w-24', 'w-24', 'w-16']} />
+              ) : currentData.length ? (
                 currentData.map((txn) => (
                   <tr key={txn.id} className="hover:bg-slate-50 transition group">
                     <td className="px-4 py-3 font-mono text-xs text-slate-500 group-hover:text-slate-800">{txn.transactionID}</td>

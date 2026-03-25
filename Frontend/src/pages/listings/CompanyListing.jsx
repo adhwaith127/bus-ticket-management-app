@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import Modal from '../components/Modal';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import Modal from '../../components/Modal';
+import TableSkeleton from '../../components/TableSkeleton';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 export default function CompanyListing() {
   const [companies, setCompanies] = useState([]);
@@ -14,6 +15,7 @@ export default function CompanyListing() {
 
   // License State
   const [registeringLicense, setRegisteringLicense] = useState({});
+  const [validatingLicense, setValidatingLicense] = useState({});
 
   // Form State
   const [formData, setFormData] = useState({
@@ -33,6 +35,15 @@ export default function CompanyListing() {
   useEffect(() => {
     fetchCompanies();
   }, []);
+
+  // Auto-refresh every 5s while any company is in Validating state
+  useEffect(() => {
+    const hasValidating = companies.some(c => c.authentication_status === 'Validating');
+    if (!hasValidating) return;
+
+    const interval = setInterval(fetchCompanies, 5000);
+    return () => clearInterval(interval);
+  }, [companies]);
 
   const fetchCompanies = async () => {
     setLoading(true);
@@ -169,6 +180,7 @@ export default function CompanyListing() {
   };
  
   const handleValidateLicense = async (companyId) => {
+    setValidatingLicense(prev => ({ ...prev, [companyId]: true }));
     try {
       const response = await api.post(`${BASE_URL}/validate-company-license/${companyId}`);
       if (response.status === 200) {
@@ -179,6 +191,8 @@ export default function CompanyListing() {
       console.error("License validation error:", err);
       const { data } = err.response || {};
       window.alert(data?.message || data?.error || 'License validation failed');
+    } finally {
+      setValidatingLicense(prev => ({ ...prev, [companyId]: false }));
     }
   };
 
@@ -254,17 +268,7 @@ export default function CompanyListing() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-slate-500">
-                    <div className="flex justify-center items-center space-x-2">
-                      <svg className="animate-spin h-5 w-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Loading data...</span>
-                    </div>
-                  </td>
-                </tr>
+                <TableSkeleton columns={['w-8', 'w-36', 'w-24', 'w-16', 'w-20', 'w-24', 'w-16']} />
               ) : companies.length === 0 ? (
                 <tr><td colSpan="7" className="px-6 py-8 text-center text-slate-500">No companies found.</td></tr>
               ) : (
@@ -273,6 +277,7 @@ export default function CompanyListing() {
                   const isValidating = company.authentication_status === 'Validating';
                   const hasCompanyId = company.company_id !== null && company.company_id !== undefined;
                   const isRegistering = registeringLicense[company.id];
+                  const isValidatingRequest = validatingLicense[company.id];
                   const licenseExpired = isLicenseExpired(company);
                   
                   return (
@@ -316,15 +321,16 @@ export default function CompanyListing() {
                             {isRegistering ? 'Registering...' : 'Register Company'}
                           </button>
                         ) : isPending || licenseExpired ? (
-                          <button 
+                          <button
                             onClick={() => handleValidateLicense(company.id)}
-                            className={`text-xs font-medium px-3 py-1.5 rounded-lg transition ${
-                              licenseExpired 
-                                ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' 
+                            disabled={isValidatingRequest}
+                            className={`text-xs font-medium px-3 py-1.5 rounded-lg transition disabled:opacity-50 ${
+                              licenseExpired
+                                ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
                                 : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                             }`}
                           >
-                            {licenseExpired ? '🔴 License Expired - Revalidate' : 'Validate License'}
+                            {isValidatingRequest ? 'Starting...' : licenseExpired ? 'License Expired - Revalidate' : 'Validate License'}
                           </button>
                         ) : isValidating ? (
                           <span className="text-xs flex items-center text-blue-600 font-medium animate-pulse">
@@ -374,7 +380,7 @@ export default function CompanyListing() {
 
       {/* Modal Content */}
       <Modal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
-        <form className="space-y-4">
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-700">Company Name<span style={{color:"red"}}> *</span></label>
@@ -529,9 +535,8 @@ export default function CompanyListing() {
               {modalMode === 'view' ? 'Close' : 'Cancel'}
             </button>
             {modalMode !== 'view' && (
-              <button 
-                type="button" 
-                onClick={handleSubmit} 
+              <button
+                type="submit"
                 disabled={submitting}
                 className="px-4 py-2 text-sm font-medium text-white bg-slate-800 border border-transparent rounded-lg hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 shadow-md transition-all flex items-center"
               >

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
-// import cacheManager from '../utils/reportCache';
-import cacheManager from '../assets/js/reportCache';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
+import TableSkeleton from '../../components/TableSkeleton';
+// import cacheManager from '../../utils/reportCache';
+import cacheManager from '../../assets/js/reportCache';
 
 
 export default function TripcloseReport() {
@@ -503,7 +504,7 @@ export default function TripcloseReport() {
 
   // ===== UI RENDER =====
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-slate-50">
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <div>
@@ -737,7 +738,9 @@ export default function TripcloseReport() {
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {currentData.length ? (
+              {isRefreshing && !currentData.length ? (
+                <TableSkeleton columns={['w-16', 'w-16', 'w-20', 'w-16', 'w-24', 'w-20', 'w-20', 'w-16', 'w-20', 'w-16']} />
+              ) : currentData.length ? (
                 currentData.map(item => (
                   <tr 
                     key={item.id} 

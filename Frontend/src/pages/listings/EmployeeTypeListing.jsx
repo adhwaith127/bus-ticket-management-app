@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import Modal from '../components/Modal';
-import SearchBar from '../components/SearchBar';
-import { useFilteredList } from '../assets/js/useFilteredList';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import Modal from '../../components/Modal';
+import SearchBar from '../../components/SearchBar';
+import TableSkeleton from '../../components/TableSkeleton';
+import { useFilteredList } from '../../assets/js/useFilteredList';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 export default function EmployeeTypeListing() {
 
@@ -105,7 +106,7 @@ export default function EmployeeTypeListing() {
 
   // ── Section 5: Render ────────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 animate-fade-in">
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -141,14 +142,7 @@ export default function EmployeeTypeListing() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800"></div>
-                      <p className="text-slate-500 mt-3">Loading employee types...</p>
-                    </div>
-                  </td>
-                </tr>
+                <TableSkeleton columns={['w-8', 'w-20', 'w-36', 'w-16']} />
               ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan="4" className="px-6 py-12 text-center">

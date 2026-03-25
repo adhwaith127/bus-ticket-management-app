@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import Modal from '../components/Modal';
-import ChangePasswordModal from '../components/ChangePasswordModal';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import Modal from '../../components/Modal';
+import ChangePasswordModal from '../../components/ChangePasswordModal';
+import TableSkeleton from '../../components/TableSkeleton';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 import { useNavigate } from 'react-router-dom';
 
 export default function UserListing() {
@@ -315,7 +316,7 @@ export default function UserListing() {
               required
               className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg"
             >
-              <option value="">-- Select Executive --</option>
+              <option value="" disabled>Select executive</option>
               {users.filter(u => u.role === 'executive_user').map(user => (
                 <option key={user.id} value={user.id}>{user.username}</option>
               ))}
@@ -330,7 +331,7 @@ export default function UserListing() {
               required
               className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg"
             >
-              <option value="">-- Select Company --</option>
+              <option value="" disabled>Select company</option>
               {companies.map(company => (
                 <option key={company.id} value={company.id}>{company.company_name}</option>
               ))}
@@ -396,17 +397,7 @@ export default function UserListing() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                    <div className="flex justify-center items-center space-x-2">
-                      <svg className="animate-spin h-5 w-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Loading users...</span>
-                    </div>
-                  </td>
-                </tr>
+                <TableSkeleton columns={['w-8', 'w-36', 'w-20', 'w-24', 'w-20', 'w-16']} />
               ) : users.length === 0 ? (
                 <tr><td colSpan="6" className="px-6 py-8 text-center text-slate-500">No users found.</td></tr>
               ) : (
@@ -536,7 +527,7 @@ export default function UserListing() {
                   disabled={isReadOnly || formData.role === 'executive_user'}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all appearance-none bg-white disabled:bg-slate-50"
                 >
-                  <option value="">-- Select Company --</option>
+                  <option value="" disabled>Select company</option>
                   {companies.map(company => (
                     <option key={company.id} value={company.id}>
                       {company.company_name}

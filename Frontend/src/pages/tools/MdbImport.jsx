@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 // Components — each handles one step's UI only
-import FileUploadStep from '../components/FileUploadStep';
-import ConfigureStep  from '../components/ConfigureStep';
-import ImportResults  from '../components/ImportResults';
+import FileUploadStep from '../../components/FileUploadStep';
+import ConfigureStep  from '../../components/ConfigureStep';
+import ImportResults  from '../../components/ImportResults';
 
 const IMPORT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -75,6 +75,19 @@ export default function MdbImport() {
   useEffect(() => {
     fetchCompanies();
   }, []);
+
+  // Warn user if they try to leave/reload while an import is in progress
+  useEffect(() => {
+    if (!importing) return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = 'Import is in progress. Leaving now will cancel the import.';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [importing]);
 
   const fetchCompanies = async () => {
     setLoadingCompanies(true);
@@ -206,8 +219,8 @@ export default function MdbImport() {
   // ==================== RENDER ====================
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="p-6 md:p-10 animate-fade-in">
+      <div className="max-w-2xl">
 
         {/* Page Header */}
         <div className="mb-8">

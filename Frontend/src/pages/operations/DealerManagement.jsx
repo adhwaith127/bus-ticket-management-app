@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import Modal from '../components/Modal';
-import api, { BASE_URL } from '../assets/js/axiosConfig';
+import Modal from '../../components/Modal';
+import TableSkeleton from '../../components/TableSkeleton';
+import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 export default function DealerManagement() {
   const [dealers, setDealers] = useState([]);
@@ -224,9 +225,7 @@ export default function DealerManagement() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-8 text-center text-slate-500">Loading...</td>
-                  </tr>
+                  <TableSkeleton columns={['w-16', 'w-32', 'w-24', 'w-16', 'w-16']} />
                 ) : dealers.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="px-6 py-8 text-center text-slate-500">No dealers found</td>
@@ -270,7 +269,7 @@ export default function DealerManagement() {
                 required
                 className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg"
               >
-                <option value="">-- Select Dealer --</option>
+                <option value="" disabled>Select dealer</option>
                 {dealers.map(dealer => (
                   <option key={dealer.id} value={dealer.id}>{dealer.dealer_name}</option>
                 ))}
@@ -285,7 +284,7 @@ export default function DealerManagement() {
                 required
                 className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg"
               >
-                <option value="">-- Select Company --</option>
+                <option value="" disabled>Select company</option>
                 {companies.map(company => (
                   <option key={company.id} value={company.id}>{company.company_name}</option>
                 ))}

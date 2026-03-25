@@ -1,8 +1,8 @@
-import AdminHome from '../pages/AdminHome';
-import CompanyDashboard from '../pages/CompanyDashboard';
-import UserHome from '../pages/UserHome';
-import DealerDashboard from '../pages/DealerDashboard';
-import ExecutiveDashboard from '../pages/ExecutiveDashboard';
+import AdminHome from '../pages/dashboards/AdminHome';
+import CompanyDashboard from '../pages/dashboards/CompanyDashboard';
+import UserHome from '../pages/dashboards/UserHome';
+import DealerDashboard from '../pages/dashboards/DealerDashboard';
+import ExecutiveDashboard from '../pages/dashboards/ExecutiveDashboard';
 
 export default function RoleBasedHome() {
   const storedUser = localStorage.getItem('user');

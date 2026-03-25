@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api, { BASE_URL } from "../assets/js/axiosConfig";
+import api, { BASE_URL } from "../../assets/js/axiosConfig";
 
 export default function AdminHome() {
   const storedUser = localStorage.getItem("user")
@@ -42,11 +42,45 @@ export default function AdminHome() {
         Welcome, {username}
       </h1>
 
-      {/* Loading */}
+      {/* Loading skeleton */}
       {loading && (
-        <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm text-sm text-slate-500">
-          Loading dashboard...
-        </div>
+        <>
+          <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+            <div className="mb-4 space-y-1.5">
+              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse" />
+              <div className="h-3 w-64 bg-slate-100 rounded animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-gray-50 p-5 rounded-xl border border-gray-200 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-slate-200 animate-pulse flex-shrink-0" />
+                  <div className="space-y-2">
+                    <div className="h-3 w-20 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-7 w-10 bg-slate-200 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="mb-4 space-y-1.5">
+              <div className="h-5 w-32 bg-slate-200 rounded animate-pulse" />
+              <div className="h-3 w-56 bg-slate-100 rounded animate-pulse" />
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 bg-slate-200 rounded-lg animate-pulse flex-shrink-0" />
+              <div className="space-y-2">
+                <div className="h-3 w-16 bg-slate-200 rounded animate-pulse" />
+                <div className="h-6 w-10 bg-slate-200 rounded animate-pulse" />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-8 w-28 bg-slate-200 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          </section>
+        </>
       )}
 
       {!loading && (
