@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 // Components — each handles one step's UI only
-import FileUploadStep from '../../components/FileUploadStep';
-import ConfigureStep  from '../../components/ConfigureStep';
-import ImportResults  from '../../components/ImportResults';
+import FileUploadStep   from '../../components/FileUploadStep';
+import ConfigureStep    from '../../components/ConfigureStep';
+import ImportProgress   from '../../components/ImportProgress';
+import ImportResults    from '../../components/ImportResults';
 
 const IMPORT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -16,9 +17,16 @@ const IMPORT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 // Child components call back up via callback props (onXxx).
 //
 // Steps:
-//   1 → FileUploadStep  — user picks .mdb file
-//   2 → ConfigureStep   — user picks company + optional password
-//   3 → ImportResults   — shows what was imported / skipped
+//   1 → FileUploadStep   — user picks .mdb file
+//   2 → ConfigureStep    — user picks company + optional password
+//   3 → ImportProgress   — live per-table progress (while importing)
+//   3 → ImportResults    — final summary (once done event arrives)
+//
+// Streaming approach:
+//   axios onDownloadProgress + responseType:'text'
+//   XHR accumulates responseText as chunks arrive.
+//   We parse SSE lines ("data: {...}") from each new chunk.
+//   This keeps the full axios instance (interceptors, withCredentials, baseURL).
 // ---------------------------------------------------------------
 
 // ---- Small shared UI: Step indicator at the top ----
@@ -49,24 +57,29 @@ function StepDivider() {
 export default function MdbImport() {
 
   // ---- Step tracking ----
-  // 1 = file upload, 2 = configure, 3 = results
+  // 1 = file upload, 2 = configure, 3 = progress/results
   const [step, setStep] = useState(1);
 
   // ---- Step 1 state ----
-  const [selectedFile, setSelectedFile]   = useState(null);
-  const [isDragging, setIsDragging]       = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isDragging, setIsDragging]     = useState(false);
 
   // ---- Step 2 state ----
-  const [companies, setCompanies]               = useState([]);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
+  const [companies, setCompanies]                     = useState([]);
+  const [loadingCompanies, setLoadingCompanies]       = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId]     = useState('');
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
-  const [mdbPassword, setMdbPassword]           = useState('');
+  const [mdbPassword, setMdbPassword]                 = useState('');
 
   // ---- Import / Step 3 state ----
-  const [importing, setImporting]       = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const [importError, setImportError]   = useState('');
+  const [importing, setImporting]         = useState(false);
+  const [importResult, setImportResult]   = useState(null);  // set on 'done' event
+  const [importError, setImportError]     = useState('');
+  const [tableProgress, setTableProgress] = useState([]);    // grows as tables complete
+
+  // Ref to read latest tableProgress inside the onDownloadProgress closure
+  // (avoids stale closure when building the final importResult)
+  const tableProgressRef = useRef([]);
 
 
   // ==================== EFFECTS ====================
@@ -104,12 +117,9 @@ export default function MdbImport() {
 
   // ==================== STEP 1 HANDLERS ====================
 
-  // Called by FileUploadStep when user picks or drops a valid file
   const handleFileSelect = (file) => setSelectedFile(file);
-
   const handleFileRemove = () => setSelectedFile(null);
 
-  // Called when user presses Continue on step 1
   const handleProceedToConfig = () => {
     if (selectedFile) setStep(2);
   };
@@ -119,7 +129,6 @@ export default function MdbImport() {
 
   const handleCompanyChange = (id) => setSelectedCompanyId(id);
 
-  // When checkbox is toggled off, also clear the password value
   const handlePasswordProtectedChange = (checked) => {
     setIsPasswordProtected(checked);
     if (!checked) setMdbPassword('');
@@ -142,6 +151,8 @@ export default function MdbImport() {
 
     setImporting(true);
     setImportError('');
+    setTableProgress([]);
+    tableProgressRef.current = [];
 
     /*
       FormData is used here because we're sending a FILE + text fields together.
@@ -149,30 +160,89 @@ export default function MdbImport() {
       Do NOT set Content-Type manually — axios sets multipart/form-data automatically.
     */
     const formData = new FormData();
-    formData.append('mdb_file',    selectedFile);
-    formData.append('company_id',  selectedCompanyId);
+    formData.append('mdb_file',   selectedFile);
+    formData.append('company_id', selectedCompanyId);
     if (isPasswordProtected && mdbPassword.trim()) {
-      formData.append('password',  mdbPassword.trim());
+      formData.append('password', mdbPassword.trim());
     }
 
+    /*
+      Streaming approach: axios + responseType:'text' + onDownloadProgress
+
+      XHR (used by axios in browsers) accumulates responseText as chunks arrive.
+      onDownloadProgress fires each time a new chunk lands.
+      We slice off only the new bytes, parse complete SSE lines ("data: {...}"),
+      and update state incrementally — no fetch, no EventSource needed.
+
+      The existing axios instance is used as-is:
+        - withCredentials: true  → cookies sent automatically
+        - 401 interceptor        → fires if session expires before stream starts,
+                                   auto-refreshes token and retries the import
+        - baseURL / timeout      → inherited from instance
+
+      streamStarted flag: we only move to step 3 after the first chunk arrives.
+      This way, pre-stream validation errors (400/401) stay on step 2 and show
+      normally through the catch block — the user never sees a blank progress screen.
+    */
+    let processedLength = 0;
+    let streamStarted   = false;
+
     try {
-      const response = await api.post(`${BASE_URL}/import-mdb`, formData, {
+      await api.post(`${BASE_URL}/import-mdb`, formData, {
         headers: { 'Content-Type': undefined },
         timeout: IMPORT_TIMEOUT_MS,
+        responseType: 'text',
+
+        onDownloadProgress: (progressEvent) => {
+          // Move to progress view on first chunk (confirms streaming has started)
+          if (!streamStarted) {
+            streamStarted = true;
+            setStep(3);
+          }
+
+          // Slice only the new bytes from the accumulated responseText
+          const fullText = progressEvent.event.target.responseText;
+          const newChunk = fullText.slice(processedLength);
+          processedLength = fullText.length;
+
+          // Parse each complete SSE line in the new chunk
+          for (const line of newChunk.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const event = JSON.parse(line.slice(6));
+
+              if (event.type === 'table_done') {
+                // Accumulate via ref (avoids stale closure) + sync to state for render
+                tableProgressRef.current = [...tableProgressRef.current, event];
+                setTableProgress([...tableProgressRef.current]);
+
+              } else if (event.type === 'done') {
+                // Build the final result object for ImportResults
+                // using ref for table_results to get the latest accumulated list
+                setImportResult({
+                  imported:      event.total_imported,
+                  existing:      event.total_existing,
+                  skipped:       event.total_skipped,
+                  table_results: tableProgressRef.current,
+                  errors:        event.errors,
+                  read_errors:   event.read_errors,
+                });
+
+              } else if (event.type === 'error') {
+                // Fatal backend error mid-stream
+                setImportError(event.message);
+              }
+
+            } catch (_) {
+              // Incomplete JSON chunk — next onDownloadProgress will have the rest
+            }
+          }
+        },
       });
 
-      // SUCCESS — response.data must have imported/skipped/table_results shape
-      if (response.data && (response.data.imported !== undefined || response.data.table_results)) {
-        setImportResult(response.data);
-        setStep(3);
-      } else {
-        // Got 200 but unexpected shape — show raw message
-        setImportError(response.data?.message || 'Import returned unexpected response.');
-      }
-
     } catch (err) {
-      // err.response exists when server replied with 4xx/5xx
-      // err.response is undefined on network errors or CORS failures
+      // err.response exists when server replied with 4xx/5xx before streaming
+      // err.response is undefined on network errors, CORS failures, or timeouts
       const responseData = err.response?.data;
 
       let errorMessage = 'Import failed. Please try again.';
@@ -180,14 +250,11 @@ export default function MdbImport() {
       if (err.code === 'ECONNABORTED') {
         errorMessage = 'Import timed out. The file is large or server is busy. Please retry and check backend logs.';
       } else if (responseData) {
-        // Server returned JSON with a message field
         if (typeof responseData === 'object') {
           errorMessage = responseData.message || responseData.error || responseData.detail || JSON.stringify(responseData);
         } else if (typeof responseData === 'string' && !responseData.startsWith('<')) {
-          // Only show string response if it is NOT an HTML error page
           errorMessage = responseData;
         } else {
-          // HTML response means Django crashed with an unhandled 500
           errorMessage = `Server error (${err.response.status}). Check Django logs for details.`;
         }
       } else if (err.message) {
@@ -195,8 +262,14 @@ export default function MdbImport() {
       }
 
       setImportError(errorMessage);
+
+      // If streaming hadn't started yet, stay on step 2 so the error shows inline
+      // If it had started, step 3 is already showing — error displayed there
+      if (!streamStarted) {
+        // step remains 2, error shows in ConfigureStep
+      }
+
     } finally {
-      // This ALWAYS runs — guarantees spinner stops no matter what
       setImporting(false);
     }
   };
@@ -213,6 +286,8 @@ export default function MdbImport() {
     setMdbPassword('');
     setImportResult(null);
     setImportError('');
+    setTableProgress([]);
+    tableProgressRef.current = [];
   };
 
 
@@ -273,7 +348,16 @@ export default function MdbImport() {
             />
           )}
 
-          {/* Step 3 */}
+          {/* Step 3a — live progress while import is running or stream errored */}
+          {step === 3 && !importResult && (
+            <ImportProgress
+              tableProgress={tableProgress}
+              importing={importing}
+              importError={importError}
+            />
+          )}
+
+          {/* Step 3b — final results after 'done' event */}
           {step === 3 && importResult && (
             <ImportResults
               result={importResult}

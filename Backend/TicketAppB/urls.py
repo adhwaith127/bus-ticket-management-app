@@ -2,6 +2,10 @@ from django.urls import path
 from .views import transport_views, crew_views, settings_views
 from .views import auth_views, company_views, user_views, data_views, mdb_views
 from .views import depot_views, mosambee_views, dealer_views, executive_views, device_approval_views
+from .views.reports import (
+    duty_report, bus_summary, payment_type, farewise,
+    passenger_info, trip_details, ticket_details,
+)
 
 urlpatterns = [
     # authentication
@@ -65,6 +69,7 @@ urlpatterns = [
     # mdb upload
     path('import-mdb', mdb_views.MdbImportView.as_view(), name='import-mdb'),
 
+
     # Master Data — transport
     path('masterdata/bus-types', transport_views.get_bus_types),
     path('masterdata/bus-types/create', transport_views.create_bus_type),
@@ -103,4 +108,15 @@ urlpatterns = [
     path('masterdata/currencies/create', settings_views.create_currency),
     path('masterdata/currencies/update/<int:pk>', settings_views.update_currency),
     path('masterdata/settings', settings_views.get_settings),
+
+
+
+    # android apk data apis
+    path('reports/duty', duty_report.duty_report, name='duty_report'),
+    path('reports/bus-summary', bus_summary.bus_summary_report, name='bus_summary_report'),
+    path('reports/payment-type', payment_type.payment_type_report, name='payment_type_report'),
+    path('reports/farewise', farewise.farewise_report, name='farewise_report'),
+    path('reports/passenger-info', passenger_info.passenger_info, name='passenger_info'),
+    path('reports/trip-details', trip_details.trip_details, name='trip_details'),
+    path('reports/ticket-details', ticket_details.ticket_details, name='ticket_details'),
 ]

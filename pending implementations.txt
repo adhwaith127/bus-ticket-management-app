@@ -1,0 +1,19 @@
+PENDING IMPLEMENTATIONS
+=======================
+
+
+[1] Per-company advisory lock for concurrent MDB imports
+    File: Backend/TicketAppB/views/mdb_views.py
+    Where: top of MdbImportService.run_stream(), before the processors loop
+
+    WHY: If two admins import for the same company at the same time, both
+    sessions read DB state simultaneously and race on FK-dependent tables
+    (RouteStage, Fare, Expense, etc.), causing wrong import counts and
+    potential false skips. Different companies are unaffected.
+
+    WHAT TO DO: Use MariaDB GET_LOCK(f"mdb_import_{company.id}", 0) at
+    the start and RELEASE_LOCK in a finally block. If lock not acquired,
+    yield a type='error' event telling the user to wait and return early.
+
+
+------------------------------------------------------------------------
