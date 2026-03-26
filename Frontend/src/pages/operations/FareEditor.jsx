@@ -17,6 +17,7 @@ export default function FareEditor() {
   // For Graph Fare (2D)
   const [fareMatrix, setFareMatrix]   = useState([]);
   
+  const [selectedOption, setSelectedOption] = useState(null);
   const [routesLoading, setRoutesLoading] = useState(true);
   const [routesError, setRoutesError] = useState(null);
   const [loading, setLoading]         = useState(false);
@@ -45,8 +46,10 @@ export default function FareEditor() {
   };
 
   // ── Section 3: Load fare data when route is selected ─────────────────────
-  const handleRouteSelect = async (routeId) => {
+  const handleRouteSelect = async (option) => {
+    const routeId = option?.value;
     if (!routeId) {
+      setSelectedOption(null);
       setSelectedRoute(null);
       setStages([]);
       setFareList([]);
@@ -55,6 +58,7 @@ export default function FareEditor() {
       return;
     }
 
+    setSelectedOption(option);
     setLoading(true);
     setHasChanges(false);
     try {
@@ -162,10 +166,6 @@ export default function FareEditor() {
     meta: `Type ${route.fare_type} • Stops ${route.route_stages?.length || 0}`,
   }));
 
-  const selectedRouteOption = selectedRoute
-    ? routeOptions.find((option) => option.value === selectedRoute.id) || null
-    : null;
-
   // ── Section 7: Render ─────────────────────────────────────────────────────
   return (
     <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
@@ -178,13 +178,6 @@ export default function FareEditor() {
 
       {/* Route Selector */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
-        {routesLoading && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 space-y-3">
-            <div className="h-3.5 w-24 bg-slate-200 rounded-full animate-pulse" />
-            <div className="h-10 rounded-lg bg-slate-200 animate-pulse" />
-          </div>
-        )}
-
         {!routesLoading && routesError && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-5">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -208,7 +201,7 @@ export default function FareEditor() {
           </div>
         )}
 
-        {routesLoaded && routes.length > 0 && (
+        {(routesLoading || (routesLoaded && routes.length > 0)) && (
           <div className="flex flex-col md:flex-row md:items-end gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -216,12 +209,12 @@ export default function FareEditor() {
               </label>
               <Select
                 options={routeOptions}
-                value={selectedRouteOption}
-                onChange={(option) => handleRouteSelect(option?.value || '')}
+                value={selectedOption}
+                onChange={(option) => handleRouteSelect(option || null)}
                 isSearchable
                 isClearable
-                isDisabled={loading}
-                placeholder="Search by route code or name..."
+                isDisabled={routesLoading || loading}
+                placeholder={routesLoading ? 'Loading routes...' : 'Search by route code or name...'}
                 classNamePrefix="fare-route-select"
                 formatOptionLabel={(option) => (
                   <div className="py-0.5">
