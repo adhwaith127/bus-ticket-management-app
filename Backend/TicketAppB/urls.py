@@ -69,7 +69,6 @@ urlpatterns = [
     # mdb upload
     path('import-mdb', mdb_views.MdbImportView.as_view(), name='import-mdb'),
 
-
     # Master Data — transport
     path('masterdata/bus-types', transport_views.get_bus_types),
     path('masterdata/bus-types/create', transport_views.create_bus_type),
@@ -108,7 +107,6 @@ urlpatterns = [
     path('masterdata/currencies/create', settings_views.create_currency),
     path('masterdata/currencies/update/<int:pk>', settings_views.update_currency),
     path('masterdata/settings', settings_views.get_settings),
-
 
 
     # android apk data apis
