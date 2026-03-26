@@ -71,3 +71,8 @@ htmlcov/
 *.bak
 *.tmp
 *.zip
+
+##################################
+# Legacy VB6 system reference
+##################################
+PVT BUS NORMAL-GPRS_2.17 - 14112019/
