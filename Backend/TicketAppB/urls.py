@@ -82,6 +82,7 @@ urlpatterns = [
     path('masterdata/routes', transport_views.get_routes),
     path('masterdata/routes/create', transport_views.create_route),
     path('masterdata/routes/update/<int:pk>', transport_views.update_route),
+    path('masterdata/routes/create-wizard', transport_views.create_route_wizard),
     path('masterdata/dropdowns/bus-types', transport_views.get_bus_types_dropdown),
     path('masterdata/dropdowns/stages', transport_views.get_stages_dropdown, name='get_stages_dropdown'),
     path('masterdata/dropdowns/vehicles', transport_views.get_vehicles_dropdown),

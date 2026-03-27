@@ -15,6 +15,17 @@ export default function ProtectedRoute() {
     verifyAuthFromBackend();
   }, []);
 
+  // Redirect immediately if another tab logs out (clears localStorage)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'user' && e.newValue === null) {
+        navigate('/login', { replace: true });
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [navigate]);
+
   const verifyAuthFromBackend = async () => {
     try {
       // Step 1: Refresh token first using refreshApi (no interceptor loops)

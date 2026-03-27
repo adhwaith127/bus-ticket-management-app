@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
-import TableSkeleton from '../../components/TableSkeleton';
-// import cacheManager from '../../utils/reportCache';
 import cacheManager from '../../assets/js/reportCache';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { KpiCard } from '@/components/ui/kpi-card';
+import {
+  TrendingDown, Ticket, Users, IndianRupee, CreditCard, Banknote,
+  Download, RefreshCw, AlertCircle, Eye, FileText,
+} from 'lucide-react';
 
 
 export default function TripcloseReport() {
@@ -481,22 +488,27 @@ export default function TripcloseReport() {
     return () => clearInterval(interval);
   }, [lastUpdated]);
 
+  // ===== PAGINATION RANGE =====
+  const getPaginationRange = (current, total, windowSize = 5) => {
+    const half = Math.floor(windowSize / 2);
+    let start = Math.max(1, current - half);
+    let end = Math.min(total, start + windowSize - 1);
+    if (end - start < windowSize - 1) start = Math.max(1, end - windowSize + 1);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  };
+
   // ===== LOADING / ERROR STATES =====
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md">
           <div className="text-red-600 font-medium">{error}</div>
-          <button 
-            onClick={() => {
-              setError(null);
-              const today = getTodayDate();
-              fetchTripData(today, today);
-            }} 
-            className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+          <Button
+            onClick={() => { setError(null); const today = getTodayDate(); fetchTripData(today, today); }}
+            className="mt-4 bg-red-600 hover:bg-red-700 text-white"
           >
             Retry
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -504,551 +516,352 @@ export default function TripcloseReport() {
 
   // ===== UI RENDER =====
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
+    <div className="p-3 sm:p-4 lg:p-6 min-h-screen bg-slate-50">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Trip Close Reports</h1>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-slate-500">View and manage daily trip closures</p>
-            {lastUpdated && (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <div className={`w-2 h-2 rounded-full ${isPolling && !pollingPaused && isPageVisible ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                <span>{isPageVisible ? `Last updated ${timeAgo}` : 'Paused (tab inactive)'}</span>
-              </div>
-            )}
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md">
+            <TrendingDown size={18} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Trip Close Report</h1>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-sm text-slate-500">Daily trip closures</p>
+              {lastUpdated && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPolling && !pollingPaused && isPageVisible ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                  {isPageVisible ? `Updated ${timeAgo}` : 'Paused (tab inactive)'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <button
-          onClick={exportToExcel}
-          className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl shadow-lg transition"
-        >
-          Download Report
-        </button>
+        <Button onClick={exportToExcel} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-700 text-white shadow-md">
+          <Download size={15} /> Download Report
+        </Button>
       </div>
 
       {/* Polling Paused Warning */}
       {pollingPaused && (
-        <div className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          Date range ended - live updates paused
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <AlertCircle size={15} className="shrink-0" />
+          Date range ended — live updates paused
         </div>
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Total Trips</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-16 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.totalTrips}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Total Tickets</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-20 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.totalTickets}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Total Passengers</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-20 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.totalPassengers}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Total Collection</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-24 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">₹{summary.totalCollection.toFixed(2)}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">UPI Amount</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-24 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">₹{summary.totalUpiAmount.toFixed(2)}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Cash Amount</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-24 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">₹{summary.totalCashAmount.toFixed(2)}</div>
-          )}
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+        <KpiCard title="Total Trips"      value={isRefreshing ? '...' : String(summary.totalTrips)}                    icon={TrendingDown}  color="#64748b" loading={isRefreshing} />
+        <KpiCard title="Total Tickets"    value={isRefreshing ? '...' : String(summary.totalTickets)}                  icon={Ticket}        color="#6366f1" loading={isRefreshing} />
+        <KpiCard title="Passengers"       value={isRefreshing ? '...' : String(summary.totalPassengers)}               icon={Users}         color="#8b5cf6" loading={isRefreshing} />
+        <KpiCard title="Total Collection" value={isRefreshing ? '...' : `₹${summary.totalCollection.toFixed(2)}`}     icon={IndianRupee}   color="#10b981" loading={isRefreshing} />
+        <KpiCard title="UPI Amount"       value={isRefreshing ? '...' : `₹${summary.totalUpiAmount.toFixed(2)}`}      icon={CreditCard}    color="#3b82f6" loading={isRefreshing} />
+        <KpiCard title="Cash Amount"      value={isRefreshing ? '...' : `₹${summary.totalCashAmount.toFixed(2)}`}     icon={Banknote}      color="#f59e0b" loading={isRefreshing} />
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 md:p-6 mb-6">
-        {dateError && (
-          <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            {dateError}
-          </div>
-        )}
+      <Card className="mb-6 border-slate-200 shadow-sm rounded-2xl">
+        <CardContent className="p-4 md:p-5">
+          {dateError && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              <AlertCircle size={14} className="shrink-0" /> {dateError}
+            </div>
+          )}
+          {hasPendingChanges && !dateError && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-600">
+              <span className="animate-pulse">●</span>
+              Date filters modified — click Apply Filters to refresh data
+            </div>
+          )}
 
-        {hasPendingChanges && !dateError && (
-          <div className="mb-4 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
-            <span className="animate-pulse">●</span>
-            Date filters modified - click Apply Filters to refresh data
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Start Date</label>
-            <input 
-              max={getTodayDate()}
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">End Date</label>
-            <input 
-              max={getTodayDate()}
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Device ID</label>
-            <select
-              value={filters.palmtecId}
-              onChange={(e) => handleClientFilter('palmtecId', e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            >
-              <option value="ALL">ALL</option>
-              {palmtecIds.map(id => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Route Code</label>
-            <select
-              value={filters.routeCode}
-              onChange={(e) => handleClientFilter('routeCode', e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            >
-              <option value="ALL">ALL</option>
-              {routeCodes.map(code => (
-                <option key={code} value={code}>{code}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Start Date</label>
+              <Input type="date" max={getTodayDate()} value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className="text-sm h-9" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">End Date</label>
+              <Input type="date" max={getTodayDate()} value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className="text-sm h-9" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Device ID</label>
+              <select value={filters.palmtecId} onChange={(e) => handleClientFilter('palmtecId', e.target.value)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="ALL">ALL</option>
+                {palmtecIds.map(id => <option key={id} value={id}>{id}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Route Code</label>
+              <select value={filters.routeCode} onChange={(e) => handleClientFilter('routeCode', e.target.value)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="ALL">ALL</option>
+                {routeCodes.map(code => <option key={code} value={code}>{code}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Depot Code</label>
+              <select value={filters.depotCode} onChange={(e) => handleClientFilter('depotCode', e.target.value)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="ALL">ALL</option>
+                {depotCodes.map(code => <option key={code} value={code}>{code}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Trip No</label>
+              <Input type="text" placeholder="Search..." value={filters.tripNo}
+                onChange={(e) => handleClientFilter('tripNo', e.target.value)}
+                className="text-sm h-9" />
+            </div>
           </div>
 
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Depot Code</label>
-            <select
-              value={filters.depotCode}
-              onChange={(e) => handleClientFilter('depotCode', e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            >
-              <option value="ALL">ALL</option>
-              {depotCodes.map(code => (
-                <option key={code} value={code}>{code}</option>
-              ))}
-            </select>
+          <div className="flex justify-end mt-4 gap-2">
+            <Button variant="outline" onClick={clearFilters} className="text-slate-600 text-sm h-9">
+              Clear Filters
+            </Button>
+            <Button onClick={handleApplyFilters} disabled={!filters.startDate || !filters.endDate}
+              className={`text-sm h-9 text-white ${hasPendingChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 hover:bg-slate-800'}`}>
+              <RefreshCw size={13} className="mr-1.5" /> Apply Filters
+            </Button>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Trip No</label>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={filters.tripNo}
-              onChange={(e) => handleClientFilter('tripNo', e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end mt-4 gap-3">
-          <button
-            onClick={clearFilters}
-            className="border border-slate-300 px-4 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-100 transition"
-          >
-            Clear Filters
-          </button>
-          <button
-            onClick={handleApplyFilters}
-            disabled={!filters.startDate || !filters.endDate}
-            className={`px-5 py-2 rounded-lg text-sm text-white transition ${
-              hasPendingChanges 
-                ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
-                : 'bg-slate-600 hover:bg-slate-700'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            Apply Filters
-          </button>
-        </div>
-      </div>
-
-      <div className="text-sm text-slate-500 mb-3">
+      <div className="text-xs text-slate-400 mb-2 px-1">
         Showing {currentData.length} of {filteredData.length} trips
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
-        {isRefreshing && (
-          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
-              <div className="text-slate-600 font-medium">Loading data...</div>
+      <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+        <CardContent className="p-0 relative">
+          {isRefreshing && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-2xl">
+              <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
+                <RefreshCw size={16} className="animate-spin" /> Loading data...
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Device ID</th>
-                <th className="px-4 py-3 font-semibold">Depot</th>
-                <th className="px-4 py-3 font-semibold">Schedule</th>
-                <th className="px-4 py-3 font-semibold">Trip No</th>
-                <th className="px-4 py-3 font-semibold">Route</th>
-                <th className="px-4 py-3 font-semibold">Start Time</th>
-                <th className="px-4 py-3 font-semibold">End Time</th>
-                <th className="px-4 py-3 font-semibold text-right">Tickets</th>
-                <th className="px-4 py-3 font-semibold text-right">Total</th>
-                <th className="px-4 py-3 font-semibold">Info</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {isRefreshing && !currentData.length ? (
-                <TableSkeleton columns={['w-16', 'w-16', 'w-20', 'w-16', 'w-24', 'w-20', 'w-20', 'w-16', 'w-20', 'w-16']} />
-              ) : currentData.length ? (
-                currentData.map(item => (
-                  <tr 
-                    key={item.id} 
-                    className={`hover:bg-slate-50 transition ${
-                      newTripIds.has(item.id) ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <span className="bg-slate-100 text-slate-700 rounded-lg px-2 py-1 text-xs font-medium">
-                        {item.palmtec_id}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">{item.depot_code || "-"}</td>
-                    <td className="px-4 py-3">{item.schedule}</td>
-                    <td className="px-4 py-3">{item.trip_no}</td>
-                    <td className="px-4 py-3">{item.route_code || "-"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col">
-                        <span>{new Date(item.start_datetime).toLocaleDateString()}</span>
-                        <small className="text-slate-500">
-                          {new Date(item.start_datetime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                        </small>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col">
-                        <span>{new Date(item.end_datetime).toLocaleDateString()}</span>
-                        <small className="text-slate-500">
-                          {new Date(item.end_datetime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                        </small>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right">{item.total_tickets}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-800">
-                      ₹{parseFloat(item.total_collection).toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => openModal(item)}
-                        className="text-slate-600 hover:text-slate-900 transition"
-                        title="View Details"
-                        style={{"cursor":"pointer"}}
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" />
-                        </svg>
-                      </button>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Device ID</th>
+                  <th className="px-4 py-3 font-semibold">Depot</th>
+                  <th className="px-4 py-3 font-semibold">Schedule</th>
+                  <th className="px-4 py-3 font-semibold">Trip No</th>
+                  <th className="px-4 py-3 font-semibold">Route</th>
+                  <th className="px-4 py-3 font-semibold">Start Time</th>
+                  <th className="px-4 py-3 font-semibold">End Time</th>
+                  <th className="px-4 py-3 font-semibold text-right">Tickets</th>
+                  <th className="px-4 py-3 font-semibold text-right">Total</th>
+                  <th className="px-4 py-3 font-semibold"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {isRefreshing && !currentData.length ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      {[70,60,70,50,60,80,80,50,70,30].map((w, j) => (
+                        <td key={j} className="px-4 py-3.5">
+                          <div className="h-3 bg-slate-200 rounded-full animate-pulse" style={{ width: w }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : currentData.length ? (
+                  currentData.map(item => (
+                    <tr key={item.id}
+                      className={`transition-colors hover:bg-slate-50/70 ${newTripIds.has(item.id) ? 'bg-slate-100/60' : ''}`}>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.palmtec_id}</td>
+                      <td className="px-4 py-3 text-slate-700">{item.depot_code || '—'}</td>
+                      <td className="px-4 py-3 text-slate-700">{item.schedule}</td>
+                      <td className="px-4 py-3 text-slate-700">{item.trip_no}</td>
+                      <td className="px-4 py-3 text-slate-700">{item.route_code || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-slate-700 text-sm">{new Date(item.start_datetime).toLocaleDateString()}</span>
+                        <span className="text-slate-400 text-xs block">{new Date(item.start_datetime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-slate-700 text-sm">{new Date(item.end_datetime).toLocaleDateString()}</span>
+                        <span className="text-slate-400 text-xs block">{new Date(item.end_datetime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-slate-800">{item.total_tickets}</td>
+                      <td className="px-4 py-3 text-right font-medium text-slate-800">₹{parseFloat(item.total_collection).toFixed(2)}</td>
+                      <td className="px-4 py-3">
+                        <Button variant="ghost" size="sm" onClick={() => openModal(item)}
+                          className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                          <Eye size={14} />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-12 text-center">
+                      <FileText size={28} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-slate-400 text-sm">No trip data found for selected filters</p>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
-                    No trip data found for selected filters
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center space-x-2 mt-6">
-          <button
-            onClick={() => changePage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
+        <div className="flex items-center justify-center gap-1.5 mt-5">
+          <Button variant="outline" size="sm" onClick={() => changePage(currentPage - 1)}
+            disabled={currentPage === 1} className="h-8 px-3 text-xs">
             Prev
-          </button>
-
-          {[...Array(totalPages)].map((_, i) => {
-            const n = i + 1;
-            return (
-              <button
-                key={n}
-                onClick={() => changePage(n)}
-                className={`px-3 py-1.5 rounded-lg border transition ${
-                  currentPage === n 
-                    ? "bg-slate-800 text-white border-slate-800" 
-                    : "border-slate-300 hover:bg-slate-50"
-                }`}
-              >
-                {n}
-              </button>
-            );
-          })}
-
-          <button
-            onClick={() => changePage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
+          </Button>
+          {getPaginationRange(currentPage, totalPages).map((page) => (
+            <Button key={page} size="sm" onClick={() => changePage(page)}
+              className={`h-8 w-8 p-0 text-xs ${currentPage === page
+                ? 'bg-slate-900 hover:bg-slate-700 text-white'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+              {page}
+            </Button>
+          ))}
+          <Button variant="outline" size="sm" onClick={() => changePage(currentPage + 1)}
+            disabled={currentPage === totalPages} className="h-8 px-3 text-xs">
             Next
-          </button>
+          </Button>
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && selectedTrip && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-800">Trip Details</h2>
-              <button
-                onClick={closeModal}
-                className="text-slate-400 hover:text-slate-600 transition"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {/* Detail Dialog */}
+      <Dialog open={showModal} onOpenChange={(open) => { if (!open) closeModal(); }}>
+        <DialogContent className="sm:max-w-3xl rounded-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <TrendingDown size={16} className="text-slate-600" /> Trip Details
+            </DialogTitle>
+          </DialogHeader>
 
-            <div className="p-6 space-y-4">
-              {/* Trip Information */}
-              <div className="border-b border-slate-200 pb-4">
-                <h3 className="font-semibold text-slate-700 mb-3">Trip Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Device ID</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.palmtec_id}</div>
+          {selectedTrip && (
+            <div className="space-y-4 pt-1">
+              {/* Trip Info */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Device ID',   val: selectedTrip.palmtec_id },
+                  { label: 'Depot Code',  val: selectedTrip.depot_code || '—' },
+                  { label: 'Route Code',  val: selectedTrip.route_code },
+                  { label: 'Trip Number', val: selectedTrip.trip_no },
+                  { label: 'Schedule',    val: selectedTrip.schedule },
+                  { label: 'Direction',   val: selectedTrip.up_down_trip },
+                ].map(({ label, val }) => (
+                  <div key={label} className="rounded-lg bg-slate-50 px-3 py-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5">{val}</p>
                   </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Depot Code</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.depot_code || "-"}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Route Code</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.route_code}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Trip Number</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.trip_no}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Schedule</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.schedule}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Direction</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.up_down_trip}</div>
-                  </div>
-                </div>
+                ))}
               </div>
 
-              {/* Timing Details */}
-              <div className="border-b border-slate-200 pb-4">
-                <h3 className="font-semibold text-slate-700 mb-3">Timing</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Start DateTime</div>
-                    <div className="text-sm text-slate-800 mt-1">
-                      {new Date(selectedTrip.start_datetime).toLocaleString()}
+              {/* Timing */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Timing</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Start DateTime',  val: new Date(selectedTrip.start_datetime).toLocaleString() },
+                    { label: 'End DateTime',    val: new Date(selectedTrip.end_datetime).toLocaleString() },
+                    { label: 'Start Ticket No', val: selectedTrip.start_ticket_no },
+                    { label: 'End Ticket No',   val: selectedTrip.end_ticket_no },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="rounded-lg bg-slate-50 px-3 py-2.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5">{val}</p>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">End DateTime</div>
-                    <div className="text-sm text-slate-800 mt-1">
-                      {new Date(selectedTrip.end_datetime).toLocaleString()}
+                  ))}
+                </div>
+              </div>
+
+              {/* Passenger counts */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Passenger Breakdown</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: 'Full',     val: selectedTrip.full_count },
+                    { label: 'Half',     val: selectedTrip.half_count },
+                    { label: 'Student',  val: selectedTrip.st1_count },
+                    { label: 'Luggage',  val: selectedTrip.luggage_count },
+                    { label: 'Physical', val: selectedTrip.physical_count },
+                    { label: 'Pass',     val: selectedTrip.pass_count },
+                    { label: 'Ladies',   val: selectedTrip.ladies_count },
+                    { label: 'Senior',   val: selectedTrip.senior_count },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="rounded-lg bg-slate-50 px-3 py-2 text-center">
+                      <p className="text-[10px] text-slate-400 font-medium">{label}</p>
+                      <p className="text-sm font-bold text-slate-800">{val ?? '—'}</p>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Start Ticket No</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.start_ticket_no}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">End Ticket No</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.end_ticket_no}</div>
-                  </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {[
+                    { label: 'Total Passengers', val: selectedTrip.total_passengers },
+                    { label: 'Total Tickets',    val: selectedTrip.total_tickets },
+                    { label: 'UPI Tickets',      val: selectedTrip.upi_ticket_count },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="rounded-lg bg-slate-100 px-3 py-2 text-center">
+                      <p className="text-[10px] text-slate-500 font-medium">{label}</p>
+                      <p className="text-sm font-bold text-slate-800">{val ?? '—'}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Passenger Counts */}
-              <div className="border-b border-slate-200 pb-4">
-                <h3 className="font-semibold text-slate-700 mb-3">Passenger Breakdown</h3>
-                <div className="grid grid-cols-4 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Full</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.full_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Half</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.half_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Student</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.st1_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Luggage</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.luggage_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Physical</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.physical_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Pass</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.pass_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Ladies</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.ladies_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Senior</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTrip.senior_count}</div>
-                  </div>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-4 pt-3 border-t border-slate-100">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Total Passengers</div>
-                    <div className="text-sm font-semibold text-slate-800 mt-1">{selectedTrip.total_passengers}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Total Tickets</div>
-                    <div className="text-sm font-semibold text-slate-800 mt-1">{selectedTrip.total_tickets}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">UPI Tickets</div>
-                    <div className="text-sm font-semibold text-slate-800 mt-1">{selectedTrip.upi_ticket_count}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Collection Details */}
-              <div className="border-b border-slate-200 pb-4">
-                <h3 className="font-semibold text-slate-700 mb-3">Collection Breakdown</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Full Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.full_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Half Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.half_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">ST Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.st_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Luggage Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.luggage_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Physical Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.physical_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Ladies Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.ladies_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Senior Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.senior_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Adjust Collection</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.adjust_collection}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Expense Amount</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTrip.expense_amount}</div>
-                  </div>
+              {/* Collection Breakdown */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Collection Breakdown</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Full',     val: `₹${selectedTrip.full_collection}` },
+                    { label: 'Half',     val: `₹${selectedTrip.half_collection}` },
+                    { label: 'ST',       val: `₹${selectedTrip.st_collection}` },
+                    { label: 'Luggage',  val: `₹${selectedTrip.luggage_collection}` },
+                    { label: 'Physical', val: `₹${selectedTrip.physical_collection}` },
+                    { label: 'Ladies',   val: `₹${selectedTrip.ladies_collection}` },
+                    { label: 'Senior',   val: `₹${selectedTrip.senior_collection}` },
+                    { label: 'Adjust',   val: `₹${selectedTrip.adjust_collection}` },
+                    { label: 'Expense',  val: `₹${selectedTrip.expense_amount}` },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="rounded-lg bg-slate-50 px-3 py-2.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5">{val}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {/* Financial Summary */}
-              <div>
-                <h3 className="font-semibold text-slate-700 mb-3">Financial Summary</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-blue-50 rounded-lg p-3">
-                    <div className="text-xs text-blue-600 font-medium">UPI Amount</div>
-                    <div className="text-lg font-bold text-blue-800 mt-1">
-                      ₹{parseFloat(selectedTrip.upi_ticket_amount).toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-3">
-                    <div className="text-xs text-green-600 font-medium">Cash Amount</div>
-                    <div className="text-lg font-bold text-green-800 mt-1">
-                      ₹{parseFloat(selectedTrip.total_cash_amount).toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="bg-slate-50 rounded-lg p-3">
-                    <div className="text-xs text-slate-600 font-medium">Total Collection</div>
-                    <div className="text-lg font-bold text-slate-800 mt-1">
-                      ₹{parseFloat(selectedTrip.total_collection).toFixed(2)}
-                    </div>
-                  </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-3 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-500">UPI Amount</p>
+                  <p className="text-base font-bold text-blue-800 mt-1">₹{parseFloat(selectedTrip.upi_ticket_amount).toFixed(2)}</p>
+                </div>
+                <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-3 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-500">Cash Amount</p>
+                  <p className="text-base font-bold text-emerald-800 mt-1">₹{parseFloat(selectedTrip.total_cash_amount).toFixed(2)}</p>
+                </div>
+                <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-3 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Total Collection</p>
+                  <p className="text-base font-bold text-slate-800 mt-1">₹{parseFloat(selectedTrip.total_collection).toFixed(2)}</p>
                 </div>
               </div>
-            </div>
 
-            <div className="border-t border-slate-200 px-6 py-4 flex justify-end">
-              <button
-                onClick={closeModal}
-                className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition"
-              >
-                Close
-              </button>
+              <div className="flex justify-end pt-2 border-t border-slate-100">
+                <Button onClick={closeModal} variant="outline" className="text-slate-600">Close</Button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

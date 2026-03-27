@@ -5,6 +5,16 @@ from decimal import Decimal
 from datetime import datetime
 from .models import RawDataLog, TransactionData, TripCloseData, Company
 
+
+@shared_task
+def blacklist_refresh_token(refresh_token_str):
+    from rest_framework_simplejwt.tokens import RefreshToken
+    from rest_framework_simplejwt.exceptions import TokenError
+    try:
+        RefreshToken(refresh_token_str).blacklist()
+    except TokenError:
+        pass  # Already expired or invalid — nothing to blacklist
+
 @shared_task(bind=True, max_retries=3)
 def process_transaction_data(self, log_id):
     try:

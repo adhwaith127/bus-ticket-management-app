@@ -47,7 +47,8 @@ api.interceptors.response.use(
                 return api(originalRequest);
                 
             } catch (refreshError) {
-                localStorage.removeItem('user');
+                ["user", "authToken", "refreshToken", "userRole", "device_uid"]
+                    .forEach(k => localStorage.removeItem(k));
                 window.location.href = '/login';
                 return Promise.reject(refreshError);
             }

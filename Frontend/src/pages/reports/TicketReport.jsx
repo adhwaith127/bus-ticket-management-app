@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
-import TableSkeleton from '../../components/TableSkeleton';
-// import cacheManager from '../../utils/reportCache';
 import cacheManager from '../../assets/js/reportCache';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { KpiCard } from '@/components/ui/kpi-card';
+import {
+  Ticket, IndianRupee, CreditCard, Banknote,
+  Download, RefreshCw, AlertCircle, Eye,
+  ArrowUpDown, ArrowUp, ArrowDown, FileText,
+} from 'lucide-react';
 
 export default function TicketReport() {
   // ===== STATE MANAGEMENT =====
@@ -342,14 +351,6 @@ export default function TicketReport() {
     setCurrentPage(1); // reset to page 1 on sort change
   };
 
-  // Returns the arrow indicator for a given column header
-  const getSortIcon = (key) => {
-    if (sortConfig.key !== key) return <span className="ml-1 text-slate-300">↕</span>;
-    return sortConfig.direction === 'asc'
-      ? <span className="ml-1 text-slate-600">↑</span>
-      : <span className="ml-1 text-slate-600">↓</span>;
-  };
-
   // ===== SUMMARY CALCULATIONS =====
   const calculateSummary = (data) => {
     const totalTickets = data.reduce((sum, t) => sum + (t.total_tickets || 0), 0);
@@ -599,486 +600,338 @@ export default function TicketReport() {
 
   // ===== UI RENDER =====
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
+    <div className="p-3 sm:p-4 lg:p-6 min-h-screen bg-slate-50 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800">Ticket Transaction Reports</h1>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-slate-500">View and manage daily ticket transactions</p>
-            {lastUpdated && (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <div className={`w-2 h-2 rounded-full ${isPolling && !pollingPaused && isPageVisible ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                <span>{isPageVisible ? `Last updated ${timeAgo}` : 'Paused (tab inactive)'}</span>
-              </div>
-            )}
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md">
+            <FileText size={18} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Ticket Transaction Report</h1>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-sm text-slate-500">Daily ticket transactions</p>
+              {lastUpdated && (
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPolling && !pollingPaused && isPageVisible ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                  {isPageVisible ? `Updated ${timeAgo}` : 'Paused (tab inactive)'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <button
-          onClick={exportToExcel}
-          className="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl shadow-lg transition"
-        >
-          Download Report
-        </button>
+        <Button onClick={exportToExcel} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-700 text-white shadow-md">
+          <Download size={15} /> Download Report
+        </Button>
       </div>
 
       {/* Polling Paused Warning */}
       {pollingPaused && (
-        <div className="mb-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          Date range ended - live updates paused
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <AlertCircle size={15} className="shrink-0" />
+          Date range ended — live updates paused
         </div>
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Total Tickets</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-20 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.totalTickets}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Total Amount</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-24 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">₹{summary.totalAmount.toFixed(2)}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">UPI Payments</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-16 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.upiCount}</div>
-          )}
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-          <div className="text-slate-500 text-sm font-medium">Cash Payments</div>
-          {isRefreshing ? (
-            <div className="animate-pulse bg-slate-200 h-8 w-16 rounded mt-1"></div>
-          ) : (
-            <div className="text-2xl font-bold text-slate-800 mt-1">{summary.cashCount}</div>
-          )}
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <KpiCard title="Total Tickets"  value={isRefreshing ? '...' : String(summary.totalTickets)}  icon={Ticket}      color="#6366f1" loading={isRefreshing} />
+        <KpiCard title="Total Amount"   value={isRefreshing ? '...' : `₹${summary.totalAmount.toFixed(2)}`} icon={IndianRupee} color="#10b981" loading={isRefreshing} />
+        <KpiCard title="UPI Payments"   value={isRefreshing ? '...' : String(summary.upiCount)}    icon={CreditCard}  color="#3b82f6" loading={isRefreshing} />
+        <KpiCard title="Cash Payments"  value={isRefreshing ? '...' : String(summary.cashCount)}   icon={Banknote}    color="#f59e0b" loading={isRefreshing} />
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 md:p-6 mb-6">
-        {dateError && (
-          <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-center gap-2">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            {dateError}
-          </div>
-        )}
+      <Card className="mb-6 border-slate-200 shadow-sm rounded-2xl">
+        <CardContent className="p-4 md:p-5">
+          {dateError && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              <AlertCircle size={14} className="shrink-0" /> {dateError}
+            </div>
+          )}
+          {hasPendingChanges && !dateError && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-600">
+              <span className="animate-pulse">●</span>
+              Date filters modified — click Apply Filters to refresh data
+            </div>
+          )}
 
-        {hasPendingChanges && !dateError && (
-          <div className="mb-4 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
-            <span className="animate-pulse">●</span>
-            Date filters modified - click Apply Filters to refresh data
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Start Date</label>
-            <input 
-              max={getTodayDate()}
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">End Date</label>
-            <input 
-              max={getTodayDate()}
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Device ID</label>
-            <select
-              value={filters.deviceId}
-              onChange={(e) => handleClientFilter('deviceId', e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            >
-              <option value="ALL">ALL</option>
-              {deviceIds.map(id => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Depot Code</label>
-            <select
-              value={filters.depotCode}
-              onChange={(e) => handleClientFilter('depotCode', e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            >
-              <option value="ALL">ALL</option>
-              {depotCodes.map(code => (
-                <option key={code} value={code}>{code}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Start Date</label>
+              <Input type="date" max={getTodayDate()} value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className="text-sm h-9" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">End Date</label>
+              <Input type="date" max={getTodayDate()} value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className="text-sm h-9" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Device ID</label>
+              <select value={filters.deviceId} onChange={(e) => handleClientFilter('deviceId', e.target.value)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="ALL">ALL</option>
+                {deviceIds.map(id => <option key={id} value={id}>{id}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Depot Code</label>
+              <select value={filters.depotCode} onChange={(e) => handleClientFilter('depotCode', e.target.value)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="ALL">ALL</option>
+                {depotCodes.map(code => <option key={code} value={code}>{code}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Payment Mode</label>
+              <select value={filters.paymentMode} onChange={(e) => handleClientFilter('paymentMode', e.target.value)}
+                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="ALL">ALL</option>
+                {paymentModes.map(mode => <option key={mode} value={mode}>{mode}</option>)}
+              </select>
+            </div>
           </div>
 
-          <div className="flex flex-col">
-            <label className="text-xs font-medium text-slate-500 mb-1">Payment Mode</label>
-            <select
-              value={filters.paymentMode}
-              onChange={(e) => handleClientFilter('paymentMode', e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-slate-500 focus:border-slate-500"
-            >
-              <option value="ALL">ALL</option>
-              {paymentModes.map(mode => (
-                <option key={mode} value={mode}>{mode}</option>
-              ))}
-            </select>
+          <div className="flex justify-end mt-4 gap-2">
+            <Button variant="outline" onClick={clearFilters} className="text-slate-600 text-sm h-9">
+              Clear Filters
+            </Button>
+            <Button onClick={handleApplyFilters} disabled={!filters.startDate || !filters.endDate}
+              className={`text-sm h-9 text-white ${hasPendingChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 hover:bg-slate-800'}`}>
+              <RefreshCw size={13} className="mr-1.5" /> Apply Filters
+            </Button>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex justify-end mt-4 gap-3">
-          <button
-            onClick={clearFilters}
-            className="border border-slate-300 px-4 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-100 transition"
-          >
-            Clear Filters
-          </button>
-          <button
-            onClick={handleApplyFilters}
-            disabled={!filters.startDate || !filters.endDate}
-            className={`px-5 py-2 rounded-lg text-sm text-white transition ${
-              hasPendingChanges 
-                ? 'bg-blue-600 hover:bg-blue-700 shadow-lg' 
-                : 'bg-slate-600 hover:bg-slate-700'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            Apply Filters
-          </button>
-        </div>
-      </div>
-
-      <div className="text-sm text-slate-500 mb-3">
+      <div className="text-xs text-slate-400 mb-2 px-1">
         Showing {currentData.length} of {sortedData.length} transactions
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
-        {isRefreshing && (
-          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
-              <div className="text-slate-600 font-medium">Loading data...</div>
+      <Card className="border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+        <CardContent className="p-0 relative">
+          {isRefreshing && (
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-2xl">
+              <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
+                <RefreshCw size={16} className="animate-spin" /> Loading data...
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left border-collapse">
-            {/* ===== TABLE HEADER ===== */}
-            {/* Sortable columns use cursor-pointer and show ↕/↑/↓ icons        */}
-            {/* Non-sortable columns use default cursor (no pointer, no icon)     */}
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase tracking-wide">
-              <tr>
-                {/* Non-sortable */}
-                <th className="px-4 py-3 font-semibold">Device ID</th>
-
-                {/* Sortable: Trip No */}
-                <th
-                  className="px-4 py-3 font-semibold select-none"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleSort('trip_number')}
-                >
-                  Trip No {getSortIcon('trip_number')}
-                </th>
-
-                {/* Sortable: Ticket No */}
-                <th
-                  className="px-4 py-3 font-semibold select-none"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleSort('ticket_number')}
-                >
-                  Ticket No {getSortIcon('ticket_number')}
-                </th>
-
-                {/* Sortable: Date */}
-                <th
-                  className="px-4 py-3 font-semibold select-none"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleSort('formatted_ticket_date')}
-                >
-                  Date {getSortIcon('formatted_ticket_date')}
-                </th>
-
-                {/* Sortable: Time */}
-                <th
-                  className="px-4 py-3 font-semibold select-none"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleSort('ticket_time')}
-                >
-                  Time {getSortIcon('ticket_time')}
-                </th>
-
-                {/* Non-sortable */}
-                <th className="px-4 py-3 font-semibold">Depot</th>
-
-                {/* Sortable: Total Count */}
-                <th
-                  className="px-4 py-3 font-semibold select-none"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleSort('total_tickets')}
-                >
-                  Total Count {getSortIcon('total_tickets')}
-                </th>
-
-                {/* Sortable: Amount */}
-                <th
-                  className="px-4 py-3 font-semibold select-none"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleSort('ticket_amount')}
-                >
-                  Amount {getSortIcon('ticket_amount')}
-                </th>
-
-                {/* Non-sortable */}
-                <th className="px-4 py-3 font-semibold">Payment Type</th>
-                <th className="px-4 py-3 font-semibold">Info</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {isRefreshing && !currentData.length ? (
-                <TableSkeleton columns={['w-16', 'w-16', 'w-16', 'w-20', 'w-16', 'w-16', 'w-16', 'w-20', 'w-20', 'w-16']} />
-              ) : currentData.length ? (
-                currentData.map((t) => (
-                  <tr 
-                    key={t.id} 
-                    className={`hover:bg-slate-50 transition ${
-                      newTicketIds.has(t.id) ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-3">{t.device_id}</td>
-                    <td className="px-4 py-3">{t.trip_number}</td>
-                    <td className="px-4 py-3">{t.ticket_number || "-"}</td>
-                    <td className="px-4 py-3">{t.formatted_ticket_date}</td>
-                    <td className="px-4 py-3">{t.ticket_time}</td>
-                    <td className="px-4 py-3">{t.depot_code || "-"}</td>
-                    <td className="px-4 py-3">{t.total_tickets}</td>
-                    <td className="px-4 py-3">₹{t.ticket_amount}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        t.payment_mode_display === 'UPI' 
-                          ? 'bg-blue-100 text-blue-700' 
-                          : 'bg-green-100 text-green-700'
-                      }`}>
-                        {t.payment_mode_display}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Device ID</th>
+                  {[
+                    { label: 'Trip No',    key: 'trip_number' },
+                    { label: 'Ticket No',  key: 'ticket_number' },
+                    { label: 'Date',       key: 'formatted_ticket_date' },
+                    { label: 'Time',       key: 'ticket_time' },
+                  ].map(({ label, key }) => (
+                    <th key={key} className="px-4 py-3 font-semibold cursor-pointer select-none hover:text-slate-800"
+                      onClick={() => handleSort(key)}>
+                      <span className="flex items-center gap-1">
+                        {label}
+                        {sortConfig.key !== key
+                          ? <ArrowUpDown size={12} className="text-slate-300" />
+                          : sortConfig.direction === 'asc'
+                            ? <ArrowUp size={12} className="text-slate-600" />
+                            : <ArrowDown size={12} className="text-slate-600" />}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => openModal(t)}
-                        className="text-slate-600 hover:text-slate-900 transition"
-                        title="View Details"
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" />
-                        </svg>
-                      </button>
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 font-semibold">Depot</th>
+                  {[
+                    { label: 'Total Count', key: 'total_tickets' },
+                    { label: 'Amount',      key: 'ticket_amount' },
+                  ].map(({ label, key }) => (
+                    <th key={key} className="px-4 py-3 font-semibold cursor-pointer select-none hover:text-slate-800"
+                      onClick={() => handleSort(key)}>
+                      <span className="flex items-center gap-1">
+                        {label}
+                        {sortConfig.key !== key
+                          ? <ArrowUpDown size={12} className="text-slate-300" />
+                          : sortConfig.direction === 'asc'
+                            ? <ArrowUp size={12} className="text-slate-600" />
+                            : <ArrowDown size={12} className="text-slate-600" />}
+                      </span>
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 font-semibold">Payment</th>
+                  <th className="px-4 py-3 font-semibold"></th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {isRefreshing && !currentData.length ? (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      {[70,60,70,80,60,60,60,80,80,40].map((w, j) => (
+                        <td key={j} className="px-4 py-3.5">
+                          <div className="h-3 bg-slate-200 rounded-full animate-pulse" style={{ width: w }} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : currentData.length ? (
+                  currentData.map((t) => (
+                    <tr key={t.id}
+                      className={`transition-colors hover:bg-slate-50/70 ${newTicketIds.has(t.id) ? 'bg-slate-100/60' : ''}`}>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{t.device_id}</td>
+                      <td className="px-4 py-3 text-slate-700">{t.trip_number}</td>
+                      <td className="px-4 py-3 text-slate-700">{t.ticket_number || '—'}</td>
+                      <td className="px-4 py-3 text-slate-600">{t.formatted_ticket_date}</td>
+                      <td className="px-4 py-3 text-slate-600">{t.ticket_time}</td>
+                      <td className="px-4 py-3 text-slate-700">{t.depot_code || '—'}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">{t.total_tickets}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800">₹{t.ticket_amount}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant="outline"
+                          className={t.payment_mode_display === 'UPI'
+                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'}>
+                          {t.payment_mode_display}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Button variant="ghost" size="sm" onClick={() => openModal(t)}
+                          className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                          <Eye size={14} />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-12 text-center">
+                      <FileText size={28} className="mx-auto text-slate-300 mb-2" />
+                      <p className="text-slate-400 text-sm">No transactions found for selected filters</p>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
-                    No transaction data found for selected filters
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center space-x-2 mt-6">
-          <button
-            onClick={() => changePage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
+        <div className="flex items-center justify-center gap-1.5 mt-5">
+          <Button variant="outline" size="sm" onClick={() => changePage(currentPage - 1)}
+            disabled={currentPage === 1} className="h-8 px-3 text-xs">
             Prev
-          </button>
-
+          </Button>
           {getPaginationRange(currentPage, totalPages).map((page) => (
-            <button
-              key={page}
-              onClick={() => changePage(page)}
-              className={`px-3 py-1.5 rounded-lg border transition ${
-                currentPage === page
-                  ? "bg-slate-800 text-white border-slate-800"
-                  : "border-slate-300 hover:bg-slate-50"
-              }`}
-            >
+            <Button key={page} size="sm" onClick={() => changePage(page)}
+              className={`h-8 w-8 p-0 text-xs ${currentPage === page
+                ? 'bg-slate-900 hover:bg-slate-700 text-white'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
               {page}
-            </button>
+            </Button>
           ))}
-
-          <button
-            onClick={() => changePage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
-          >
+          <Button variant="outline" size="sm" onClick={() => changePage(currentPage + 1)}
+            disabled={currentPage === totalPages} className="h-8 px-3 text-xs">
             Next
-          </button>
+          </Button>
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && selectedTransaction && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-800">Transaction Details</h2>
-              <button
-                onClick={closeModal}
-                className="text-slate-400 hover:text-slate-600 transition"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+      {/* Transaction Detail Dialog */}
+      <Dialog open={showModal} onOpenChange={(open) => { if (!open) closeModal(); }}>
+        <DialogContent className="sm:max-w-3xl rounded-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <Ticket size={16} className="text-slate-600" /> Transaction Details
+            </DialogTitle>
+          </DialogHeader>
 
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-slate-500 font-medium">Ticket Type</div>
-                  <div className="text-sm text-slate-800 mt-1">{selectedTransaction.ticket_type_display}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500 font-medium">Request Type</div>
-                  <div className="text-sm text-slate-800 mt-1">{selectedTransaction.request_type || "-"}</div>
+          {selectedTransaction && (
+            <div className="space-y-4 pt-1">
+              {/* Route + Type */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Ticket Type',   val: selectedTransaction.ticket_type_display },
+                  { label: 'Request Type',  val: selectedTransaction.request_type || '—' },
+                  { label: 'From Stage',    val: selectedTransaction.from_stage },
+                  { label: 'To Stage',      val: selectedTransaction.to_stage },
+                ].map(({ label, val }) => (
+                  <div key={label} className="rounded-lg bg-slate-50 px-3 py-2.5">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+                    <p className="text-sm font-medium text-slate-800 mt-0.5">{val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Passenger counts */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Passenger Counts</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: 'Full',     val: selectedTransaction.full_count },
+                    { label: 'Half',     val: selectedTransaction.half_count },
+                    { label: 'Student',  val: selectedTransaction.st_count },
+                    { label: 'Physical', val: selectedTransaction.phy_count },
+                    { label: 'Luggage',  val: selectedTransaction.lugg_count },
+                    { label: 'Ladies',   val: selectedTransaction.ladies_count },
+                    { label: 'Senior',   val: selectedTransaction.senior_count },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="rounded-lg bg-slate-50 px-3 py-2 text-center">
+                      <p className="text-[10px] text-slate-400 font-medium">{label}</p>
+                      <p className="text-sm font-bold text-slate-800">{val ?? '—'}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-slate-500 font-medium">From Stage</div>
-                  <div className="text-sm text-slate-800 mt-1">{selectedTransaction.from_stage}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500 font-medium">To Stage</div>
-                  <div className="text-sm text-slate-800 mt-1">{selectedTransaction.to_stage}</div>
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 pt-4">
-                <h3 className="font-semibold text-slate-700 mb-3">Passenger Counts</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Full</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.full_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Half</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.half_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Student</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.st_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Physical</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.phy_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Luggage</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.lugg_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Ladies</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.ladies_count}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Senior</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.senior_count}</div>
-                  </div>
+              {/* Amounts */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Amount Details</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Luggage Amount',  val: `₹${selectedTransaction.lugg_amount}` },
+                    { label: 'Adjust Amount',   val: `₹${selectedTransaction.adjust_amount}` },
+                    { label: 'Warrant Amount',  val: `₹${selectedTransaction.warrant_amount}` },
+                    { label: 'Refund Amount',   val: `₹${selectedTransaction.refund_amount}` },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="rounded-lg bg-slate-50 px-3 py-2.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5">{val}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="border-t border-slate-200 pt-4">
-                <h3 className="font-semibold text-slate-700 mb-3">Amount Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Luggage Amount</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTransaction.lugg_amount}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Adjust Amount</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTransaction.adjust_amount}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Warrant Amount</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTransaction.warrant_amount}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Refund Amount</div>
-                    <div className="text-sm text-slate-800 mt-1">₹{selectedTransaction.refund_amount}</div>
-                  </div>
+              {/* Reference */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Reference Information</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Transaction ID',   val: selectedTransaction.transaction_id || '—' },
+                    { label: 'Reference Number', val: selectedTransaction.reference_number || '—' },
+                    { label: 'Pass ID',          val: selectedTransaction.pass_id || '—' },
+                    { label: 'Refund Status',    val: selectedTransaction.refund_status || '—' },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="rounded-lg bg-slate-50 px-3 py-2.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5 break-all">{val}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="border-t border-slate-200 pt-4">
-                <h3 className="font-semibold text-slate-700 mb-3">Reference Information</h3>
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Transaction ID</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.transaction_id || "-"}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Reference Number</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.reference_number || "-"}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Pass ID</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.pass_id || "-"}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 font-medium">Refund Status</div>
-                    <div className="text-sm text-slate-800 mt-1">{selectedTransaction.refund_status || "-"}</div>
-                  </div>
-                </div>
+              <div className="flex justify-end pt-2 border-t border-slate-100">
+                <Button onClick={closeModal} variant="outline" className="text-slate-600">Close</Button>
               </div>
             </div>
-
-            <div className="border-t border-slate-200 px-6 py-4 flex justify-end">
-              <button
-                onClick={closeModal}
-                className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

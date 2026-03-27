@@ -377,15 +377,12 @@ def logout_view(request):
             mapping.is_active = False
             mapping.save(update_fields=["is_active", "updated_at"])
 
-    # Blacklist the refresh token so it cannot issue new access tokens.
-    # The current access token remains valid until its 30-min expiry — this
-    # is the standard JWT trade-off; reducing ACCESS_TOKEN_LIFETIME shrinks that window.
+    # Blacklist the refresh token asynchronously so the response is not delayed.
+    # The cookie is deleted below — the client loses the token immediately regardless.
     refresh_token_str = request.COOKIES.get("refresh_token")
     if refresh_token_str:
-        try:
-            RefreshToken(refresh_token_str).blacklist()
-        except TokenError:
-            pass  # Already expired or invalid — nothing to blacklist
+        from TicketAppB.tasks import blacklist_refresh_token
+        blacklist_refresh_token.delay(refresh_token_str)
 
     return _build_logout_response("Logged out successfully")
 

@@ -1,4 +1,5 @@
 import logging
+from django.db import transaction
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -363,9 +364,6 @@ def get_fare_editor(request, route_id):
         'stage_name': rs.stage.stage_name,
     } for rs in stages]
 
-    print(stages)
-    print(stage_list)
-
     n_stages = len(stage_list)
 
     if n_stages == 0:
@@ -381,7 +379,6 @@ def get_fare_editor(request, route_id):
         }, status=status.HTTP_200_OK)
 
     fares = Fare.objects.filter(route=route).order_by('row', 'col')
-    print(fares)
 
     if route.fare_type == 1:
         fare_dict = {f.col: f.fare_amount for f in fares if f.row == 1}
@@ -461,6 +458,8 @@ def update_fare_table(request, route_id):
 
         for i, row in enumerate(fare_matrix):
             for j, fare_amount in enumerate(row):
+                if i <= j:  # only store lower triangle (row > col), matching EXE format
+                    continue
                 if fare_amount == 0:
                     continue
                 fares_to_create.append(
@@ -472,3 +471,162 @@ def update_fare_table(request, route_id):
 
     fare_type_name = 'Table Fare' if route.fare_type == 1 else 'Graph Fare'
     return Response({'message': f'{fare_type_name} updated successfully. {len(fares_to_create)} fare records created.'}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+def create_route_wizard(request):
+    """
+    Creates a route, its stages, and fare data in one atomic transaction.
+    Replaces the 3-step wizard flow: route info → fare entry → stage names.
+    """
+    user, company, err = _get_authenticated_company_admin(request)
+    if err:
+        return err
+
+    data = request.data
+    route_code   = str(data.get('route_code', '')).strip()
+    route_name   = str(data.get('route_name', '')).strip()
+    min_fare     = data.get('min_fare')
+    fare_type_raw = data.get('fare_type')
+    bus_type_id  = data.get('bus_type')
+    stages_data  = data.get('stages', [])
+
+    if not all([route_code, route_name, min_fare is not None, fare_type_raw, bus_type_id]):
+        return Response(
+            {'message': 'route_code, route_name, min_fare, fare_type, and bus_type are required.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not stages_data or not isinstance(stages_data, list) or len(stages_data) == 0:
+        return Response({'message': 'At least one stage is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        fare_type = int(fare_type_raw)
+    except (ValueError, TypeError):
+        return Response({'message': 'Invalid fare_type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    n_stages = len(stages_data)
+
+    if fare_type == 2 and n_stages <= 2:
+        return Response(
+            {'message': 'No of stages should be greater than 2 in Graph fare.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    fare_list   = data.get('fare_list', [])
+    fare_matrix = data.get('fare_matrix', [])
+
+    if fare_type == 1:
+        if not isinstance(fare_list, list) or len(fare_list) != n_stages:
+            return Response(
+                {'message': f'fare_list must have exactly {n_stages} entries.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    else:
+        if not isinstance(fare_matrix, list) or len(fare_matrix) != n_stages:
+            return Response(
+                {'message': f'fare_matrix must have exactly {n_stages} rows.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        for i, row in enumerate(fare_matrix):
+            if not isinstance(row, list) or len(row) != n_stages:
+                return Response(
+                    {'message': f'fare_matrix row {i + 1} must have {n_stages} columns.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+    try:
+        with transaction.atomic():
+            try:
+                bus_type_obj = BusType.objects.get(id=int(bus_type_id), company=company)
+            except (BusType.DoesNotExist, ValueError):
+                return Response({'message': 'Invalid bus type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            route = Route.objects.create(
+                route_code=route_code,
+                route_name=route_name,
+                min_fare=min_fare,
+                fare_type=fare_type,
+                bus_type=bus_type_obj,
+                use_stop=bool(data.get('use_stop', False)),
+                half=bool(data.get('half', False)),
+                luggage=bool(data.get('luggage', False)),
+                student=bool(data.get('student', False)),
+                adjust=bool(data.get('adjust', False)),
+                conc=bool(data.get('conc', False)),
+                ph=bool(data.get('ph', False)),
+                pass_allow=bool(data.get('pass_allow', False)),
+                start_from=int(data.get('start_from', 0)),
+                company=company,
+                created_by=user,
+            )
+
+            for idx, stage_data in enumerate(stages_data):
+                stage_name = str(stage_data.get('stage_name', '')).strip()
+                distance   = stage_data.get('distance', 0)
+                seq        = idx + 1
+
+                base_code  = f"{route_code}_{seq}"
+                stage_code = base_code
+                counter    = 1
+                while Stage.objects.filter(company=company, stage_code=stage_code).exists():
+                    stage_code = f"{base_code}_{counter}"
+                    counter   += 1
+
+                stage_obj = Stage.objects.create(
+                    stage_code=stage_code,
+                    stage_name=stage_name,
+                    company=company,
+                    created_by=user,
+                )
+                RouteStage.objects.create(
+                    route=route,
+                    stage=stage_obj,
+                    sequence_no=seq,
+                    distance=distance,
+                    company=company,
+                    created_by=user,
+                )
+
+            fares_to_create = []
+            if fare_type == 1:
+                for col_idx, fare_amount in enumerate(fare_list):
+                    if int(fare_amount or 0) == 0:
+                        continue
+                    fares_to_create.append(
+                        Fare(route=route, row=1, col=col_idx + 1,
+                             fare_amount=int(fare_amount),
+                             route_name=route.route_name,
+                             company=company, created_by=user)
+                    )
+            else:
+                for i, row_data in enumerate(fare_matrix):
+                    for j, fare_amount in enumerate(row_data):
+                        if i <= j:  # only store lower triangle (row > col), matching EXE format
+                            continue
+                        if int(fare_amount or 0) == 0:
+                            continue
+                        fares_to_create.append(
+                            Fare(route=route, row=i + 1, col=j + 1,
+                                 fare_amount=int(fare_amount),
+                                 route_name=route.route_name,
+                                 company=company, created_by=user)
+                        )
+
+            if fares_to_create:
+                Fare.objects.bulk_create(fares_to_create)
+
+            route_final = Route.objects.prefetch_related(
+                'route_stages__stage', 'route_bus_types__bus_type'
+            ).get(pk=route.id)
+            return Response(
+                {'message': 'Route created successfully', 'data': RouteSerializer(route_final).data},
+                status=status.HTTP_201_CREATED
+            )
+
+    except Exception as e:
+        logger.error(f"create_route_wizard error: {e}")
+        return Response(
+            {'message': f'Failed to create route: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

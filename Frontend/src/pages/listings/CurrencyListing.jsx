@@ -1,34 +1,48 @@
 import { useState, useEffect } from 'react';
-import Modal from '../../components/Modal';
-import SearchBar from '../../components/SearchBar';
-import TableSkeleton from '../../components/TableSkeleton';
+import { Coins, Plus, Eye, Pencil, Search } from 'lucide-react';
 import { useFilteredList } from '../../assets/js/useFilteredList';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
+import { Button }   from '@/components/ui/button';
+import { Input }    from '@/components/ui/input';
+import { Label }    from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function CurrencyListing() {
 
-  // ── Section 1: State Management ──────────────────────────────────────────────
+  // ── State ────────────────────────────────────────────────────────────────────
   const [currencies, setCurrencies]   = useState([]);
   const [loading, setLoading]         = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode]     = useState('create');
   const [submitting, setSubmitting]   = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   const emptyForm = { currency: '', country: '' };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Section 2: Search & Filter Logic ───────────────────────────────────────
-  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
-    currencies,
-    ['currency', 'country']
+  // ── Search ───────────────────────────────────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm } = useFilteredList(
+    currencies, ['currency', 'country']
   );
 
-  // ── Section 3a: Data Fetching ────────────────────────────────────────────────
+  // ── Pagination ───────────────────────────────────────────────────────────────
+  const indexOfLast  = currentPage * itemsPerPage;
+  const indexOfFirst = indexOfLast - itemsPerPage;
+  const currentItems = filteredItems.slice(indexOfFirst, indexOfLast);
+  const totalPages   = Math.ceil(filteredItems.length / itemsPerPage);
+  const getPageNumbers = () => {
+    let s = Math.max(1, currentPage - 1);
+    let e = Math.min(totalPages, s + 2);
+    if (e - s < 2) s = Math.max(1, e - 2);
+    return Array.from({ length: e - s + 1 }, (_, i) => s + i);
+  };
+
+  // ── Data ─────────────────────────────────────────────────────────────────────
   useEffect(() => { fetchCurrencies(); }, []);
 
   const fetchCurrencies = async () => {
@@ -63,123 +77,89 @@ export default function CurrencyListing() {
     } catch (err) {
       if (!err.response) return window.alert('Server unreachable. Try later.');
       const { data } = err.response;
-      const firstError = data.errors ? Object.values(data.errors)[0][0] : data.message;
-      window.alert(firstError || 'Validation failed');
+      window.alert((data.errors ? Object.values(data.errors)[0][0] : data.message) || 'Validation failed');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Section 3b: Pagination Logic ─────────────────────────────────────────────
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-
-  const getPageNumbers = () => {
-    let startPage = Math.max(1, currentPage - 1);
-    let endPage = Math.min(totalPages, startPage + 2);
-    
-    if (endPage - startPage < 2) {
-      startPage = Math.max(1, endPage - 2);
-    }
-    
-    const pages = [];
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-    return pages;
-  };
-
-  // ── Section 4: Modal Helpers ─────────────────────────────────────────────────
+  // ── Modal helpers ─────────────────────────────────────────────────────────────
   const openCreateModal = () => { setFormData(emptyForm); setEditingItem(null); setModalMode('create'); setIsModalOpen(true); };
   const openViewModal   = (item) => { setFormData(item); setEditingItem(item); setModalMode('view');   setIsModalOpen(true); };
   const openEditModal   = (item) => { setFormData(item); setEditingItem(item); setModalMode('edit');   setIsModalOpen(true); };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
+  const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   const isReadOnly    = modalMode === 'view';
   const getModalTitle = () => ({ view: 'Currency Details', edit: 'Edit Currency', create: 'Create Currency' }[modalMode]);
 
-  // ── Section 5: Render ────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 animate-fade-in">
+    <div className="p-3 sm:p-5 lg:p-7 min-h-screen bg-slate-50">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent tracking-tight">
-            Currencies
-          </h1>
-          <p className="text-slate-600 mt-1.5">Manage currency master data</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-slate-900">
+            <Coins size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Currencies</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Manage currency master data</p>
+          </div>
         </div>
-        <button onClick={openCreateModal} className="flex items-center justify-center bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-          <span className="mr-2 text-lg">+</span>
-          <span className="font-medium">Create Currency</span>
-        </button>
+        <Button onClick={openCreateModal} className="bg-slate-900 hover:bg-slate-700 text-white gap-2 shadow-sm">
+          <Plus size={16} /> Create Currency
+        </Button>
       </div>
 
-      {/* Search Bar */}
-      <SearchBar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        onReset={resetSearch}
-        placeholder="Search by currency code or country..."
-      />
+      {/* Total chip */}
+      <div className="flex gap-2 mb-5">
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm shadow-xs">
+          <span className="text-slate-500">Total</span>
+          <span className="font-bold text-slate-800">{currencies.length}</span>
+        </div>
+      </div>
 
-      {/* Enhanced Table */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
+      {/* Table card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+        {/* Search */}
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+          <Search size={15} className="text-slate-400 shrink-0" />
+          <Input
+            placeholder="Search by currency code or country..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border-0 shadow-none focus-visible:ring-0 text-sm h-8 px-0"
+          />
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-b border-slate-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Currency Code</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Country</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['ID', 'Currency Code', 'Country', ''].map(h => (
+                  <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <TableSkeleton columns={['w-8', 'w-16', 'w-32', 'w-16']} />
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>{[60, 80, 140, 60].map((w, j) => (
+                    <td key={j} className="px-5 py-3"><Skeleton className="h-4 rounded" style={{ width: w }} /></td>
+                  ))}</tr>
+                ))
               ) : currentItems.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="rounded-full bg-slate-100 p-3 mb-3">
-                        <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <p className="text-slate-500 font-medium">No currencies found</p>
-                      <p className="text-slate-400 text-sm mt-1">Create your first currency to get started</p>
-                    </div>
-                  </td>
-                </tr>
+                <tr><td colSpan={4} className="px-5 py-10 text-center text-slate-400 text-sm">No currencies found.</td></tr>
               ) : currentItems.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-150">
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-500 font-mono">#{item.id}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-slate-800 font-bold uppercase">{item.currency}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-slate-700">{item.country}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end items-center gap-2">
-                      <button onClick={() => openViewModal(item)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all duration-150">
-                        View
-                      </button>
-                      <button onClick={() => openEditModal(item)} className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-150">
-                        Edit
-                      </button>
+                <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="px-5 py-3.5"><span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span></td>
+                  <td className="px-5 py-3.5"><span className="font-bold text-slate-800 uppercase text-sm tracking-wide">{item.currency}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-700 text-sm">{item.country}</span></td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => openViewModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="View"><Eye size={14} /></button>
+                      <button onClick={() => openEditModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="Edit"><Pencil size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -190,89 +170,59 @@ export default function CurrencyListing() {
 
         {/* Pagination */}
         {!loading && filteredItems.length > 0 && totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Showing <span className="font-medium text-slate-900">{indexOfFirstItem + 1}</span> to{' '}
-                <span className="font-medium text-slate-900">{Math.min(indexOfLastItem, currencies.length)}</span> of{' '}
-                <span className="font-medium text-slate-900">{currencies.length}</span> results
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => prev - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-                >
-                  Previous
-                </button>
-
-                <div className="flex items-center gap-1">
-                  {getPageNumbers().map(pageNum => (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[2.5rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${
-                        currentPage === pageNum
-                          ? 'bg-slate-800 text-white shadow-md'
-                          : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => setCurrentPage(prev => prev + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-                >
-                  Next
-                </button>
-              </div>
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              Showing {indexOfFirst + 1}–{Math.min(indexOfLast, currencies.length)} of {currencies.length}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="h-7 px-2.5 text-xs">Prev</Button>
+              {getPageNumbers().map(n => (
+                <Button key={n} size="sm" onClick={() => setCurrentPage(n)}
+                  className={`h-7 w-7 p-0 text-xs ${currentPage === n ? 'bg-slate-900 hover:bg-slate-700 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                  {n}
+                </Button>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="h-7 px-2.5 text-xs">Next</Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
-        <div className="space-y-5">
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Currency Code *</label>
-            <input
-              type="text" name="currency" value={formData.currency}
-              onChange={handleInputChange} readOnly={isReadOnly}
-              placeholder="e.g. INR"
-              maxLength={3}
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-600 uppercase transition-all"
-            />
+      {/* Dialog */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <span className="p-1.5 rounded-lg bg-slate-900"><Coins size={14} className="text-white" /></span>
+              {getModalTitle()}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label className="text-slate-700">Currency Code *</Label>
+              <Input name="currency" value={formData.currency} onChange={handleInputChange} readOnly={isReadOnly}
+                placeholder="e.g. INR" maxLength={3}
+                className={`uppercase ${isReadOnly ? 'bg-slate-50 text-slate-600' : ''}`} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-slate-700">Country *</Label>
+              <Input name="country" value={formData.country} onChange={handleInputChange} readOnly={isReadOnly}
+                placeholder="e.g. India"
+                className={isReadOnly ? 'bg-slate-50 text-slate-600' : ''} />
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setIsModalOpen(false)} className="text-slate-600">
+                {isReadOnly ? 'Close' : 'Cancel'}
+              </Button>
+              {!isReadOnly && (
+                <Button onClick={handleSubmit} disabled={submitting} className="bg-slate-900 hover:bg-slate-700 text-white">
+                  {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update' : 'Save'}
+                </Button>
+              )}
+            </div>
           </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Country *</label>
-            <input
-              type="text" name="country" value={formData.country}
-              onChange={handleInputChange} readOnly={isReadOnly}
-              placeholder="e.g. India"
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-600 transition-all"
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-all">
-              {isReadOnly ? 'Close' : 'Cancel'}
-            </button>
-            {!isReadOnly && (
-              <button type="button" onClick={handleSubmit} disabled={submitting} className="px-5 py-2.5 text-sm font-medium text-white bg-slate-800 rounded-xl hover:bg-slate-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update' : 'Save'}
-              </button>
-            )}
-          </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

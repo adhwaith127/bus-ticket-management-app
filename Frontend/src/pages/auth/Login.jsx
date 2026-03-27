@@ -1,11 +1,18 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 import login_img from '../../assets/images/login.jpg';
 
 export default function Login() {
   const navigate = useNavigate();
-  
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (localStorage.getItem('user')) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [navigate]);
+
   // ========== SECTION 1: STATE MANAGEMENT ==========
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');

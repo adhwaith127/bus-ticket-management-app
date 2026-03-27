@@ -15,7 +15,6 @@ import UserListing from './pages/listings/UserListing'
 import DepotListing from './pages/listings/DepotListing'
 import BusTypeListing from './pages/listings/BusTypeListing'
 import EmployeeTypeListing from './pages/listings/EmployeeTypeListing'
-import StageListing from './pages/listings/StageListing'
 import CurrencyListing from './pages/listings/CurrencyListing'
 import EmployeeListing from './pages/listings/EmployeeListing'
 import VehicleListing from './pages/listings/VehicleListing'
@@ -106,10 +105,6 @@ const router = createBrowserRouter([
           {
             path: 'master-data/employee-types',
             element: <EmployeeTypeListing />
-          },
-          {
-            path: 'master-data/stages',
-            element: <StageListing />
           },
           {
             path: 'master-data/currencies',
