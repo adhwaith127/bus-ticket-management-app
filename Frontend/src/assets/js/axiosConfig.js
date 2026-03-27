@@ -28,8 +28,6 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        console.log(`API Error on ${originalRequest.url}:`, error.response?.status);
-        
         // No need to retry these endpoints
         if (originalRequest.url?.includes('/token/refresh') || 
             originalRequest.url?.includes('/login') ||
@@ -42,18 +40,13 @@ api.interceptors.response.use(
             originalRequest._retry = true;
             
             try {
-                console.log('Access token expired, refreshing...');
-                
                 // Use separate instance to avoid interceptor
                 await refreshApi.post('/token/refresh');
-                
-                console.log('Token refreshed, retrying request...');
-                
+
                 // Retry the original request
                 return api(originalRequest);
                 
             } catch (refreshError) {
-                console.error('Token refresh failed, redirecting to login');
                 localStorage.removeItem('user');
                 window.location.href = '/login';
                 return Promise.reject(refreshError);
