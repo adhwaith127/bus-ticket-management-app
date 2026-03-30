@@ -77,9 +77,9 @@ export default function ImportResults({ result, onReset }) {
           <p className="text-2xl font-bold text-emerald-700">{result.imported}</p>
           <p className="text-xs text-emerald-600 mt-0.5">New</p>
         </div>
-        <div className="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
-          <p className="text-2xl font-bold text-blue-700">{result.existing ?? 0}</p>
-          <p className="text-xs text-blue-600 mt-0.5">Existing</p>
+        <div className="bg-slate-50 rounded-lg p-3 text-center border border-slate-200">
+          <p className="text-2xl font-bold text-slate-700">{result.existing ?? 0}</p>
+          <p className="text-xs text-slate-500 mt-0.5">Existing</p>
         </div>
         <div className="bg-red-50 rounded-lg p-3 text-center border border-red-200">
           <p className="text-2xl font-bold text-red-700">{result.skipped}</p>
@@ -107,7 +107,7 @@ export default function ImportResults({ result, onReset }) {
                   <tr key={i} className="border-t border-slate-100">
                     <td className="px-3 py-2 text-slate-700 font-medium">{t.table}</td>
                     <td className="px-3 py-2 text-right text-emerald-700">{t.imported}</td>
-                    <td className="px-3 py-2 text-right text-blue-600">{t.existing ?? 0}</td>
+                    <td className="px-3 py-2 text-right text-slate-500">{t.existing ?? 0}</td>
                     <td className={`px-3 py-2 text-right ${t.skipped > 0 ? 'text-red-600' : 'text-slate-400'}`}>
                       {t.skipped}
                     </td>

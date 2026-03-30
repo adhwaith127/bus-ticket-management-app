@@ -371,9 +371,14 @@ export default function Sidebar() {
               isCollapsed ? "max-h-0 opacity-0" : "max-h-10 opacity-100"
             }`}
           >
-            <p className="text-center text-[9.5px] text-slate-400 pt-1 tracking-wide">
-              © Softland India Ltd — All Rights Reserved
-            </p>
+            <div className="flex flex-col items-center gap-0.5 pt-1">
+              <p className="text-[10px] font-semibold text-slate-600 tracking-wide">
+                © Softland India Ltd
+              </p>
+              <p className="text-[9px] text-slate-500 tracking-wider uppercase">
+                All Rights Reserved
+              </p>
+            </div>
           </div>
         </div>
       </aside>

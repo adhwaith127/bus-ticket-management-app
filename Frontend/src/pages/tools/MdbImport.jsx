@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBlocker } from 'react-router-dom';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
+import { Database } from 'lucide-react';
 
 // Components — each handles one step's UI only
 import FileUploadStep   from '../../components/FileUploadStep';
@@ -298,15 +299,18 @@ export default function MdbImport() {
   // ==================== RENDER ====================
 
   return (
-    <div className="p-6 md:p-10 animate-fade-in">
-      <div className="max-w-2xl">
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
+      <div className="max-w-2xl mx-auto">
 
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Import MDB Data</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Upload a Microsoft Access (.mdb) file to import data into the system.
-          </p>
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-2.5 rounded-xl bg-slate-900 text-white shadow">
+            <Database size={20} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Import MDB Data</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Upload a Microsoft Access (.mdb) file to import data into the system.</p>
+          </div>
         </div>
 
         {/* Step Indicator */}

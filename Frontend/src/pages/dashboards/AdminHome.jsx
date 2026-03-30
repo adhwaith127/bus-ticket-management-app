@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import api, { BASE_URL } from "../../assets/js/axiosConfig";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { Building2, CheckCircle2, XCircle, Clock, Users, LayoutDashboard, UserRound } from "lucide-react";
 
 export default function AdminHome() {
   const storedUser = localStorage.getItem("user")
@@ -35,167 +37,159 @@ export default function AdminHome() {
   const users = summary.user_summary;
 
   return (
-    <div className="w-full px-6 py-6 animate-fade-in">
+    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
 
       {/* Header */}
-      <h1 className="text-2xl font-semibold text-slate-800 mb-6">
-        Welcome, {username}
-      </h1>
+      <div className="flex items-center gap-4 mb-8">
+        <div className="p-2.5 rounded-xl bg-slate-900 text-white shadow">
+          <LayoutDashboard size={20} />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Dashboard</h1>
+          <p className="text-sm text-slate-500">Welcome back, {username}</p>
+        </div>
+      </div>
 
-      {/* Loading skeleton */}
-      {loading && (
-        <>
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-            <div className="mb-4 space-y-1.5">
-              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse" />
-              <div className="h-3 w-64 bg-slate-100 rounded animate-pulse" />
+      {/* ── Company Overview ─────────────────────────────────────────────── */}
+      <section className="mb-6">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Company Overview</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Registrations &amp; validation status</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Total Companies"
+            value={company?.total_companies ?? 0}
+            icon={Building2}
+            color="#0f172a"
+            loading={loading}
+          />
+          <KpiCard
+            title="Validated"
+            value={company?.validated_companies ?? 0}
+            icon={CheckCircle2}
+            color="#059669"
+            loading={loading}
+          />
+          <KpiCard
+            title="Unvalidated"
+            value={company?.unvalidated_companies ?? 0}
+            icon={XCircle}
+            color="#dc2626"
+            loading={loading}
+          />
+          <KpiCard
+            title="Expired"
+            value={company?.expired_companies ?? 0}
+            icon={Clock}
+            color="#d97706"
+            loading={loading}
+          />
+        </div>
+      </section>
+
+      {/* ── User Overview ────────────────────────────────────────────────── */}
+      <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+
+        {/* Section header + total */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-slate-900 text-white">
+              <Users size={16} />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-gray-50 p-5 rounded-xl border border-gray-200 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-slate-200 animate-pulse flex-shrink-0" />
-                  <div className="space-y-2">
-                    <div className="h-3 w-20 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-7 w-10 bg-slate-200 rounded animate-pulse" />
+            <div>
+              <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">User Overview</h2>
+              <p className="text-xs text-slate-400">Registered users by company</p>
+            </div>
+          </div>
+          {/* Total badge */}
+          {!loading && (
+            <div className="text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Total</p>
+              <p className="text-2xl font-bold text-slate-900 leading-tight">{users?.total_users ?? 0}</p>
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-slate-200 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 animate-pulse" />
+                  <div className="h-4 w-28 bg-slate-100 rounded animate-pulse" />
+                </div>
+                <div className="h-6 w-16 bg-slate-100 rounded animate-pulse" />
+                <div className="h-2 w-full bg-slate-100 rounded-full animate-pulse" />
+              </div>
+            ))}
+          </div>
+        ) : users?.users_by_company?.length > 0 ? (() => {
+          const total    = users.total_users || 1;
+          const assigned = users.users_by_company.filter(c => c.company_name);
+          const orphan   = users.users_by_company.find(c => !c.company_name);
+          const sorted   = assigned.slice().sort((a, b) => b.count - a.count);
+
+          return (
+            <div className="space-y-4">
+              {/* Company cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {sorted.map((item, index) => {
+                  const pct = Math.round((item.count / total) * 100);
+                  return (
+                    <div key={index} className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
+                      {/* Company icon + name */}
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-1.5 rounded-lg bg-slate-900 text-white flex-shrink-0">
+                          <Building2 size={14} />
+                        </div>
+                        <span className="text-sm font-semibold text-slate-800 truncate leading-tight" title={item.company_name}>
+                          {item.company_name}
+                        </span>
+                      </div>
+
+                      {/* User count */}
+                      <div className="flex items-end justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <UserRound size={13} className="text-slate-400" />
+                          <span className="text-2xl font-bold text-slate-900 leading-none">{item.count}</span>
+                          <span className="text-xs text-slate-400 mb-0.5">{item.count === 1 ? 'user' : 'users'}</span>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-400">{pct}%</span>
+                      </div>
+
+                      {/* Share bar */}
+                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-1.5 bg-slate-800 rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Unassigned — separated at bottom */}
+              {orphan && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed border-slate-300 bg-white">
+                  <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 flex-shrink-0">
+                    <UserRound size={14} />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-slate-400 italic">Unassigned</p>
+                    <p className="text-xs text-slate-400">Not linked to any company</p>
+                  </div>
+                  <span className="text-lg font-bold text-slate-400">{orphan.count}</span>
+                  <span className="text-xs text-slate-300">{Math.round((orphan.count / total) * 100)}%</span>
                 </div>
-              ))}
-            </div>
-          </section>
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="mb-4 space-y-1.5">
-              <div className="h-5 w-32 bg-slate-200 rounded animate-pulse" />
-              <div className="h-3 w-56 bg-slate-100 rounded animate-pulse" />
-            </div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 bg-slate-200 rounded-lg animate-pulse flex-shrink-0" />
-              <div className="space-y-2">
-                <div className="h-3 w-16 bg-slate-200 rounded animate-pulse" />
-                <div className="h-6 w-10 bg-slate-200 rounded animate-pulse" />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-8 w-28 bg-slate-200 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          </section>
-        </>
-      )}
-
-      {!loading && (
-        <>
-          {/* ===================== DASHBOARD SUMMARY GROUP ===================== */}
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">
-                Company Overview
-              </h2>
-              <p className="text-xs text-slate-500">
-                Overview of company registrations & validation
-              </p>
-            </div>
-
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Total Companies */}
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg">
-                  <i className="fa-solid fa-building"></i>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Total Companies</p>
-                  <h2 className="text-2xl font-bold text-indigo-700 mt-1">
-                    {company?.total_companies ?? 0}
-                  </h2>
-                </div>
-              </div>
-
-              {/* Validated */}
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-green-100 text-green-600 flex items-center justify-center text-lg">
-                  <i className="fa-solid fa-circle-check"></i>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Validated</p>
-                  <h2 className="text-2xl font-bold text-green-600 mt-1">
-                    {company?.validated_companies ?? 0}
-                  </h2>
-                </div>
-              </div>
-
-              {/* Unvalidated */}
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center text-lg">
-                  <i className="fa-solid fa-circle-xmark"></i>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Unvalidated</p>
-                  <h2 className="text-2xl font-bold text-red-600 mt-1">
-                    {company?.unvalidated_companies ?? 0}
-                  </h2>
-                </div>
-              </div>
-
-              {/* Expired */}
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-500 flex items-center justify-center text-lg">
-                  <i className="fa-solid fa-hourglass-end"></i>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">Expired</p>
-                  <h2 className="text-2xl font-bold text-orange-500 mt-1">
-                    {company?.expired_companies ?? 0}
-                  </h2>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* ===================== USER STATS GROUP ===================== */}
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">
-                User Overview
-              </h2>
-              <p className="text-xs text-slate-500">
-                Registered users and distribution by company
-              </p>
-            </div>
-
-            {/* Total Users */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center">
-                <i className="fa-solid fa-users"></i>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Total Users</p>
-                <h2 className="text-xl font-semibold text-indigo-700">
-                  {users?.total_users ?? 0}
-                </h2>
-              </div>
-            </div>
-
-            {/* Users By Company */}
-            <div className="flex flex-wrap gap-2 mt-2">
-              {users?.users_by_company?.length > 0 ? (
-                users.users_by_company.map((item, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-sm font-medium rounded-lg border border-indigo-200"
-                  >
-                    {item.company_name} — {item.count}
-                  </span>
-                ))
-              ) : (
-                <span className="text-sm text-slate-400">
-                  No user data available
-                </span>
               )}
             </div>
-          </section>
-        </>
-      )}
+          );
+        })() : (
+          <p className="text-sm text-slate-400 py-4 text-center">No user data available</p>
+        )}
+      </section>
     </div>
   );
 }

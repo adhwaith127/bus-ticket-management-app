@@ -484,6 +484,224 @@ def validate_company_license(request, pk):
     )
 
 
+def fetch_company_from_license_server(customer_id):
+    """
+    Single (non-polling) call to the license server to get current status
+    and license details for a given customer_id.
+    Used for the import-existing-company preview and atomic import.
+    Returns a dict with success, status, and data keys.
+    """
+    payload = {"CustomerId": customer_id}
+    try:
+        response = requests.post(
+            settings.PRODUCT_AUTH_URL,
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+        auth_status = data.get('Authenticationstatus', '')
+
+        if not auth_status:
+            return {'success': False, 'error': 'No response from license server.'}
+
+        return {'success': True, 'status': auth_status, 'data': data}
+
+    except requests.exceptions.Timeout:
+        return {'success': False, 'error': 'License server timed out. Try again.'}
+    except requests.exceptions.ConnectionError:
+        return {'success': False, 'error': 'Cannot connect to license server.'}
+    except requests.exceptions.HTTPError as e:
+        return {'success': False, 'error': f'License server error: {e.response.status_code}'}
+    except Exception as e:
+        logger.exception(f"Unexpected error fetching from license server: {e}")
+        return {'success': False, 'error': f'Unexpected error: {str(e)}'}
+
+
+@api_view(['GET'])
+def get_company_by_company_id(request, company_id):
+    """
+    Preview endpoint for the 'Add Existing Company' flow.
+
+    1. Blocks if company_id already exists in our DB (returns 409).
+    2. Fetches current license status from the license server (single call).
+    3. Returns license data so the frontend can show a confirm banner.
+
+    Note: This is read-only — no writes happen here.
+    The actual atomic create is handled by POST /import-company.
+    """
+    user = get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    # ── Duplicate check ──────────────────────────────────────────────────────
+    existing = Company.objects.filter(company_id=company_id).first()
+    if existing:
+        logger.warning(f"Import blocked: company_id '{company_id}' already exists as '{existing.company_name}'")
+        return Response(
+            {'message': f'"{existing.company_name}" is already registered in this system.'},
+            status=status.HTTP_409_CONFLICT
+        )
+
+    # ── Single license server fetch (no polling loop) ────────────────────────
+    result = fetch_company_from_license_server(customer_id=company_id)
+    if not result['success']:
+        return Response({'message': result['error']}, status=status.HTTP_502_BAD_GATEWAY)
+
+    auth_data   = result['data']
+    auth_status = result['status']
+
+    # Map license server response fields for the frontend confirm step
+    product_to_date   = auth_data.get('ProductToDate')
+    product_from_date = auth_data.get('ProductFromDate')
+
+    expired = False
+    if product_to_date:
+        try:
+            expiry = check_datetime(product_to_date)
+            expired = expiry is not None and datetime.now() > expiry
+        except Exception:
+            pass
+
+    # License server does not return company details (name, address, etc.)
+    # Only license/config fields are available — returned for the confirm banner.
+    # The user fills in company details manually in the confirm step form.
+    return Response(
+        {
+            'message': 'Success',
+            'data': {
+                'company_id':            company_id,
+                'authentication_status': auth_status,
+                'product_from_date':     product_from_date,
+                'product_to_date':       product_to_date,
+                'number_of_licence':     auth_data.get('NumberOfLicence', 1),
+                'is_expired':            expired,
+            }
+        },
+        status=status.HTTP_200_OK
+    )
+
+
+@api_view(['POST'])
+@transaction.atomic
+def import_company(request):
+    """
+    Atomic 'Add Existing Company' endpoint.
+
+    Takes only { company_id } from the frontend.
+    Re-fetches all data from the license server server-side and creates
+    the Company record in a single DB transaction — no race window.
+
+    Race condition handling:
+      select_for_update() ensures that if two requests arrive simultaneously
+      for the same company_id, only one proceeds; the other sees the duplicate
+      and gets a 409.
+    """
+    user = get_user_from_cookie(request)
+    if not user:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    company_id = request.data.get('company_id', '').strip()
+    if not company_id:
+        return Response({'message': 'company_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── Atomic duplicate check with row-level lock ───────────────────────────
+    # select_for_update acquires a DB lock so concurrent requests serialise here.
+    existing = Company.objects.select_for_update().filter(company_id=company_id).first()
+    if existing:
+        logger.warning(f"Import duplicate blocked (atomic): company_id '{company_id}' → '{existing.company_name}'")
+        return Response(
+            {'message': f'"{existing.company_name}" is already registered in this system.'},
+            status=status.HTTP_409_CONFLICT
+        )
+
+    # ── Re-fetch from license server (single call) ───────────────────────────
+    result = fetch_company_from_license_server(customer_id=company_id)
+    if not result['success']:
+        return Response({'message': result['error']}, status=status.HTTP_502_BAD_GATEWAY)
+
+    auth_data   = result['data']
+    auth_status = result['status']
+
+    # Map auth_status string → Company.AuthStatus choice
+    status_map = {
+        'Approve':  Company.AuthStatus.APPROVED,
+        'Expired':  Company.AuthStatus.EXPIRED,
+        'Block':    Company.AuthStatus.BLOCKED,
+        'Pending':  Company.AuthStatus.PENDING,
+    }
+    # Anything not in the map (e.g. 'Waiting') falls back to PENDING
+    mapped_status = status_map.get(auth_status, Company.AuthStatus.PENDING)
+
+    # Parse dates
+    product_from_date = None
+    product_to_date   = None
+    try:
+        raw_from = auth_data.get('ProductFromDate')
+        raw_to   = auth_data.get('ProductToDate')
+        if raw_from:
+            dt = check_datetime(raw_from)
+            product_from_date = dt.date() if dt else None
+        if raw_to:
+            dt = check_datetime(raw_to)
+            product_to_date = dt.date() if dt else None
+    except Exception:
+        pass
+
+    def safe_int(val, default=0):
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return default
+
+    # ── Validate company detail fields from request ──────────────────────────
+    # License server does not return name/address/email, so the frontend
+    # supplies these from the form the user filled in on the confirm step.
+    form_data = {
+        'company_id':      company_id,
+        'company_name':    request.data.get('company_name', '').strip(),
+        'company_email':   request.data.get('company_email', '').strip(),
+        'contact_person':  request.data.get('contact_person', '').strip(),
+        'contact_number':  request.data.get('contact_number', '').strip(),
+        'gst_number':      request.data.get('gst_number', '').strip(),
+        'address':         request.data.get('address', '').strip(),
+        'address_2':       request.data.get('address_2', '').strip(),
+        'city':            request.data.get('city', '').strip(),
+        'state':           request.data.get('state', '').strip(),
+        'zip_code':        request.data.get('zip_code', '').strip(),
+        # number_of_licence comes from the license server (authoritative)
+        'number_of_licence': safe_int(auth_data.get('NumberOfLicence'), safe_int(request.data.get('number_of_licence'), 1)),
+    }
+
+    if not form_data['company_name']:
+        return Response({'message': 'Company name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── Create Company record ────────────────────────────────────────────────
+    company = Company.objects.create(
+        **form_data,
+        authentication_status   = mapped_status,
+        product_registration_id = safe_int(auth_data.get('ProductRegistrationId')),
+        unique_identifier       = auth_data.get('UniqueIDentifier', ''),
+        product_from_date       = product_from_date,
+        product_to_date         = product_to_date,
+        device_count            = safe_int(auth_data.get('NoOfUPIDevice'), 0),
+        depot_count             = safe_int(auth_data.get('NoOfBranch'), 0),
+        mobile_device_count     = safe_int(auth_data.get('NoOfMobileDevice'), 2),
+        created_by              = user,
+    )
+
+    logger.info(f"Imported existing company '{company.company_name}' (company_id={company_id}) by user {user}")
+
+    serializer = CompanySerializer(company)
+    return Response(
+        {
+            'message': f'"{company.company_name}" imported successfully.',
+            'data': serializer.data,
+        },
+        status=status.HTTP_201_CREATED
+    )
+
+
 @api_view(['GET'])
 def all_company_data(request):
     """

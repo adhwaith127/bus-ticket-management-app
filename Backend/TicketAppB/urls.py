@@ -31,6 +31,8 @@ urlpatterns = [
     path('update-company-details/<int:pk>', company_views.update_company_details, name='update_company'),
     path('register-company-license/<int:pk>', company_views.register_company_with_license_server, name='register_company_license'),
     path('validate-company-license/<int:pk>', company_views.validate_company_license, name='validate_company_license'),
+    path('get-company-by-company-id/<str:company_id>', company_views.get_company_by_company_id, name='get_company_by_company_id'),
+    path('import-company', company_views.import_company, name='import_company'),
     path('get_company_dashboard_metrics', company_views.get_company_dashboard_metrics, name='company_dashboard_data'),
     path('get_admin_data', company_views.get_admin_dashboard_data, name='get_admin_dashboard_data'),
 

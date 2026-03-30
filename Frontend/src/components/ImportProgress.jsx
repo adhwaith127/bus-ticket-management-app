@@ -28,7 +28,7 @@ const IMPORT_TABLES = [
 
 function Spinner() {
   return (
-    <svg className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+    <svg className="w-4 h-4 text-slate-500 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor"
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -90,7 +90,7 @@ export default function ImportProgress({ tableProgress, importing, importError }
       {/* Progress bar */}
       <div className="w-full bg-slate-100 rounded-full h-1.5">
         <div
-          className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+          className="bg-slate-800 h-1.5 rounded-full transition-all duration-300"
           style={{ width: `${(completedCount / totalCount) * 100}%` }}
         />
       </div>
@@ -110,7 +110,7 @@ export default function ImportProgress({ tableProgress, importing, importError }
               key={tableName}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors
                 ${isDone    ? 'bg-slate-50'   : ''}
-                ${isCurrent ? 'bg-blue-50 border border-blue-100' : ''}`}
+                ${isCurrent ? 'bg-slate-50 border border-slate-200' : ''}`}
             >
               {/* Status icon */}
               {isDone    && !hasSkipped && <CheckIcon />}
@@ -130,7 +130,7 @@ export default function ImportProgress({ tableProgress, importing, importError }
                     <span className="text-emerald-600 font-medium">{result.imported} new</span>
                   )}
                   {result.existing > 0 && (
-                    <span className="text-blue-600">{result.existing} existing</span>
+                    <span className="text-slate-500">{result.existing} existing</span>
                   )}
                   {result.skipped > 0 && (
                     <span className="text-amber-600 font-medium">{result.skipped} skipped</span>
@@ -143,7 +143,7 @@ export default function ImportProgress({ tableProgress, importing, importError }
 
               {/* Processing label on current row */}
               {isCurrent && (
-                <span className="text-xs text-blue-500">processing...</span>
+                <span className="text-xs text-slate-500">processing...</span>
               )}
             </div>
           );
