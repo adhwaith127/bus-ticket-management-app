@@ -45,6 +45,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'TicketAppB.middleware.LicenseExpiryMiddleware',
 ]
 
 ROOT_URLCONF = 'Backend.urls'

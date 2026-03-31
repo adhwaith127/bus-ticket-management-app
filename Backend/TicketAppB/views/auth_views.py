@@ -114,6 +114,7 @@ def _build_token_response(user, company):
             "role": user.role,
             "is_verified": user.is_verified,
             "company_name": company.company_name if company else None,
+            "company_id": company.company_id if company else None,
             "valid_till": valid_till,
             "license_status": company.authentication_status if company else None,
         }
@@ -164,6 +165,7 @@ def get_user_from_cookie(request):
         return user
     except (TokenError, User.DoesNotExist):
         return None
+
 
 
 # Signup
@@ -258,7 +260,7 @@ def login_view(request):
     company = user.company
     if company:
         if company.product_to_date and date.today() > company.product_to_date:
-            return Response({"error": "License Expired. Contact Administrator"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": f"License Expired (ID: {company.company_id}). Contact Administrator"}, status=status.HTTP_403_FORBIDDEN)
 
         if company.authentication_status and company.authentication_status != Company.AuthStatus.APPROVED:
             return Response({"error": "Pending License Approval. Contact Administrator"}, status=status.HTTP_403_FORBIDDEN)
@@ -449,6 +451,7 @@ def verify_auth(request):
             "role": user.role,
             "is_verified": user.is_verified,
             "company_name": company.company_name if company else None,
+            "company_id": company.company_id if company else None,
             "valid_till": valid_till,
             "license_status": company.authentication_status if company else None,
         }

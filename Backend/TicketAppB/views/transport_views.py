@@ -394,11 +394,13 @@ def get_fare_editor(request, route_id):
         }, status=status.HTTP_200_OK)
 
     else:
+        # Return lower-triangular matrix matching EXE format
+        # fare_matrix[i] has (i+1) entries: fare between stage (i+2) and stages 1..(i+1)
         fare_dict = {(f.row, f.col): f.fare_amount for f in fares}
         fare_matrix = []
-        for row_idx in range(n_stages):
+        for row_idx in range(1, n_stages):   # stages 2..N (0-indexed 1..N-1)
             row_data = []
-            for col_idx in range(n_stages):
+            for col_idx in range(row_idx):   # cols 0..row_idx-1 → stages 1..row_idx
                 fare_amount = fare_dict.get((row_idx + 1, col_idx + 1), 0)
                 row_data.append(fare_amount)
             fare_matrix.append(row_data)
@@ -447,23 +449,25 @@ def update_fare_table(request, route_id):
             )
 
     else:
+        # GRAPH fare: lower-triangular matrix, (n-1) rows, row i has (i+1) entries
         fare_matrix = request.data.get('fare_matrix', [])
         if not fare_matrix or not isinstance(fare_matrix, list):
-            return Response({'message': 'Invalid fare_matrix format. Expected 2D array.'}, status=status.HTTP_400_BAD_REQUEST)
-        if len(fare_matrix) != n_stages:
-            return Response({'message': f'fare_matrix must have {n_stages} rows.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'Invalid fare_matrix format.'}, status=status.HTTP_400_BAD_REQUEST)
+        expected_rows = n_stages - 1
+        if len(fare_matrix) != expected_rows:
+            return Response({'message': f'fare_matrix must have {expected_rows} rows for Graph fare.'}, status=status.HTTP_400_BAD_REQUEST)
         for i, row in enumerate(fare_matrix):
-            if len(row) != n_stages:
-                return Response({'message': f'Row {i} must have {n_stages} columns.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not isinstance(row, list) or len(row) != i + 1:
+                return Response({'message': f'Row {i} must have {i + 1} entries.'}, status=status.HTTP_400_BAD_REQUEST)
 
         for i, row in enumerate(fare_matrix):
+            actual_row = i + 2   # 1-indexed stage row
             for j, fare_amount in enumerate(row):
-                if i <= j:  # only store lower triangle (row > col), matching EXE format
-                    continue
+                actual_col = j + 1  # 1-indexed stage col
                 if fare_amount == 0:
                     continue
                 fares_to_create.append(
-                    Fare(route=route, row=i + 1, col=j + 1, fare_amount=int(fare_amount), route_name=route.route_name, company=company, created_by=user)
+                    Fare(route=route, row=actual_row, col=actual_col, fare_amount=int(fare_amount), route_name=route.route_name, company=company, created_by=user)
                 )
 
     if fares_to_create:
@@ -523,15 +527,17 @@ def create_route_wizard(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
     else:
-        if not isinstance(fare_matrix, list) or len(fare_matrix) != n_stages:
+        # GRAPH fare uses lower-triangular matrix: (n-1) rows, row i has (i+1) entries
+        expected_rows = n_stages - 1
+        if not isinstance(fare_matrix, list) or len(fare_matrix) != expected_rows:
             return Response(
-                {'message': f'fare_matrix must have exactly {n_stages} rows.'},
+                {'message': f'fare_matrix must have exactly {expected_rows} rows for Graph fare.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         for i, row in enumerate(fare_matrix):
-            if not isinstance(row, list) or len(row) != n_stages:
+            if not isinstance(row, list) or len(row) != i + 1:
                 return Response(
-                    {'message': f'fare_matrix row {i + 1} must have {n_stages} columns.'},
+                    {'message': f'fare_matrix row {i + 1} must have {i + 1} entries.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -600,14 +606,16 @@ def create_route_wizard(request):
                              company=company, created_by=user)
                     )
             else:
+                # fare_matrix is lower-triangular: row i has (i+1) entries
+                # row 0 → stage pair (2,1), row 1 → (3,1),(3,2), etc.
                 for i, row_data in enumerate(fare_matrix):
+                    actual_row = i + 2  # 1-indexed stage row (stage 2, 3, ..., N)
                     for j, fare_amount in enumerate(row_data):
-                        if i <= j:  # only store lower triangle (row > col), matching EXE format
-                            continue
+                        actual_col = j + 1  # 1-indexed stage col (stage 1, 2, ..., i+1)
                         if int(fare_amount or 0) == 0:
                             continue
                         fares_to_create.append(
-                            Fare(route=route, row=i + 1, col=j + 1,
+                            Fare(route=route, row=actual_row, col=actual_col,
                                  fare_amount=int(fare_amount),
                                  route_name=route.route_name,
                                  company=company, created_by=user)
@@ -630,3 +638,42 @@ def create_route_wizard(request):
             {'message': f'Failed to create route: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['PUT'])
+def update_route_stage(request, pk):
+    """
+    Update the stage_name and/or distance for a single RouteStage entry.
+    Matches EXE's 'Edit Data > Stage' functionality.
+    """
+    user, company, err = _get_authenticated_company_admin(request)
+    if err:
+        return err
+
+    try:
+        rs = RouteStage.objects.select_related('stage', 'route').get(
+            pk=pk, route__company=company
+        )
+    except RouteStage.DoesNotExist:
+        return Response({'message': 'Route stage not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    stage_name = str(request.data.get('stage_name', '')).strip()
+    distance   = request.data.get('distance')
+
+    if stage_name:
+        rs.stage.stage_name = stage_name
+        rs.stage.save(update_fields=['stage_name'])
+
+    if distance is not None:
+        rs.distance = distance
+        rs.save(update_fields=['distance'])
+
+    return Response({
+        'message': 'Stage updated successfully',
+        'data': {
+            'id': rs.id,
+            'sequence_no': rs.sequence_no,
+            'stage_name': rs.stage.stage_name,
+            'distance': rs.distance,
+        }
+    }, status=status.HTTP_200_OK)

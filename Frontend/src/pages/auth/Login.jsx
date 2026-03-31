@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 import login_img from '../../assets/images/login.jpg';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Redirect to dashboard if already logged in
   useEffect(() => {
@@ -16,7 +17,7 @@ export default function Login() {
   // ========== SECTION 1: STATE MANAGEMENT ==========
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(searchParams.get('error') || '');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 

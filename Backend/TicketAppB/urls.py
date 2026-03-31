@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import transport_views, crew_views, settings_views
 from .views import auth_views, company_views, user_views, data_views, mdb_views
+from .views import palmtec_data_views
 from .views import depot_views, mosambee_views, dealer_views, executive_views, device_approval_views
 from .views.reports import (
     duty_report, bus_summary, payment_type, farewise,
@@ -85,6 +86,7 @@ urlpatterns = [
     path('masterdata/routes/create', transport_views.create_route),
     path('masterdata/routes/update/<int:pk>', transport_views.update_route),
     path('masterdata/routes/create-wizard', transport_views.create_route_wizard),
+    path('masterdata/routestages/update/<int:pk>', transport_views.update_route_stage),
     path('masterdata/dropdowns/bus-types', transport_views.get_bus_types_dropdown),
     path('masterdata/dropdowns/stages', transport_views.get_stages_dropdown, name='get_stages_dropdown'),
     path('masterdata/dropdowns/vehicles', transport_views.get_vehicles_dropdown),
@@ -111,6 +113,14 @@ urlpatterns = [
     path('masterdata/currencies/update/<int:pk>', settings_views.update_currency),
     path('masterdata/settings', settings_views.get_settings),
 
+
+    # Palmtec device data APIs (server → APK → USB → device)
+    path('device/routes', palmtec_data_views.get_routes_list),
+    path('device/schedule', palmtec_data_views.get_schedule_file),
+    path('device/settings', palmtec_data_views.get_settings_file),
+    path('device/crew', palmtec_data_views.get_crew_file),
+    path('device/vehicles', palmtec_data_views.get_vehicles_file),
+    path('device/expenses', palmtec_data_views.get_expenses_file),
 
     # android apk data apis
     path('reports/duty', duty_report.duty_report, name='duty_report'),

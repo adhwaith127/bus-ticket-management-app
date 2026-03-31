@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
+import { Route, Plus, Eye, Pencil, Search } from 'lucide-react';
 import Modal from '../../components/Modal';
-import SearchBar from '../../components/SearchBar';
-import TableSkeleton from '../../components/TableSkeleton';
 import { useFilteredList } from '../../assets/js/useFilteredList';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
+import { Button }   from '@/components/ui/button';
+import { Badge }    from '@/components/ui/badge';
+import { Input }    from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const FARE_TYPES = [
   { value: '1', label: 'TABLE' },
@@ -59,8 +62,19 @@ export default function RouteListing() {
   const [wizardData, setWizardData] = useState(emptyWizard);
   const [stageInput, setStageInput] = useState({ stage_name: '', distance: '' });
 
+  // ── Section 2b: beforeunload guard during wizard ──────────────────────────
+  useEffect(() => {
+    if (wizardStep === 0) return;
+    const handler = (e) => {
+      e.preventDefault();
+      e.returnValue = 'Route creation is in progress. Leaving now will discard your changes.';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [wizardStep]);
+
   // ── Section 3: Search & filter ───────────────────────────────────────────
-  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+  const { filteredItems, searchTerm, setSearchTerm } = useFilteredList(
     routes,
     ['route_code', 'route_name']
   );
@@ -190,7 +204,12 @@ export default function RouteListing() {
     setWizardStep(1);
   };
 
-  const closeWizard = () => setWizardStep(0);
+  const closeWizard = (force = false) => {
+    if (!force && wizardStep > 0) {
+      if (!window.confirm('Cancel route creation? All unsaved data will be lost.')) return;
+    }
+    setWizardStep(0);
+  };
 
   const handleWizardChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -218,9 +237,8 @@ export default function RouteListing() {
       const fareList = Array(n).fill(0).map((_, i) => i === 0 ? minFare : 0);
       setWizardData(prev => ({ ...prev, fare_list: fareList, fare_matrix: [] }));
     } else {
-      const fareMatrix = Array(n).fill(null).map((_, i) =>
-        Array(n).fill(null).map((_, j) => (i === j ? 0 : minFare))
-      );
+      // Lower-triangular: (n-1) rows, row i has (i+1) entries, pre-filled with min_fare
+      const fareMatrix = Array.from({ length: n - 1 }, (_, i) => Array(i + 1).fill(minFare));
       setWizardData(prev => ({ ...prev, fare_list: [], fare_matrix: fareMatrix }));
     }
     setWizardStep(2);
@@ -279,7 +297,7 @@ export default function RouteListing() {
       const res = await api.post(`${BASE_URL}/masterdata/routes/create-wizard`, payload);
       if (res.status === 201) {
         window.alert(res.data.message || 'Route created successfully');
-        closeWizard();
+        closeWizard(true);
         fetchRoutes();
       }
     } catch (err) {
@@ -298,7 +316,7 @@ export default function RouteListing() {
 
   // ── Section 10: Render ────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-slate-50 animate-fade-in">
+    <div className="p-3 sm:p-5 lg:p-7 min-h-screen bg-slate-50">
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* ROUTE CREATION WIZARD OVERLAY                                        */}
@@ -467,36 +485,33 @@ export default function RouteListing() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {wizardData.fare_matrix.slice(1).map((row, rIdx) => {
-                            const rowIdx = rIdx + 1; // actual matrix row index (stage 2 = rowIdx 1, etc.)
-                            return (
-                              <tr key={rowIdx} className="hover:bg-slate-50">
-                                <td className="px-3 py-2 text-sm font-semibold text-slate-700 sticky left-0 bg-slate-100 border-r border-slate-300 z-10">Stg {rowIdx + 1}</td>
-                                {Array.from({ length: n - 1 }, (_, colIdx) => {
-                                  const isActive = colIdx < rowIdx; // only lower triangle has fare
-                                  return (
-                                    <td key={colIdx} className={`px-2 py-2 text-center border-r border-slate-100 ${!isActive ? 'bg-slate-100' : ''}`}>
-                                      {isActive ? (
-                                        <input type="number" value={row[colIdx]} min="0"
-                                          onChange={e => updateWizardFareMatrix(rowIdx, colIdx, e.target.value)}
-                                          onBlur={e => {
-                                            const minF = parseFloat(wizardData.min_fare) || 0;
-                                            const val = parseFloat(e.target.value) || 0;
-                                            if (val > 0 && val < minF) {
-                                              window.alert(`Minimum Fare is ${minF}`);
-                                            }
-                                          }}
-                                          className="w-16 px-2 py-1 text-center border border-slate-300 bg-slate-50 rounded text-sm focus:ring-1 focus:ring-slate-500 focus:outline-none"
-                                        />
-                                      ) : (
-                                        <span className="text-slate-300 text-xs">—</span>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
+                          {wizardData.fare_matrix.map((row, rIdx) => (
+                            <tr key={rIdx} className="hover:bg-slate-50">
+                              <td className="px-3 py-2 text-sm font-semibold text-slate-700 sticky left-0 bg-slate-100 border-r border-slate-300 z-10">Stg {rIdx + 2}</td>
+                              {Array.from({ length: n - 1 }, (_, cIdx) => {
+                                const isActive = cIdx <= rIdx;
+                                return (
+                                  <td key={cIdx} className={`px-2 py-2 text-center border-r border-slate-100 ${!isActive ? 'bg-slate-100' : ''}`}>
+                                    {isActive ? (
+                                      <input type="number" value={row[cIdx]} min="0"
+                                        onChange={e => updateWizardFareMatrix(rIdx, cIdx, e.target.value)}
+                                        onBlur={e => {
+                                          const minF = parseFloat(wizardData.min_fare) || 0;
+                                          const val = parseFloat(e.target.value) || 0;
+                                          if (val > 0 && val < minF) {
+                                            window.alert(`Minimum Fare is ${minF}`);
+                                          }
+                                        }}
+                                        className="w-16 px-2 py-1 text-center border border-slate-300 bg-slate-50 rounded text-sm focus:ring-1 focus:ring-slate-500 focus:outline-none"
+                                      />
+                                    ) : (
+                                      <span className="text-slate-300 text-xs">—</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -634,67 +649,95 @@ export default function RouteListing() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Routes</h1>
-          <p className="text-slate-500 mt-1">Manage bus routes for your company</p>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-            <input type="checkbox" checked={showDeleted} onChange={() => setShowDeleted(p => !p)} className="w-4 h-4 rounded border-slate-300" />
-            Show deleted
-          </label>
-          <button onClick={openWizard} className="flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-            <span className="font-medium">+ Create Route</span>
-          </button>
+          <div className="p-2.5 rounded-xl bg-slate-900">
+            <Route size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Routes</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Manage bus routes for your company</p>
+          </div>
         </div>
+        <Button onClick={openWizard} className="bg-slate-900 hover:bg-slate-700 text-white gap-2 shadow-sm">
+          <Plus size={16} /> Create Route
+        </Button>
       </div>
 
-      <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onReset={resetSearch} placeholder="Search by code or name..." />
+      {/* Stats bar */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm shadow-xs">
+          <span className="text-slate-500">Total</span>
+          <span className="font-bold text-slate-800">{routes.length}</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-sm">
+          <span className="text-emerald-600">Active</span>
+          <span className="font-bold text-emerald-700">{routes.filter(r => !r.is_deleted).length}</span>
+        </div>
+        <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
+          <input type="checkbox" checked={showDeleted} onChange={() => setShowDeleted(p => !p)} className="w-3.5 h-3.5 rounded border-slate-300 accent-slate-900" />
+          <span className="text-slate-600">Show deleted</span>
+        </label>
+      </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* Table card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+        {/* Search */}
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+          <Search size={15} className="text-slate-400 shrink-0" />
+          <Input
+            placeholder="Search by code or name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border-0 shadow-none focus-visible:ring-0 text-sm h-8 px-0"
+          />
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-200">
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Code</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Bus Type</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Stops</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Min Fare</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Fare Type</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['ID', 'Code', 'Name', 'Bus Type', 'Stops', 'Min Fare', 'Fare Type', 'Status', ''].map(h => (
+                  <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <TableSkeleton columns={['w-8', 'w-16', 'w-36', 'w-20', 'w-10', 'w-16', 'w-16', 'w-16', 'w-16']} />
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {[50, 80, 140, 100, 60, 80, 70, 70, 60].map((w, j) => (
+                      <td key={j} className="px-5 py-3"><Skeleton className="h-4 rounded" style={{ width: w }} /></td>
+                    ))}
+                  </tr>
+                ))
               ) : filteredItems.length === 0 ? (
-                <tr><td colSpan="9" className="px-6 py-8 text-center text-slate-500">No routes found.</td></tr>
+                <tr><td colSpan="9" className="px-5 py-10 text-center text-slate-400 text-sm">No routes found.</td></tr>
               ) : filteredItems.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4 text-sm text-slate-500 font-mono">#{item.id}</td>
-                  <td className="px-6 py-4 text-sm text-slate-800 font-medium">{item.route_code}</td>
-                  <td className="px-6 py-4 text-sm text-slate-800">{item.route_name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{item.bus_type_name || '—'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{item.route_stages?.length || 0} stops</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">₹{item.min_fare}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${item.fare_type === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
-                      {item.fare_type === 1 ? 'TABLE' : 'GRAPH'}
-                    </span>
+                <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="px-5 py-3.5"><span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span></td>
+                  <td className="px-5 py-3.5"><span className="font-semibold text-slate-800 text-sm">{item.route_code}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-700 text-sm">{item.route_name}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-600 text-sm">{item.bus_type_name || '—'}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-600 text-sm">{item.route_stages?.length || 0}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-600 text-sm">₹{item.min_fare}</span></td>
+                  <td className="px-5 py-3.5">
+                    {item.fare_type === 1
+                      ? <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-xs">TABLE</Badge>
+                      : <Badge className="bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-100 text-xs">GRAPH</Badge>
+                    }
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${item.is_deleted ? 'bg-red-100 text-red-700 border-red-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
-                      {item.is_deleted ? 'Deleted' : 'Active'}
-                    </span>
+                  <td className="px-5 py-3.5">
+                    {item.is_deleted
+                      ? <Badge className="bg-red-100 text-red-700 border border-red-200 hover:bg-red-100">Deleted</Badge>
+                      : <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">Active</Badge>
+                    }
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end items-center space-x-2">
-                      <button onClick={() => openViewModal(item)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors">View</button>
-                      <button onClick={() => openEditModal(item)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors">Edit</button>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => openViewModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="View"><Eye size={14} /></button>
+                      <button onClick={() => openEditModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="Edit"><Pencil size={14} /></button>
                     </div>
                   </td>
                 </tr>

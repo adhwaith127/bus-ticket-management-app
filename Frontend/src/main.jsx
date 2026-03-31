@@ -24,6 +24,8 @@ import CrewAssignmentListing from './pages/operations/CrewAssignmentListing'
 import DealerManagement from './pages/operations/DealerManagement'
 import DeviceApprovals from './pages/operations/DeviceApprovals'
 import FareEditor from './pages/operations/FareEditor'
+import StageEditor from './pages/operations/StageEditor'
+import ExpenseMasterPage from './pages/operations/ExpenseMasterPage'
 
 import TicketReport from './pages/reports/TicketReport'
 import TripcloseReport from './pages/reports/TripcloseReport'
@@ -125,6 +127,14 @@ const router = createBrowserRouter([
           {
             path: 'master-data/fares',
             element: <FareEditor />
+          },
+          {
+            path: 'master-data/stages',
+            element: <StageEditor />
+          },
+          {
+            path: 'master-data/expense-master',
+            element: <ExpenseMasterPage />
           },
           {
             path: 'master-data/crew-assignments',

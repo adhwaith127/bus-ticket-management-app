@@ -1,25 +1,31 @@
 import { useState, useEffect } from 'react';
-import Modal from '../../components/Modal';
-import SearchBar from '../../components/SearchBar';
-import TableSkeleton from '../../components/TableSkeleton';
+import { Truck, Plus, Eye, Pencil, Search } from 'lucide-react';
 import { useFilteredList } from '../../assets/js/useFilteredList';
 import { usePagination }   from '../../assets/js/usePagination';
 import { useModalForm }    from '../../assets/js/useModalForm';
 import { submitForm }      from '../../assets/js/submitForm';
 import api, { BASE_URL }   from '../../assets/js/axiosConfig';
+import { Button }   from '@/components/ui/button';
+import { Badge }    from '@/components/ui/badge';
+import { Input }    from '@/components/ui/input';
+import { Label }    from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 const emptyForm = { bus_reg_num: '', bus_type: '', is_deleted: false };
 
 export default function VehicleListing() {
 
-  // ── Section 1: State ─────────────────────────────────────────────────────────
+  // ── State ────────────────────────────────────────────────────────────────────
   const [vehicles, setVehicles]       = useState([]);
-  const [busTypes, setBusTypes]       = useState([]);   // dropdown data
+  const [busTypes, setBusTypes]       = useState([]);
   const [loading, setLoading]         = useState(true);
   const [showDeleted, setShowDeleted] = useState(false);
 
-  // ── Section 2: Shared Hooks ──────────────────────────────────────────────────
-  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+  // ── Hooks ────────────────────────────────────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm } = useFilteredList(
     vehicles, ['bus_reg_num', 'bus_type']
   );
 
@@ -37,14 +43,16 @@ export default function VehicleListing() {
     handleInputChange, isReadOnly,
   } = useModalForm(emptyForm);
 
-  // ── Section 3: Data Fetching ─────────────────────────────────────────────────
+  // ── Data ─────────────────────────────────────────────────────────────────────
   useEffect(() => { fetchBusTypes(); }, []);
   useEffect(() => { fetchVehicles(); }, [showDeleted]);
 
   const fetchVehicles = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`${BASE_URL}/masterdata/vehicles`, { params: { show_deleted: showDeleted } });
+      const res = await api.get(`${BASE_URL}/masterdata/vehicles`, {
+        params: { show_deleted: showDeleted },
+      });
       setVehicles(res.data?.data || []);
       setCurrentPage(1);
     } catch (err) {
@@ -64,7 +72,7 @@ export default function VehicleListing() {
     }
   };
 
-  // ── Section 4: Submit ────────────────────────────────────────────────────────
+  // ── Submit ───────────────────────────────────────────────────────────────────
   const handleSubmit = () => submitForm({
     modalMode, editingItem, formData,
     createUrl: `${BASE_URL}/masterdata/vehicles/create`,
@@ -73,158 +81,239 @@ export default function VehicleListing() {
     onSuccess: () => { setIsModalOpen(false); setFormData(emptyForm); fetchVehicles(); },
   });
 
-  // ── Section 5: Helpers ───────────────────────────────────────────────────────
-  const getModalTitle = () => ({ view: 'Vehicle Details', edit: 'Edit Vehicle', create: 'Register Vehicle' }[modalMode]);
+  const getModalTitle = () => ({
+    view: 'Vehicle Details', edit: 'Edit Vehicle', create: 'Register Vehicle',
+  }[modalMode]);
 
-  // ── Section 6: Render ────────────────────────────────────────────────────────
+  // Stats
+  const total   = vehicles.length;
+  const active  = vehicles.filter(v => !v.is_deleted).length;
+  const deleted = total - active;
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 animate-fade-in">
+    <div className="p-3 sm:p-5 lg:p-7 min-h-screen bg-slate-50">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent tracking-tight">
-            Vehicles
-          </h1>
-          <p className="text-slate-600 mt-1.5">Manage bus registrations for your company</p>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 bg-white border border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-all">
-            <input type="checkbox" checked={showDeleted} onChange={() => setShowDeleted(p => !p)} className="w-4 h-4 rounded border-slate-300 text-slate-800 focus:ring-slate-500" />
-            <span className="font-medium">Show deleted</span>
-          </label>
-          <button onClick={openCreateModal} className="flex items-center justify-center bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-            <span className="mr-2 text-lg">+</span>
-            <span className="font-medium">Register Vehicle</span>
-          </button>
+          <div className="p-2.5 rounded-xl bg-slate-900">
+            <Truck size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Vehicles</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Manage bus registrations for your company</p>
+          </div>
         </div>
+        <Button onClick={openCreateModal} className="bg-slate-900 hover:bg-slate-700 text-white gap-2 shadow-sm">
+          <Plus size={16} /> Register Vehicle
+        </Button>
       </div>
 
-      {/* Search Bar */}
-      <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onReset={resetSearch} placeholder="Search by registration number or bus type..." />
+      {/* Stats bar */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm shadow-xs">
+          <span className="text-slate-500">Total</span>
+          <span className="font-bold text-slate-800">{total}</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 text-sm">
+          <span className="text-emerald-600">Active</span>
+          <span className="font-bold text-emerald-700">{active}</span>
+        </div>
+        {deleted > 0 && (
+          <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 text-sm">
+            <span className="text-red-500">Deleted</span>
+            <span className="font-bold text-red-700">{deleted}</span>
+          </div>
+        )}
+        <label className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
+          <input
+            type="checkbox"
+            checked={showDeleted}
+            onChange={() => setShowDeleted(p => !p)}
+            className="w-3.5 h-3.5 rounded border-slate-300 accent-slate-900"
+          />
+          <span className="text-slate-600">Show deleted</span>
+        </label>
+      </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
+      {/* Table card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+        {/* Search */}
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+          <Search size={15} className="text-slate-400 shrink-0" />
+          <Input
+            placeholder="Search by registration number or bus type..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border-0 shadow-none focus-visible:ring-0 text-sm h-8 px-0"
+          />
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-b border-slate-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reg. Number</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Bus Type</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['ID', 'Reg. Number', 'Bus Type', 'Status', ''].map(h => (
+                  <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <TableSkeleton columns={['w-8', 'w-24', 'w-24', 'w-16', 'w-16']} />
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {[50, 120, 120, 70, 60].map((w, j) => (
+                      <td key={j} className="px-5 py-3">
+                        <Skeleton className="h-4 rounded" style={{ width: w }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
               ) : currentItems.length === 0 ? (
-                <tr><td colSpan="5" className="px-6 py-12 text-center">
-                  <p className="text-slate-500 font-medium">No vehicles found</p>
-                  <p className="text-slate-400 text-sm mt-1">Register your first vehicle to get started</p>
-                </td></tr>
-              ) : currentItems.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-150">
-                  <td className="px-6 py-4"><span className="text-sm text-slate-500 font-mono">#{item.id}</span></td>
-                  <td className="px-6 py-4"><span className="text-sm text-slate-800 font-bold uppercase">{item.bus_reg_num}</span></td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                      {item.bus_type_name || '—'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${item.is_deleted ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${item.is_deleted ? 'bg-rose-500' : 'bg-emerald-500'}`}></span>
-                      {item.is_deleted ? 'Deleted' : 'Active'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end items-center gap-2">
-                      <button onClick={() => openViewModal(item)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all duration-150">View</button>
-                      <button onClick={() => openEditModal(item)} className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-150">Edit</button>
-                    </div>
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400 text-sm">
+                    No vehicles found.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                currentItems.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="font-bold text-slate-800 text-sm uppercase">{item.bus_reg_num}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {item.bus_type_name
+                        ? <Badge className="bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-50 text-xs">{item.bus_type_name}</Badge>
+                        : <span className="text-slate-400 text-sm">—</span>
+                      }
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {item.is_deleted
+                        ? <Badge className="bg-red-100 text-red-700 border border-red-200 hover:bg-red-100">Deleted</Badge>
+                        : <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">Active</Badge>
+                      }
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openViewModal(item)}
+                          className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+                          title="View"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => openEditModal(item)}
+                          className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
         {!loading && filteredItems.length > 0 && totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Showing <span className="font-medium text-slate-900">{indexOfFirstItem + 1}</span> to{' '}
-                <span className="font-medium text-slate-900">{Math.min(indexOfLastItem, vehicles.length)}</span> of{' '}
-                <span className="font-medium text-slate-900">{vehicles.length}</span> results
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150">Previous</button>
-                <div className="flex items-center gap-1">
-                  {getPageNumbers().map(pageNum => (
-                    <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[2.5rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${currentPage === pageNum ? 'bg-slate-800 text-white shadow-md' : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'}`}>
-                      {pageNum}
-                    </button>
-                  ))}
-                </div>
-                <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150">Next</button>
-              </div>
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              Showing {indexOfFirstItem + 1}–{Math.min(indexOfLastItem, vehicles.length)} of {vehicles.length}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)}
+                disabled={currentPage === 1} className="h-7 px-2.5 text-xs">Prev</Button>
+              {getPageNumbers().map(n => (
+                <Button key={n} size="sm" onClick={() => setCurrentPage(n)}
+                  className={`h-7 w-7 p-0 text-xs ${currentPage === n
+                    ? 'bg-slate-900 hover:bg-slate-700 text-white'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                  {n}
+                </Button>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)}
+                disabled={currentPage === totalPages} className="h-7 px-2.5 text-xs">Next</Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
-        <div className="space-y-5">
+      {/* Dialog */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <span className="p-1.5 rounded-lg bg-slate-900">
+                <Truck size={14} className="text-white" />
+              </span>
+              {getModalTitle()}
+            </DialogTitle>
+          </DialogHeader>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Registration Number *</label>
-            <input type="text" name="bus_reg_num" value={formData.bus_reg_num}
-              onChange={handleInputChange} readOnly={isReadOnly}
-              placeholder="e.g. KA-01-AB-1234"
-              className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent read-only:bg-slate-50 read-only:text-slate-600 transition-all uppercase" />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Bus Type *</label>
-            {isReadOnly ? (
-              <input type="text" value={formData.bus_type_name || '—'} readOnly className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-slate-50 text-slate-600" />
-            ) : (
-              <select name="bus_type" value={formData.bus_type} onChange={handleInputChange}
-                className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent bg-white transition-all">
-                <option value="">-- Select Bus Type --</option>
-                {busTypes.map(bt => (
-                  <option key={bt.id} value={bt.id}>{bt.name} ({bt.bustype_code})</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {modalMode === 'edit' && (
-            <div className="flex items-center gap-3 p-4 bg-rose-50 rounded-xl border border-rose-200">
-              <input type="checkbox" name="is_deleted" id="veh_is_deleted"
-                checked={formData.is_deleted || false} onChange={handleInputChange}
-                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500" />
-              <label htmlFor="veh_is_deleted" className="text-sm font-medium text-rose-700">Mark as deleted</label>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <Label className="text-slate-700">Registration Number *</Label>
+              <Input
+                name="bus_reg_num" value={formData.bus_reg_num}
+                onChange={handleInputChange} readOnly={isReadOnly}
+                placeholder="e.g. KA-01-AB-1234"
+                className={`uppercase ${isReadOnly ? 'bg-slate-50 text-slate-600' : ''}`}
+              />
             </div>
-          )}
 
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-all">
-              {isReadOnly ? 'Close' : 'Cancel'}
-            </button>
-            {!isReadOnly && (
-              <button type="button" onClick={handleSubmit} disabled={submitting} className="px-5 py-2.5 text-sm font-medium text-white bg-slate-800 rounded-xl hover:bg-slate-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update' : 'Save'}
-              </button>
+            <div className="space-y-1.5">
+              <Label className="text-slate-700">Bus Type *</Label>
+              {isReadOnly ? (
+                <Input value={formData.bus_type_name || '—'} readOnly className="bg-slate-50 text-slate-600" />
+              ) : (
+                <select
+                  name="bus_type" value={formData.bus_type} onChange={handleInputChange}
+                  className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value="">-- Select Bus Type --</option>
+                  {busTypes.map(bt => (
+                    <option key={bt.id} value={bt.id}>{bt.name} ({bt.bustype_code})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {modalMode === 'edit' && (
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-red-50 rounded-lg border border-red-200">
+                <input
+                  type="checkbox" name="is_deleted" id="veh_is_deleted"
+                  checked={formData.is_deleted || false} onChange={handleInputChange}
+                  className="w-4 h-4 rounded border-slate-300 accent-red-600"
+                />
+                <Label htmlFor="veh_is_deleted" className="text-red-700 cursor-pointer">Mark as deleted</Label>
+              </div>
             )}
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setIsModalOpen(false)} className="text-slate-600">
+                {isReadOnly ? 'Close' : 'Cancel'}
+              </Button>
+              {!isReadOnly && (
+                <Button onClick={handleSubmit} disabled={submitting}
+                  className="bg-slate-900 hover:bg-slate-700 text-white">
+                  {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update' : 'Save'}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

@@ -133,22 +133,6 @@ export default function FareEditor() {
   };
 
   // ── Section 6: Helper tools ──────────────────────────────────────────────
-  const autoFillSymmetric = () => {
-    // Only for Graph Fare (2D) - copy upper triangle to lower
-    if (fareType !== 2) return;
-    
-    const updated = fareMatrix.map((row, i) =>
-      row.map((fare, j) => {
-        if (i > j) {
-          return fareMatrix[j][i]; // Mirror from upper triangle
-        }
-        return fare;
-      })
-    );
-    setFareMatrix(updated);
-    setHasChanges(true);
-  };
-
   const clearAllFares = () => {
     if (!window.confirm('Clear all fares? This will reset the entire table to zero.')) return;
     
@@ -227,15 +211,6 @@ export default function FareEditor() {
 
             {selectedRoute && (
               <div className="flex gap-2">
-                {fareType === 2 && (
-                  <button
-                    onClick={autoFillSymmetric}
-                    className="px-4 py-2.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                  >
-                    <i className="fas fa-sync-alt mr-2"></i>
-                    Mirror Fares
-                  </button>
-                )}
                 <button
                   onClick={clearAllFares}
                   className="px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
@@ -375,10 +350,9 @@ export default function FareEditor() {
         <div className="flex-1 text-sm text-slate-700">
           <p className="font-medium text-slate-800 mb-1">Graph Fare Mode:</p>
           <ul className="list-disc list-inside space-y-1 text-slate-600">
-            <li><strong>Diagonal cells (gray):</strong> Same origin-destination, usually ₹0</li>
-            <li><strong>Upper triangle:</strong> Forward journey fares (Stage A → Stage B)</li>
-            <li><strong>Lower triangle:</strong> Return journey fares (Stage B → Stage A)</li>
-            <li><strong>Mirror Fares:</strong> Copies upper triangle to lower (same fare both ways)</li>
+            <li>Each cell = fare between a pair of stages (same in both directions)</li>
+            <li>Row = destination stage, Column = origin stage</li>
+            <li>Cells marked <strong>—</strong> are not applicable (same or later stage)</li>
           </ul>
         </div>
       </div>
@@ -390,64 +364,47 @@ export default function FareEditor() {
           <thead>
             <tr className="bg-slate-800">
               <th className="sticky left-0 z-20 bg-slate-800 px-4 py-3 text-left text-xs font-semibold text-white uppercase tracking-wider border-r border-slate-700">
-                From → To
+                Stage
               </th>
-              {stages.map((stage, idx) => (
-                <th
-                  key={idx}
-                  className="px-4 py-3 text-center text-xs font-semibold text-white tracking-wider min-w-[100px] border-r border-slate-700"
-                >
-                  {/* PRIMARY: Stage Name (large) */}
+              {stages.slice(0, stages.length - 1).map((stage, idx) => (
+                <th key={idx} className="px-4 py-3 text-center text-xs font-semibold text-white tracking-wider min-w-[100px] border-r border-slate-700">
                   <div className="text-sm font-bold mb-1">{stage.stage_name}</div>
-                  {/* SECONDARY: Stage Code (small, muted) */}
                   <div className="font-mono text-slate-400 text-[9px]">({stage.stage_code})</div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {stages.map((rowStage, rowIdx) => (
-              <tr key={rowIdx} className="hover:bg-slate-50 transition-colors">
-                {/* Row header (stage name) */}
-                <td className="sticky left-0 z-10 bg-slate-100 px-4 py-3 text-sm border-r border-slate-300">
-                  {/* PRIMARY: Stage Name (large) */}
-                  <div className="font-semibold text-slate-800">{rowStage.stage_name}</div>
-                  {/* SECONDARY: Stage Code (small, muted) */}
-                  <div className="font-mono text-slate-500 text-[9px]">({rowStage.stage_code})</div>
-                </td>
-
-                {/* Fare cells */}
-                {stages.map((_colStage, colIdx) => {
-                  const isDiagonal = rowIdx === colIdx;
-                  const isUpperTriangle = colIdx > rowIdx;
-                  
-                  return (
-                    <td
-                      key={colIdx}
-                      className={`px-2 py-2 text-center border-r border-slate-200 ${
-                        isDiagonal ? 'bg-slate-100' : ''
-                      }`}
-                    >
-                      <input
-                        type="number"
-                        value={fareMatrix[rowIdx]?.[colIdx] || 0}
-                        onChange={(e) => updateGraphFare(rowIdx, colIdx, e.target.value)}
-                        min="0"
-                        step="1"
-                        className={`w-full px-2 py-1.5 text-center border rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm ${
-                          isDiagonal
-                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                            : isUpperTriangle
-                            ? 'border-blue-300 bg-blue-50 font-semibold'
-                            : 'border-slate-300 bg-white'
-                        }`}
-                        disabled={isDiagonal}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {fareMatrix.map((row, rIdx) => {
+              const rowStage = stages[rIdx + 1]; // stage 2, 3, ..., N
+              return (
+                <tr key={rIdx} className="hover:bg-slate-50 transition-colors">
+                  <td className="sticky left-0 z-10 bg-slate-100 px-4 py-3 text-sm border-r border-slate-300">
+                    <div className="font-semibold text-slate-800">{rowStage?.stage_name}</div>
+                    <div className="font-mono text-slate-500 text-[9px]">({rowStage?.stage_code})</div>
+                  </td>
+                  {stages.slice(0, stages.length - 1).map((_colStage, cIdx) => {
+                    const isActive = cIdx <= rIdx;
+                    return (
+                      <td key={cIdx} className={`px-2 py-2 text-center border-r border-slate-200 ${!isActive ? 'bg-slate-100' : ''}`}>
+                        {isActive ? (
+                          <input
+                            type="number"
+                            value={row[cIdx] || 0}
+                            onChange={(e) => updateGraphFare(rIdx, cIdx, e.target.value)}
+                            min="0"
+                            step="1"
+                            className="w-full px-2 py-1.5 text-center border border-slate-300 bg-white rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                          />
+                        ) : (
+                          <span className="text-slate-300 text-sm">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

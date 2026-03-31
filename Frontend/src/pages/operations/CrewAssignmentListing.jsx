@@ -1,29 +1,33 @@
 import { useState, useEffect } from 'react';
-import Modal from '../../components/Modal';
-import SearchBar from '../../components/SearchBar';
-import TableSkeleton from '../../components/TableSkeleton';
+import { CalendarCog, Plus, Eye, Pencil, Trash2, Search } from 'lucide-react';
 import { useFilteredList } from '../../assets/js/useFilteredList';
 import { usePagination }   from '../../assets/js/usePagination';
 import { useModalForm }    from '../../assets/js/useModalForm';
 import { submitForm }      from '../../assets/js/submitForm';
 import api, { BASE_URL }   from '../../assets/js/axiosConfig';
+import { Button }   from '@/components/ui/button';
+import { Input }    from '@/components/ui/input';
+import { Label }    from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 const emptyForm = { driver: '', conductor: '', cleaner: '', vehicle: '' };
 
 export default function CrewAssignmentListing() {
 
-  // ── Section 1: State ─────────────────────────────────────────────────────────
+  // ── State ────────────────────────────────────────────────────────────────────
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading]         = useState(true);
 
-  // Dropdown options loaded when modal opens
   const [drivers, setDrivers]       = useState([]);
   const [conductors, setConductors] = useState([]);
   const [cleaners, setCleaners]     = useState([]);
   const [vehicles, setVehicles]     = useState([]);
 
-  // ── Section 2: Shared Hooks ──────────────────────────────────────────────────
-  const { filteredItems, searchTerm, setSearchTerm, resetSearch } = useFilteredList(
+  // ── Hooks ────────────────────────────────────────────────────────────────────
+  const { filteredItems, searchTerm, setSearchTerm } = useFilteredList(
     assignments, ['driver_name', 'conductor_name', 'cleaner_name', 'vehicle_reg']
   );
 
@@ -32,20 +36,17 @@ export default function CrewAssignmentListing() {
     setCurrentPage, indexOfFirstItem, indexOfLastItem, getPageNumbers,
   } = usePagination(filteredItems);
 
-  // useModalForm gives us state + setters.
-  // We override openCreateModal/openViewModal/openEditModal below
-  // because CrewAssignment needs custom formData mapping and dropdown fetching.
   const {
     isModalOpen, setIsModalOpen,
     modalMode, setModalMode,
     editingItem, setEditingItem,
     formData, setFormData,
     submitting, setSubmitting,
-    handleInputChange,   // no checkbox logic needed here (all dropdowns)
+    handleInputChange,
     isReadOnly,
   } = useModalForm(emptyForm);
 
-  // ── Section 3: Data Fetching ─────────────────────────────────────────────────
+  // ── Data ─────────────────────────────────────────────────────────────────────
   useEffect(() => { fetchAssignments(); }, []);
 
   const fetchAssignments = async () => {
@@ -62,8 +63,6 @@ export default function CrewAssignmentListing() {
     }
   };
 
-  // Fetches all 4 dropdowns at once, excluding already-assigned people/vehicles.
-  // assignmentId lets the backend exclude the current assignment from "already taken" checks.
   const fetchDropdowns = async (assignmentId = null) => {
     try {
       const sharedParams = {
@@ -85,12 +84,7 @@ export default function CrewAssignmentListing() {
     }
   };
 
-  // ── Section 4: Custom Modal Openers ─────────────────────────────────────────
-  // These override the standard openCreateModal/openViewModal/openEditModal
-  // from useModalForm because CrewAssignment:
-  //   - Needs to explicitly map FK id fields (item.driver, not the whole item)
-  //   - Needs to call fetchDropdowns() when opening create/edit
-
+  // ── Custom Modal Openers ─────────────────────────────────────────────────────
   const openCreateModal = () => {
     setFormData(emptyForm);
     setEditingItem(null);
@@ -104,7 +98,6 @@ export default function CrewAssignmentListing() {
     setEditingItem(item);
     setModalMode('view');
     setIsModalOpen(true);
-    // No dropdown fetch needed in view mode
   };
 
   const openEditModal = (item) => {
@@ -112,12 +105,11 @@ export default function CrewAssignmentListing() {
     setEditingItem(item);
     setModalMode('edit');
     setIsModalOpen(true);
-    fetchDropdowns(item.id); // Pass item.id so backend excludes this assignment from conflict checks
+    fetchDropdowns(item.id);
   };
 
-  // ── Section 5: Submit & Delete ───────────────────────────────────────────────
+  // ── Submit & Delete ──────────────────────────────────────────────────────────
   const handleSubmit = () => {
-    // Front-end validation before hitting the API
     if (!formData.driver)    return window.alert('Driver is required');
     if (!formData.conductor) return window.alert('Conductor is required');
     if (!formData.vehicle)   return window.alert('Vehicle is required');
@@ -125,7 +117,6 @@ export default function CrewAssignmentListing() {
       return window.alert('Conductor must be different from driver');
     }
 
-    // Strip empty cleaner to avoid sending null/'' — backend expects it absent or a valid ID
     const payload = {
       driver:    formData.driver,
       conductor: formData.conductor,
@@ -138,45 +129,46 @@ export default function CrewAssignmentListing() {
       createUrl: `${BASE_URL}/masterdata/crew-assignments/create`,
       updateUrl: `${BASE_URL}/masterdata/crew-assignments/update/${editingItem?.id}`,
       setSubmitting,
-      payload,   // override formData with the cleaned payload
+      payload,
       onSuccess: () => { setIsModalOpen(false); setFormData(emptyForm); fetchAssignments(); },
     });
   };
 
   const handleDelete = async (item) => {
-    const confirmed = window.confirm(`Delete assignment #${item.id}? This will free the selected crew and vehicle.`);
-    if (!confirmed) return;
+    if (!window.confirm(`Delete assignment #${item.id}? This will free the selected crew and vehicle.`)) return;
     try {
       const response = await api.delete(`${BASE_URL}/masterdata/crew-assignments/delete/${item.id}`);
-      window.alert(response.data?.message || 'Crew assignment deleted successfully');
+      window.alert(response.data?.message || 'Deleted successfully');
       fetchAssignments();
     } catch (err) {
       if (!err.response) return window.alert('Server unreachable. Try later.');
       const { data } = err.response;
-      const firstError = data.errors ? Object.values(data.errors)[0][0] : (data.error || data.message);
-      window.alert(firstError || 'Delete failed');
+      window.alert(data.errors ? Object.values(data.errors)[0][0] : (data.error || data.message) || 'Delete failed');
     }
   };
 
-  // ── Section 6: Helpers ───────────────────────────────────────────────────────
-  const getModalTitle = () => ({ view: 'Crew Assignment Details', edit: 'Edit Crew Assignment', create: 'Create Crew Assignment' }[modalMode]);
+  const getModalTitle = () => ({
+    view: 'Assignment Details', edit: 'Edit Assignment', create: 'Create Assignment',
+  }[modalMode]);
 
-  // Renders a dropdown (edit/create) or read-only text field (view) for each crew role
   const renderDropdown = (name, label, options, required = false) => (
-    <div className="space-y-2">
-      <label className="text-sm font-semibold text-slate-700">{label}{required ? ' *' : ' (optional)'}</label>
+    <div className="space-y-1.5">
+      <Label className="text-slate-700">{label}{required ? ' *' : ' (optional)'}</Label>
       {isReadOnly ? (
-        <input type="text"
+        <Input
           value={(
             name === 'driver'    ? editingItem?.driver_name :
             name === 'conductor' ? editingItem?.conductor_name :
             name === 'cleaner'   ? editingItem?.cleaner_name :
             name === 'vehicle'   ? editingItem?.vehicle_reg : ''
           ) || '—'}
-          readOnly className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-slate-50 text-slate-600" />
+          readOnly className="bg-slate-50 text-slate-600"
+        />
       ) : (
-        <select name={name} value={formData[name]} onChange={handleInputChange}
-          className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 focus:border-transparent bg-white transition-all">
+        <select
+          name={name} value={formData[name]} onChange={handleInputChange}
+          className="w-full h-10 px-3 border border-input rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-slate-900"
+        >
           <option value="">-- {required ? 'Select' : 'None'} --</option>
           {options.map(o => (
             <option key={o.id} value={o.id}>
@@ -188,115 +180,182 @@ export default function CrewAssignmentListing() {
     </div>
   );
 
-  // ── Section 7: Render ────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 animate-fade-in">
+    <div className="p-3 sm:p-5 lg:p-7 min-h-screen bg-slate-50">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent tracking-tight">
-            Crew Assignments
-          </h1>
-          <p className="text-slate-600 mt-1.5">Assign drivers, conductors and cleaners to vehicles</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-slate-900">
+            <CalendarCog size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Crew Assignments</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Assign drivers, conductors and cleaners to vehicles</p>
+          </div>
         </div>
-        <button onClick={openCreateModal} className="flex items-center justify-center bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 text-white px-6 py-3 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-          <span className="mr-2 text-lg">+</span>
-          <span className="font-medium">Create Assignment</span>
-        </button>
+        <Button onClick={openCreateModal} className="bg-slate-900 hover:bg-slate-700 text-white gap-2 shadow-sm">
+          <Plus size={16} /> Create Assignment
+        </Button>
       </div>
 
-      {/* Search Bar */}
-      <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onReset={resetSearch} placeholder="Search by driver, conductor, cleaner, or vehicle..." />
+      {/* Stats bar */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm shadow-xs">
+          <span className="text-slate-500">Total</span>
+          <span className="font-bold text-slate-800">{assignments.length}</span>
+        </div>
+      </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden backdrop-blur-sm">
+      {/* Table card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+
+        {/* Search */}
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
+          <Search size={15} className="text-slate-400 shrink-0" />
+          <Input
+            placeholder="Search by driver, conductor, cleaner, or vehicle..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border-0 shadow-none focus-visible:ring-0 text-sm h-8 px-0"
+          />
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gradient-to-r from-slate-50 to-slate-100/50 border-b border-slate-200">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Vehicle</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Driver</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Conductor</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Cleaner</th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                {['ID', 'Vehicle', 'Driver', 'Conductor', 'Cleaner', ''].map(h => (
+                  <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <TableSkeleton columns={['w-8', 'w-24', 'w-28', 'w-28', 'w-28', 'w-16']} />
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {[50, 100, 120, 120, 100, 80].map((w, j) => (
+                      <td key={j} className="px-5 py-3">
+                        <Skeleton className="h-4 rounded" style={{ width: w }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
               ) : currentItems.length === 0 ? (
-                <tr><td colSpan="6" className="px-6 py-12 text-center">
-                  <p className="text-slate-500 font-medium">No crew assignments found</p>
-                  <p className="text-slate-400 text-sm mt-1">Create your first assignment to get started</p>
-                </td></tr>
-              ) : currentItems.map(item => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-all duration-150">
-                  <td className="px-6 py-4"><span className="text-sm text-slate-500 font-mono">#{item.id}</span></td>
-                  <td className="px-6 py-4"><span className="text-sm text-slate-800 font-semibold">{item.vehicle_reg || '—'}</span></td>
-                  <td className="px-6 py-4"><span className="text-sm text-slate-700">{item.driver_name || '—'}</span></td>
-                  <td className="px-6 py-4"><span className="text-sm text-slate-600">{item.conductor_name || '—'}</span></td>
-                  <td className="px-6 py-4"><span className="text-sm text-slate-600">{item.cleaner_name || '—'}</span></td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-end items-center gap-2">
-                      <button onClick={() => openViewModal(item)} className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all duration-150">View</button>
-                      <button onClick={() => openEditModal(item)} className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all duration-150">Edit</button>
-                      <button onClick={() => handleDelete(item)} className="px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-150">Delete</button>
-                    </div>
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
+                    No crew assignments found.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                currentItems.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="font-semibold text-slate-800 text-sm">{item.vehicle_reg || '—'}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-slate-700 text-sm">{item.driver_name || '—'}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-slate-600 text-sm">{item.conductor_name || '—'}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="text-slate-500 text-sm">{item.cleaner_name || '—'}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openViewModal(item)}
+                          className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+                          title="View"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => openEditModal(item)}
+                          className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item)}
+                          className="p-1.5 rounded-md bg-red-600 text-white hover:bg-red-500 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        {!loading && assignments.length > 0 && totalPages > 1 && (
-          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-slate-600">
-                Showing <span className="font-medium text-slate-900">{indexOfFirstItem + 1}</span> to{' '}
-                <span className="font-medium text-slate-900">{Math.min(indexOfLastItem, assignments.length)}</span> of{' '}
-                <span className="font-medium text-slate-900">{assignments.length}</span> results
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150">Previous</button>
-                <div className="flex items-center gap-1">
-                  {getPageNumbers().map(pageNum => (
-                    <button key={pageNum} onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[2.5rem] px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-150 ${currentPage === pageNum ? 'bg-slate-800 text-white shadow-md' : 'text-slate-700 bg-white border border-slate-300 hover:bg-slate-50'}`}>
-                      {pageNum}
-                    </button>
-                  ))}
-                </div>
-                <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150">Next</button>
-              </div>
+        {!loading && filteredItems.length > 0 && totalPages > 1 && (
+          <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              Showing {indexOfFirstItem + 1}–{Math.min(indexOfLastItem, assignments.length)} of {assignments.length}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)}
+                disabled={currentPage === 1} className="h-7 px-2.5 text-xs">Prev</Button>
+              {getPageNumbers().map(n => (
+                <Button key={n} size="sm" onClick={() => setCurrentPage(n)}
+                  className={`h-7 w-7 p-0 text-xs ${currentPage === n
+                    ? 'bg-slate-900 hover:bg-slate-700 text-white'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}>
+                  {n}
+                </Button>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)}
+                disabled={currentPage === totalPages} className="h-7 px-2.5 text-xs">Next</Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()}>
-        <div className="space-y-5">
-          {renderDropdown('driver',    'Driver',    drivers,    true)}
-          {renderDropdown('conductor', 'Conductor', conductors, true)}
-          {renderDropdown('cleaner',   'Cleaner',   cleaners,   false)}
-          {renderDropdown('vehicle',   'Vehicle',   vehicles,   true)}
+      {/* Dialog */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <span className="p-1.5 rounded-lg bg-slate-900">
+                <CalendarCog size={14} className="text-white" />
+              </span>
+              {getModalTitle()}
+            </DialogTitle>
+          </DialogHeader>
 
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-all">
-              {isReadOnly ? 'Close' : 'Cancel'}
-            </button>
-            {!isReadOnly && (
-              <button type="button" onClick={handleSubmit} disabled={submitting} className="px-5 py-2.5 text-sm font-medium text-white bg-slate-800 rounded-xl hover:bg-slate-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update' : 'Save'}
-              </button>
-            )}
+          <div className="space-y-4 mt-2">
+            {renderDropdown('driver',    'Driver',    drivers,    true)}
+            {renderDropdown('conductor', 'Conductor', conductors, true)}
+            {renderDropdown('cleaner',   'Cleaner',   cleaners,   false)}
+            {renderDropdown('vehicle',   'Vehicle',   vehicles,   true)}
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setIsModalOpen(false)} className="text-slate-600">
+                {isReadOnly ? 'Close' : 'Cancel'}
+              </Button>
+              {!isReadOnly && (
+                <Button onClick={handleSubmit} disabled={submitting}
+                  className="bg-slate-900 hover:bg-slate-700 text-white">
+                  {submitting ? 'Saving...' : modalMode === 'edit' ? 'Update' : 'Save'}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

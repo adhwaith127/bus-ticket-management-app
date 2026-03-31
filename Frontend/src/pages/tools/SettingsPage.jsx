@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react';
+import {
+  Settings, Smartphone, Ticket, BadgeDollarSign,
+  Wifi, ToggleRight, Save, CheckCircle2,
+} from 'lucide-react';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 // ── Section 1: Reusable Field Components ─────────────────────────────────────
@@ -53,10 +57,13 @@ const Toggle = ({ label, name, value, onChange, loading = false }) => (
 );
 
 // Section wrapper with consistent card styling and optional loading skeleton
-const Section = ({ title, children, loading = false }) => (
-  <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 p-6 backdrop-blur-sm">
-    <h2 className="text-lg font-bold text-slate-800 mb-5 pb-3 border-b border-slate-200 flex items-center gap-2">
-      {loading && <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>}
+const Section = ({ title, icon: Icon, children, loading = false }) => (
+  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+    <h2 className="text-base font-bold text-slate-800 mb-5 pb-3 border-b border-slate-100 flex items-center gap-2">
+      {loading
+        ? <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin shrink-0"></div>
+        : Icon && <Icon size={16} className="text-slate-600 shrink-0" />
+      }
       {title}
     </h2>
     {children}
@@ -117,48 +124,51 @@ export default function SettingsPage() {
   };
 
   // ── Section 5: Render ────────────────────────────────────────────────────────
-  return (
-    <div className="p-6 md:p-10 min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+  const SaveButton = ({ bottom = false }) => (
+    <button
+      type="button" onClick={handleSave} disabled={saving || loading}
+      className={`flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-slate-900 hover:bg-slate-700 rounded-xl shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${bottom ? 'w-full sm:w-auto' : ''}`}
+    >
+      {saving ? (
+        <>
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          Saving...
+        </>
+      ) : saved ? (
+        <>
+          <CheckCircle2 size={16} />
+          Saved!
+        </>
+      ) : (
+        <>
+          <Save size={16} />
+          Save Settings
+        </>
+      )}
+    </button>
+  );
 
-      {/* Header with gradient text and save button */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent tracking-tight">
-            Company Settings
-          </h1>
-          <p className="text-slate-600 mt-1.5">Configure device, fare, and display settings</p>
+  return (
+    <div className="p-3 sm:p-5 lg:p-7 min-h-screen bg-slate-50">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-slate-900">
+            <Settings size={20} className="text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Company Settings</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Configure device, fare, and display settings</p>
+          </div>
         </div>
-        <button
-          type="button" onClick={handleSave} disabled={saving || loading}
-          className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 rounded-xl shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:-translate-y-0.5"
-        >
-          {saving ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              <span>Saving...</span>
-            </>
-          ) : saved ? (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>Saved!</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-              </svg>
-              <span>Save Settings</span>
-            </>
-          )}
-        </button>
+        <SaveButton />
       </div>
 
       <div className="space-y-6">
 
         {/* ── Device & Access ──────────────────────────────────────────────────── */}
-        <Section title="Device & Access" loading={loading}>
+        <Section title="Device & Access" icon={Smartphone} loading={loading}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <TextField label="Device ID (PalmtecID)" name="palmtec_id" value={formData.palmtec_id} onChange={handleChange} loading={loading} />
             <TextField label="User Password" name="user_pwd" value={formData.user_pwd} onChange={handleChange} loading={loading} />
@@ -173,7 +183,7 @@ export default function SettingsPage() {
         </Section>
 
         {/* ── Ticket Display (Headers & Footers) ───────────────────────────────── */}
-        <Section title="Ticket Display (Headers & Footers)" loading={loading}>
+        <Section title="Ticket Display (Headers & Footers)" icon={Ticket} loading={loading}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TextField label="Main Display Line 1" name="main_display" value={formData.main_display} onChange={handleChange} loading={loading} />
             <TextField label="Main Display Line 2" name="main_display2" value={formData.main_display2} onChange={handleChange} loading={loading} />
@@ -187,7 +197,7 @@ export default function SettingsPage() {
 
 
         {/* ── Fare Percentages & Amounts ───────────────────────────────────────── */}
-        <Section title="Fare Percentages & Amounts" loading={loading}>
+        <Section title="Fare Percentages & Amounts" icon={BadgeDollarSign} loading={loading}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <NumberField label="Half Fare (%)" name="half_per" value={formData.half_per} onChange={handleChange} loading={loading} />
             <NumberField label="Concession (%)" name="con_per" value={formData.con_per} onChange={handleChange} loading={loading} />
@@ -201,7 +211,7 @@ export default function SettingsPage() {
         </Section>
 
         {/* ── Communication & FTP ───────────────────────────────────────────────── */}
-        <Section title="Communication & FTP" loading={loading}>
+        <Section title="Communication & FTP" icon={Wifi} loading={loading}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TextField label="Phone 2" name="ph_no2" value={formData.ph_no2} onChange={handleChange} loading={loading} />
             <TextField label="Phone 3" name="ph_no3" value={formData.ph_no3} onChange={handleChange} loading={loading} />
@@ -216,7 +226,7 @@ export default function SettingsPage() {
         </Section>
 
         {/* ── Feature Toggles ───────────────────────────────────────────────────── */}
-        <Section title="Feature Toggles" loading={loading}>
+        <Section title="Feature Toggles" icon={ToggleRight} loading={loading}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             <Toggle label="Round Off" name="roundoff" value={formData.roundoff} onChange={handleChange} loading={loading} />
             <Toggle label="Round Up" name="round_up" value={formData.round_up} onChange={handleChange} loading={loading} />
@@ -242,32 +252,8 @@ export default function SettingsPage() {
         </Section>
 
         {/* Bottom save button for convenience on long pages */}
-        <div className="flex justify-end pt-4">
-          <button
-            type="button" onClick={handleSave} disabled={saving || loading}
-            className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-700 hover:to-slate-600 rounded-xl shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:-translate-y-0.5"
-          >
-            {saving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Saving...</span>
-              </>
-            ) : saved ? (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Saved!</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-                <span>Save Settings</span>
-              </>
-            )}
-          </button>
+        <div className="flex justify-end pt-2">
+          <SaveButton bottom />
         </div>
 
       </div>

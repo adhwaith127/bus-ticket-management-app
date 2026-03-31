@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronLeft, ChevronRight,
   Bus, Coins, UserCog, UserRound,
   Route, Truck, CalendarCog, BadgeDollarSign, Settings,
-  Ticket, TrendingDown,
+  Ticket, TrendingDown, Layers, IndianRupee,
 } from "lucide-react";
 import api, { BASE_URL } from "../assets/js/axiosConfig";
 import cacheManager from "../assets/js/reportCache";
@@ -157,7 +157,8 @@ export default function Sidebar() {
     if (!validTill) return null;
     const [day, month, year] = validTill.split("-");
     const days = Math.ceil((new Date(year, month - 1, day) - new Date()) / 86400000);
-    if (days <= 0)  return { message: "License Expired!",                                       type: "error"   };
+    if (days < 0)   return { message: "License Expired!",                                       type: "error"   };
+    if (days === 0) return { message: "License expires today!",                                  type: "error"   };
     if (days <= 10) return { message: `License expires in ${days} day${days !== 1 ? "s" : ""}`, type: "warning" };
     return null;
   };
@@ -308,7 +309,9 @@ export default function Sidebar() {
                   <SubLink to="/dashboard/master-data/routes"           icon={Route}           label="Routes"           onClose={close} />
                   <SubLink to="/dashboard/master-data/vehicles"         icon={Truck}           label="Vehicles"         onClose={close} />
                   <SubLink to="/dashboard/master-data/crew-assignments" icon={CalendarCog}     label="Crew Assignments" onClose={close} />
-                  <SubLink to="/dashboard/master-data/fares"            icon={BadgeDollarSign} label="Fare"             onClose={close} />
+                  <SubLink to="/dashboard/master-data/fares"            icon={BadgeDollarSign} label="Fare Editor"      onClose={close} />
+                  <SubLink to="/dashboard/master-data/stages"           icon={Layers}          label="Stage Editor"     onClose={close} />
+                  <SubLink to="/dashboard/master-data/expense-master"   icon={IndianRupee}     label="Expense Master"   onClose={close} />
                   <SubLink to="/dashboard/master-data/settings"         icon={Settings}        label="Settings"         onClose={close} />
                 </DropdownSection>
 

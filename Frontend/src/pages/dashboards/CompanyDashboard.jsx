@@ -20,6 +20,7 @@ export default function CompanyDashboard() {
     : null;
   const username = storedUser?.username || "User";
   const companyName = storedUser?.company_name || "Company";
+  const companyId = storedUser?.company_id;
 
   // ── Section 2: State ────────────────────────────────────────────────────
   const [metrics, setMetrics] = useState({
@@ -134,6 +135,11 @@ export default function CompanyDashboard() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                   {companyName} Dashboard
+                  {companyId && (
+                    <span className="ml-2 normal-case font-normal text-slate-400">
+                      (ID: {companyId})
+                    </span>
+                  )}
                 </p>
                 <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
                   Company Overview
