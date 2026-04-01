@@ -156,15 +156,15 @@ export default function EmployeeTypeListing() {
                 <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-5 py-3.5"><span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span></td>
                   <td className="px-5 py-3.5">
-                    <Badge className="bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-100 uppercase font-bold tracking-wide">
+                    <Badge className="bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-100 uppercase font-bold tracking-wide min-w-[3rem] justify-center">
                       {item.emp_type_code}
                     </Badge>
                   </td>
                   <td className="px-5 py-3.5"><span className="text-slate-700 font-medium text-sm">{item.emp_type_name}</span></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => openViewModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="View"><Eye size={14} /></button>
-                      <button onClick={() => openEditModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="Edit"><Pencil size={14} /></button>
+                      <button onClick={() => openViewModal(item)} className="p-2 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="View"><Eye size={16} /></button>
+                      <button onClick={() => openEditModal(item)} className="p-2 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="Edit"><Pencil size={16} /></button>
                     </div>
                   </td>
                 </tr>

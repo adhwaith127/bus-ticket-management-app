@@ -717,11 +717,11 @@ export default function RouteListing() {
               ) : filteredItems.map(item => (
                 <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-5 py-3.5"><span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span></td>
-                  <td className="px-5 py-3.5"><span className="font-semibold text-slate-800 text-sm">{item.route_code}</span></td>
-                  <td className="px-5 py-3.5"><span className="text-slate-700 text-sm">{item.route_name}</span></td>
-                  <td className="px-5 py-3.5"><span className="text-slate-600 text-sm">{item.bus_type_name || '—'}</span></td>
-                  <td className="px-5 py-3.5"><span className="text-slate-600 text-sm">{item.route_stages?.length || 0}</span></td>
-                  <td className="px-5 py-3.5"><span className="text-slate-600 text-sm">₹{item.min_fare}</span></td>
+                  <td className="px-5 py-3.5"><span className="font-semibold text-slate-800 text-base">{item.route_code}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-700 text-base">{item.route_name}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-600 text-base">{item.bus_type_name || '—'}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-600 text-base">{item.route_stages?.length || 0}</span></td>
+                  <td className="px-5 py-3.5"><span className="text-slate-600 text-base">₹{item.min_fare}</span></td>
                   <td className="px-5 py-3.5">
                     {item.fare_type === 1
                       ? <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-xs">TABLE</Badge>
@@ -736,8 +736,8 @@ export default function RouteListing() {
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => openViewModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="View"><Eye size={14} /></button>
-                      <button onClick={() => openEditModal(item)} className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="Edit"><Pencil size={14} /></button>
+                      <button onClick={() => openViewModal(item)} className="p-2 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="View"><Eye size={16} /></button>
+                      <button onClick={() => openEditModal(item)} className="p-2 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors" title="Edit"><Pencil size={16} /></button>
                     </div>
                   </td>
                 </tr>

@@ -186,7 +186,7 @@ export default function VehicleListing() {
                       <span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className="font-bold text-slate-800 text-sm uppercase">{item.bus_reg_num}</span>
+                      <span className="font-bold text-slate-800 text-base uppercase">{item.bus_reg_num}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       {item.bus_type_name
@@ -204,17 +204,17 @@ export default function VehicleListing() {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => openViewModal(item)}
-                          className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+                          className="p-2 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
                           title="View"
                         >
-                          <Eye size={14} />
+                          <Eye size={16} />
                         </button>
                         <button
                           onClick={() => openEditModal(item)}
-                          className="p-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+                          className="p-2 rounded-md bg-slate-900 text-white hover:bg-slate-700 transition-colors"
                           title="Edit"
                         >
-                          <Pencil size={14} />
+                          <Pencil size={16} />
                         </button>
                       </div>
                     </td>
