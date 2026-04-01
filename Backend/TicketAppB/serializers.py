@@ -219,15 +219,15 @@ class ExecutiveCompanyMappingSerializer(serializers.ModelSerializer):
 
 
 class TicketDataSerializer(serializers.ModelSerializer):
-    # Ticket type mapping for display
-    TICKET_TYPE_MAPPING = {
-        '0': 'Full',
-        '1': 'Half',
-        '2': 'Student',
-        '3': 'Physical',
-        '4': 'Luggage'
+    # Bitmask: each bit represents a passenger category
+    TICKET_TYPE_BITS = {
+        1:  'Full',
+        2:  'Half',
+        4:  'Luggage',
+        8:  'PH',
+        16: 'Student',
     }
-    
+
     # Add display fields
     payment_mode_display = serializers.SerializerMethodField()
     ticket_type_display = serializers.SerializerMethodField()
@@ -281,12 +281,13 @@ class TicketDataSerializer(serializers.ModelSerializer):
         return "Unknown"
     
     def get_ticket_type_display(self, obj):
-        """Convert ticket_type code to display string"""
-        if obj.ticket_type and obj.ticket_type in self.TICKET_TYPE_MAPPING:
-            return self.TICKET_TYPE_MAPPING[obj.ticket_type]
-        elif obj.ticket_type:
-            return obj.ticket_type
-        return "Unknown"
+        """Decode bitmask ticket_type into passenger category labels"""
+        try:
+            val = int(obj.ticket_type)
+        except (TypeError, ValueError):
+            return obj.ticket_type or 'Unknown'
+        labels = [label for bit, label in self.TICKET_TYPE_BITS.items() if val & bit]
+        return ' + '.join(labels) if labels else 'Unknown'
     
     def get_formatted_ticket_date(self, obj):
         """Format date as DD-MM-YYYY for frontend display"""
