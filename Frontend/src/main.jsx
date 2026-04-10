@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 
+
 import './index.css'
 
 import Login from './pages/auth/Login'
@@ -29,7 +30,10 @@ import ExpenseMasterPage from './pages/operations/ExpenseMasterPage'
 
 import TicketReport from './pages/reports/TicketReport'
 import TripcloseReport from './pages/reports/TripcloseReport'
-import SettlementPage from './pages/reports/SettlementPage'
+import SettlementsLayout from './pages/reports/settlements/SettlementsLayout'
+
+import TransactionPosting from './pages/reports/settlements/TransactionPosting'
+import PayoutPosting from './pages/reports/settlements/PayoutPosting'
 
 import MdbImport from './pages/tools/MdbImport'
 import SettingsPage from './pages/tools/SettingsPage'
@@ -86,7 +90,12 @@ const router = createBrowserRouter([
           },
           {
             path: 'settlements',
-            element: <SettlementPage />
+            element: <SettlementsLayout />,
+            children: [
+              { index: true, element: <Navigate to="transactions" replace /> },
+              { path: 'transactions', element: <TransactionPosting /> },
+              { path: 'payouts', element: <PayoutPosting /> },
+            ]
           },
           {
             path: 'dealers',

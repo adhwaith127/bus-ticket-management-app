@@ -155,7 +155,13 @@ export default function RouteListing() {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    let processedValue = type === 'checkbox' ? checked : value;
+    if (name === 'route_code') {
+      processedValue = value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4);
+    } else if (name === 'route_name') {
+      processedValue = value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14);
+    }
+    setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
   // ── Section 8: RouteStage helpers (edit modal) ───────────────────────────
@@ -213,7 +219,13 @@ export default function RouteListing() {
 
   const handleWizardChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setWizardData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    let processedValue = type === 'checkbox' ? checked : value;
+    if (name === 'route_code') {
+      processedValue = value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4);
+    } else if (name === 'route_name') {
+      processedValue = value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 14);
+    }
+    setWizardData(prev => ({ ...prev, [name]: processedValue }));
   };
 
   const goToStep2 = () => {
@@ -234,7 +246,7 @@ export default function RouteListing() {
     const minFare = parseFloat(min_fare) || 0;
     const ft = parseInt(fare_type);
     if (ft === 1) {
-      const fareList = Array(n).fill(0).map((_, i) => i === 0 ? minFare : 0);
+      const fareList = Array(n).fill(0);
       setWizardData(prev => ({ ...prev, fare_list: fareList, fare_matrix: [] }));
     } else {
       // Lower-triangular: (n-1) rows, row i has (i+1) entries, pre-filled with min_fare
@@ -447,18 +459,26 @@ export default function RouteListing() {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                           {wizardData.fare_list.map((fare, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 text-sm font-medium text-slate-700">{idx + 1} {idx === 0 ? 'Stage' : 'Stages'}</td>
+                            <tr key={idx} className={idx === 0 ? 'bg-slate-50' : 'hover:bg-slate-50'}>
+                              <td className="px-4 py-3 text-sm font-medium text-slate-700">
+                                {idx + 1} {idx === 0 ? 'Stage' : 'Stages'}
+                                {idx === 0 && <span className="ml-2 text-xs text-slate-400">(locked)</span>}
+                              </td>
                               <td className="px-4 py-3">
-                                <input type="number" value={fare} min="0" onChange={e => updateWizardFareList(idx, e.target.value)}
-                                  onBlur={e => {
-                                    const minF = parseFloat(wizardData.min_fare) || 0;
-                                    const val = parseFloat(e.target.value) || 0;
-                                    if (val > 0 && val < minF) {
-                                      window.alert(`Minimum Fare is ${minF}`);
-                                    }
-                                  }}
-                                  className="w-40 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:outline-none text-sm" />
+                                {idx === 0 ? (
+                                  <input type="number" value={0} disabled
+                                    className="w-40 px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-100 text-slate-400 cursor-not-allowed text-sm" />
+                                ) : (
+                                  <input type="number" value={fare} min="0" onChange={e => updateWizardFareList(idx, e.target.value)}
+                                    onBlur={e => {
+                                      const minF = parseFloat(wizardData.min_fare) || 0;
+                                      const val = parseFloat(e.target.value) || 0;
+                                      if (val > 0 && val < minF) {
+                                        window.alert(`Minimum Fare is ${minF}`);
+                                      }
+                                    }}
+                                    className="w-40 px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:outline-none text-sm" />
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -533,7 +553,10 @@ export default function RouteListing() {
                           ref={stageNameRef}
                           type="text"
                           value={stageInput.stage_name}
-                          onChange={e => setStageInput(prev => ({ ...prev, stage_name: e.target.value }))}
+                          onChange={e => {
+                            const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 11);
+                            setStageInput(prev => ({ ...prev, stage_name: val }));
+                          }}
                           onKeyDown={e => { if (e.key === 'Enter') saveStageEntry(); }}
                           placeholder="Enter stage name"
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 bg-white"
@@ -542,12 +565,15 @@ export default function RouteListing() {
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-slate-700">Distance (km)</label>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           value={stageInput.distance}
-                          onChange={e => setStageInput(prev => ({ ...prev, distance: e.target.value }))}
+                          onChange={e => {
+                            const val = e.target.value.replace(/[^0-9.]/g, '').slice(0, 11);
+                            setStageInput(prev => ({ ...prev, distance: val }));
+                          }}
                           onKeyDown={e => { if (e.key === 'Enter') saveStageEntry(); }}
                           placeholder="0"
-                          min="0"
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 bg-white"
                         />
                       </div>

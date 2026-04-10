@@ -57,9 +57,9 @@ from .transactions import (TransactionData,TripCloseData,RawDataLog,)
 TRANSACTION_MODELS = ['TransactionData','TripCloseData','RawDataLog',]
 
 # Payment models
-from .payments import MosambeeTransaction
+from .payments import MosambeeTransaction, MosambeePayoutCallback
 
-PAYMENT_MODELS = ['MosambeeTransaction',]
+PAYMENT_MODELS = ['MosambeeTransaction', 'MosambeePayoutCallback',]
 
 
 # Public export surface

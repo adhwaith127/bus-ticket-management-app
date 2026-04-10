@@ -49,8 +49,10 @@ urlpatterns = [
     path('get_all_trip_close_data', data_views.get_all_trip_close_data, name='get_all_trip_close_data'),
 
     # mosambee data
-    path('postSettlementDetails', mosambee_views.mosambee_settlement_data, name='postSettlementDetails'),
+    path('postTransactionDetails', mosambee_views.mosambee_settlement_data, name='postTransactionDetails'),
+    path('postPayoutDetails', mosambee_views.mosambee_payout_callback, name='postPayoutDetails'),
     path('get_settlement_data', mosambee_views.get_settlement_data, name='get_settlement_data'),
+    path('get_payout_data', mosambee_views.get_payout_data, name='get_payout_data'),
     path('verify_settlement', mosambee_views.verify_settlement, name='verify_settlement'),
     path('get_settlement_summary', mosambee_views.get_settlement_summary, name='get_settlement_summary'),
 

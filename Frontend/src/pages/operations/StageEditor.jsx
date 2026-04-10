@@ -234,7 +234,10 @@ export default function StageEditor() {
                       <div className="space-y-1">
                         <Input
                           value={row.stage_name}
-                          onChange={(e) => handleFieldChange(idx, 'stage_name', e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 11);
+                            handleFieldChange(idx, 'stage_name', val);
+                          }}
                           onKeyDown={(e) => e.key === 'Enter' && handleSaveRow(idx)}
                           className="h-8 text-sm"
                           placeholder="Stage name"
@@ -249,14 +252,16 @@ export default function StageEditor() {
                     </td>
                     <td className="px-5 py-3">
                       <Input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         value={row.distance}
-                        onChange={(e) => handleFieldChange(idx, 'distance', e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.]/g, '').slice(0, 11);
+                          handleFieldChange(idx, 'distance', val);
+                        }}
                         onKeyDown={(e) => e.key === 'Enter' && handleSaveRow(idx)}
                         className="h-8 text-sm w-28"
                         placeholder="0.0"
-                        min="0"
-                        step="0.1"
                       />
                     </td>
                     <td className="px-5 py-3">

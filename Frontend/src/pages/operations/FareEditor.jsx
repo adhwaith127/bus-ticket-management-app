@@ -315,24 +315,36 @@ export default function FareEditor() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {fareList.map((fare, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                  <tr key={idx} className={idx === 0 ? 'bg-slate-50' : 'hover:bg-slate-50 transition-colors'}>
                     <td className="px-6 py-4 text-sm font-medium text-slate-800">
                       {idx + 1} {idx + 1 === 1 ? 'Stage' : 'Stages'}
-                      {idx < stages.length && (
-                        <span className="ml-2 text-xs text-slate-500">
-                          (e.g., {stages[0].stage_name} → {stages[idx].stage_name})
-                        </span>
-                      )}
+                      {idx === 0
+                        ? <span className="ml-2 text-xs text-slate-400">(locked)</span>
+                        : idx < stages.length && (
+                          <span className="ml-2 text-xs text-slate-500">
+                            (e.g., {stages[0].stage_name} → {stages[idx].stage_name})
+                          </span>
+                        )
+                      }
                     </td>
                     <td className="px-6 py-4">
-                      <input
-                        type="number"
-                        value={fare}
-                        onChange={(e) => updateTableFare(idx, e.target.value)}
-                        min="0"
-                        step="1"
-                        className="w-full max-w-xs px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
+                      {idx === 0 ? (
+                        <input
+                          type="number"
+                          value={0}
+                          disabled
+                          className="w-full max-w-xs px-4 py-2 border border-slate-200 rounded-lg bg-slate-100 text-slate-400 cursor-not-allowed"
+                        />
+                      ) : (
+                        <input
+                          type="number"
+                          value={fare}
+                          onChange={(e) => updateTableFare(idx, e.target.value)}
+                          min="0"
+                          step="1"
+                          className="w-full max-w-xs px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}

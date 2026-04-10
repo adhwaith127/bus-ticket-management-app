@@ -1,0 +1,165 @@
+MAJOR APIS FOR SENDING TRANSACTION DATA FROM ETM/IDC TO WEB
+============================================================
+`API_WayBill` - API for sending duty open details
+`API_SaveOpenTrip` - API for sending trip open data from ETM/IDC
+`API_SaveTicketData` - API for sending ticket data from ETM/IDC
+`API_SaveCloseTrip` - API for sending trip close data from ETM/IDC
+`API_SaveTripCloseSummary` - API for sending trip close summary from ETM/IDC
+`API_CloseDuty` - API for sending duty close summary ETM for report purpose
+`API_SaveDutyCloseSummary` - API for sending duty close summary from ETM/IDC
+`API_SaveCloseDuty` - API for sending duty close data from ETM/IDC
+`API_SaveBreakDown` - API for sending breakdown data from ETM/IDC
+`API_SaveDeviceUpdate` - API for sending ETM/IDC firmware updation status
+`API_SaveDieselEntry` - API for sending diesel entry data from ETM/IDC
+`API_SaveETMDeviceBackup` - API for sending ETM BBOX via wifi
+`API_SaveInspector` - API for sending inspector data from ETM/IDC
+`API_SaveInspRemark` - API for sending inspector remark from ETM/IDC
+`ETM_SaveEtmDataSync` - API for sending call for ETM master download to fetch data from table ETMDataSync
+`ETM_SaveEtmDataSyncStatus` - API for sending master downlaod status to table ETMDataSync.
+
+
+MAJOR APIS FOR RECEIVING MASTER DATA FROM WEB TO ETM
+=====================================================
+`API_GetBasefareData` - API for getting fare data from web
+`API_GetCrewDetails` - API for getting crew master from web
+`API_GetDutyData` - API for getting duty master from web
+`API_GetEmployeeData` - API for getting crew details from web
+`API_GetInspectorremarkData` - API for getting inspector remark master
+`API_GetRouteData` - API for getting route details from web
+`API_GetServerDateAndTime` - API for data and time sync from web
+`API_GetServicetypeData` - API for getting service type master
+`API_GetSettings` - API for getting settings master from web
+`API_GetVehicleData` - API for getting vehicle details from web
+`API_PalmRegister` - API for ETM registration
+`ETM_GetBaseFare` - API for getting fare data from web
+`ETM_GetBaseRTE` - API for getting ruote deatils
+`ETM_GetBlockedCards` - API for getting bloacked smart card details
+`ETM_GetBreakDownType` - API for getting breakdown type master
+`ETM_GetCardInfo` - API for getting card details
+`ETM_GetEtmMasterDataOver`- API for passing information from web to ETM that master files completed
+`ETM_GetFare ` - API for getting fare data from web
+`ETM_GetFareAmt` - API for getting fare data from web
+`ETM_GetFirmwareUpdates` - API for getting firmware update informations from web
+`ETM_GetLocation` - API for getting location(Depot) details from web
+`ETM_GetLogo` - API for getting logo from web
+`ETM_GetRoutes` - API for getting route names from web
+`ETM_GetStage` - API for getting stage details from web
+`ETM_GetVehDat` - API from getting vehicle details from web
+`ETM_SanityCheck` - API for getting sanity check information from web
+
+
+MAJOR APIS FOR PIS(PASSENGER INFOMRATION APP)
+=============================================
+`CustApp_CustomerRequestOtp`- API for PIS app register
+`CustApp_GetAllVehiclesByRouteId` - API for getting vehicle and route details for PIS app
+`CustApp_GetAllVehiclesByStages` - API for getting all vehicle details and stages to PIS app
+`CustApp_GetAllVehiclesByStages__1` - API for getting all vehicle details and stages to PIS app
+`CustApp_GetAllVehiclesByStages20221110`- API for getting all vehicle details and stages to PIS app
+`CustApp_GetLiveVehicleTrack` - API for getting live vehicle track data
+`CustApp_GetNearStages` - API for getting near by stage names of user
+`CustApp_GetStagesFromStage` - API for getting from stages
+`CustApp_GetTripDetails` - API for getting trip details
+`CustApp_SaveCustomer` - API for sending customer details
+`CustApp_SaveCustomerComplaint` - API for sending customer complaints
+`CustApp_SaveCustomerFeedback` - API for sending customer feedback
+
+
+
+DATA STRUCTURE OF RESPONSE FOR MAJOR APIS SENDING TRANSACTION DATA FROM ETM/IDC TO WEB
+======================================================================================
+
+`API_WayBill`
+=============
+ ucUniqueCode,gSetup.ETMNo,
+          Crewout.DutyCount ,Crewout.VehicleTypeID,Crewout.cWaybillNo,Crewout.ConductorID,
+          Crewout.DriverID,Crewout.VehicleID ,Crewout.DutyID,
+          Crewout.Date.da_day,Crewout.Date.da_mon,Crewout.Date.da_year,
+          Crewout.Time.ti_hour,Crewout.Time.ti_min,Crewout.Time.ti_sec,
+          Crewout.sLocationId,bat_percentage,Crewout.cBluetoothAddr,Crewout.cBluetoothName,Crewout.cIMEI),checksum
+		  
+
+`API_SaveOpenTrip`
+==================
+ ucUniqueCode,gSetup.ETMNo,gReport.sLocationId,
+          gReport.DutyID,gReport.RouteID,gReport.ServiceTypeId,gReport.TripType,gReport.TripNo,
+          gReport.VehicleTypeID,gReport.VehicleID,
+          gReport.StartDate.da_day,gReport.StartDate.da_mon,gReport.StartDate.da_year,
+          gReport.StartTime.ti_hour,gReport.StartTime.ti_min,gReport.StartTime.ti_sec,
+          gReport.ConductorID,gReport.DriverID,gReport.cWaybillNo,Crewout.cNoOfSeat,bat_percentage,usStageCode_new[gReport.StartStage],usStageCode_new[gReport.EndStage]),checksum
+		  
+		  
+`API_SaveTicketData`
+====================
+ ucUniqueCode,gSetup.ETMNo,tempTicket.TicketNo,tempTicket.TripNumber,
+                tempTicket.RouteID,tempTicket.DutyID,tempTicket.VehicleTypeID,
+                usStageCode_new[tempTicket.From],usStageCode_new[tempTicket.To],tempTicket.TicketType,
+                tempTicket.AdCount,tempTicket.ChCount,tempTicket.StCount,tempTicket.EmpCount,tempTicket.PensCount,
+          tempTicket.AdultFare,tempTicket.ChildFare,tempTicket.StudentFare,tempTicket.EmployeeFare,tempTicket.PensionerFare,tempTicket.PenaltyAmount,
+                tempTicket.InspectorID,tempTicket.Amount,
+                tempTicket.Date.da_day,tempTicket.Date.da_mon,tempTicket.Date.da_year,
+                tempTicket.Time.ti_hour,tempTicket.Time.ti_min,tempTicket.Time.ti_sec,tempTicket.sLocation,
+                tempTicket.cWaybillNo,tempTicket.cCardNumber,tempTicket.dBalanceAmnt,tempTicket.dPreviousAmt,tempTicket.cCardTicket,tempTicket.cCardWriteStatus,tempTicket.sNoOfSeat,
+                tempTicket.VehicleID,gReport.DutyCount,gReport.ConductorID,gReport.DriverID,gReport.ServiceTypeId,gReport.TripType,
+                Crewout.Date.da_day,Crewout.Date.da_mon,Crewout.Date.da_year,
+                Crewout.Time.ti_hour,Crewout.Time.ti_min,Crewout.Time.ti_sec,
+                gReport.StartDate.da_day,gReport.StartDate.da_mon,gReport.StartDate.da_year,
+          gReport.StartTime.ti_hour,gReport.StartTime.ti_min,gReport.StartTime.ti_sec,
+                bat_percentage,usStageCode_new[gReport.StartStage],usStageCode_new[gReport.EndStage]),CHECKSUM
+				
+				
+`API_SaveCloseTrip`
+==================
+ ucUniqueCode,gSetup.ETMNo,gReport.sLocationId,gReport.DutyID,
+          gReport.RouteID,gReport.ServiceTypeId,gReport.TripType,gReport.TripNo,
+          gReport.lSTicketNo,gReport.lETicketNo,gReport.VehicleTypeID,
+          gReport.VehicleID,usStageCode_new[gReport.StartStage],usStageCode_new[gReport.EndStage],gReport.TotalKM,
+          gReport.AdultCount,gReport.ChildCount,gReport.StudentCount,gReport.PensionerCount,
+                gReport.FreeSTCount,gReport.FreeEMPCount,gReport.FreePENSCount,
+                gReport.AdultFare,gReport.ChildFare,gReport.StudentFare,gReport.FreeSTfare,gReport.FreeEMPfare,gReport.FreePENSfare,
+                gReport.PenaltyCount,gReport.TotalPenaltyAMT,gReport.TotalColl,
+                gReport.StartDate.da_day,gReport.StartDate.da_mon,gReport.StartDate.da_year,
+                gReport.StartTime.ti_hour,gReport.StartTime.ti_min,gReport.StartTime.ti_sec,
+                gReport.EndDate.da_day,gReport.EndDate.da_mon,gReport.EndDate.da_year,
+                gReport.EndTime.ti_hour,gReport.EndTime.ti_min,gReport.EndTime.ti_sec,
+                gReport.ConductorID,gReport.DriverID,
+                gReport.cWaybillNo,gReport.sCardTicketCount,gReport.fCardTicketAmount,gReport.sRechargeCount,gReport.fRechargeAmount,
+                usNoofTotalRecords,bat_percentage);checksum
+				
+				
+`API_SaveTripCloseSummary`
+==========================			
+	`LocationId`, `ETMId`, `VehicleId`, `DutyId`, `RouteId`, `WayBillNumber`, `TripNo`, `ServiceTypeId`, `TripTypeId`, `StartTicketNumber`, `EndTicketNumber`, `VehicleTypeId`, `ConductorId`, `DriverId`, `TotalCashTicket`, `TotalCashAmount`, `CardTicketCount`, `CardTicketAmount`, `PenaltyCount`, `TotalPenaltyAMT`, `RechargeCount`, `RechargeAmount`, `NoOfBreakDownEntry`, `NoOfInspectorEntry`, `CardissueCount`, `BlockCardCount`, `UnblockCardCount`, `StartDate`, `StartTime`, `StartDateTime`, `EndDate`, `EndTime`, `EndDateTime`, `IsSanityCheckDone`, `IsReceivedAllTickets`, `IsReceivedAllPenalty`, `IsReceivedAllRecharge`, `IsReceivedAllBreakdown`, `IsReceivedAllInspector`, `IsReceivedAllCardIssue`, `IsReceivedAllDiesel`, `IsActive`, `IsApproved`, `IsDeleted`, `CreatedBy`, `CreatedOn`, `ModifiedBy`, `ModifiedOn`, `ETMVersion`, `SanityCheckStatus`, `SanityCheckStatusCount`, `SanityCheckStatusTime`, `DataTransferModeId`, `IsTripCloseReceived`, `IDCId`
+	
+	
+`API_SaveDutyCloseSummary`
+==========================
+    `LocationId`, `ETMId`, `WayBillNumber`, `DutyId`, `VehicleId`, `VehicleTypeId`, `ConductorId`, `DriverId`, `CashTicketCount`, `CardTicketCount`, `RechargeCount`, `PenaltyCount`, `BlockCardCount`, `UnblockCardCount`, `NoOfInspectorEntry`, `NoOfBreakDownEntry`, `CashAmount`, `CardTicketAmount`, `RechargeAmount`, `PenaltyAmount`, `TripCount`, `StartTripNo`, `EndTripNo`, `StartDate`, `StartTime`, `StartDateTime`, `EndDate`, `EndTime`, `EndDateTime`, `DutyCount`, `NoOfDieselEntries`, `DieselQuantity`, `SanityCheckStatus`, `SanityCheckStatusCount`, `SanityCheckStatusTime`, `IsReceivedAllTrip`, `IsReceivedAllTickets`, `IsReceivedAllCashTickets`, `IsReceivedAllCardTickets`, `IsReceivedAllPenalty`, `IsReceivedAllRecharge`, `IsReceivedAllBreakdown`, `IsReceivedAllInspector`, `IsReceivedAllCardIssue`, `IsReceivedAllCardBlock`, `IsReceivedAllDieselEntry`, `IsActive`, `IsApproved`, `IsDeleted`, `CreatedBy`, `CreatedOn`, `ModifiedBy`, `ModifiedOn`, `ETMVersion`, `IDCRecordCount`, `ServerRecordCount`, `BatteryLevel`, `TotalRecordCount`, `DataTransferModeId`, `IsReceivedDutyClose`, `IDCId`	
+	
+
+`API_SaveBreakDown`
+===================
+    `LocationId`, `BreakDownDate`, `BreakDownTime`, `DutyId`, `RouteId`, `VehicleId`, `TripNumber`, `StageId`, `BreakDownId`, `ContinueFlag`, `NoOfPSNGRinBus`, `DriverId`, `ConductorId`, `EntryBus1Id`, `EntryBus1Psngr`, `EntryBus2Id`, `EntryBus2Psngr`, `EntryBus3Id`, `EntryBus3Psngr`, `EntryBus4Id`, `EntryBus4Psngr`, `EntryBus5Id`, `EntryBus5Psngr`, `ETMId`, `WayBillNo`,
+	
+	
+
+`API_SaveDeviceUpdate`
+======================
+    `DeviceUpdateStatusId`, `DeviceTypeId`, `DeviceId`, `SerialNumber`, `IsFormatted`, `LocationId`, `IMEINumber`, `BluetoothName`, `BluetoothAddress`
+
+`API_SaveDieselEntry`
+=====================
+    `LocationId`, `FillingDate`, `FillingTime`, `DutyId`, `VehicleTypeId`, `VehicleId`, `DepotId`, `QutyOfDiesel`, `OdometerReading`, `DriverId`, `ConductorId`, `IsApproved`, `ChangeStatus`, `CreatedBy`, `CreatedOn`, `EtmId`, `SeatsAvailable`, `WayBillNo`
+				
+				
+				
+				
+				
+
+
+
+
+
+
+
+
+
