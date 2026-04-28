@@ -14,16 +14,15 @@ import ProtectedRoute from './components/ProtectedRoute'
 import CompanyListing from './pages/listings/CompanyListing'
 import UserListing from './pages/listings/UserListing'
 import DepotListing from './pages/listings/DepotListing'
-import BusTypeListing from './pages/listings/BusTypeListing'
-import EmployeeTypeListing from './pages/listings/EmployeeTypeListing'
+import VehicleCombined from './pages/listings/VehicleCombined'
 import CurrencyListing from './pages/listings/CurrencyListing'
-import EmployeeListing from './pages/listings/EmployeeListing'
-import VehicleListing from './pages/listings/VehicleListing'
 import RouteListing from './pages/listings/RouteListing'
+import EmployeeCombined from './pages/listings/EmployeeCombined'
 
 import CrewAssignmentListing from './pages/operations/CrewAssignmentListing'
 import DealerManagement from './pages/operations/DealerManagement'
 import DeviceApprovals from './pages/operations/DeviceApprovals'
+import DeviceRegistry from './pages/operations/DeviceRegistry'
 import FareEditor from './pages/operations/FareEditor'
 import StageEditor from './pages/operations/StageEditor'
 import ExpenseMasterPage from './pages/operations/ExpenseMasterPage'
@@ -37,6 +36,7 @@ import PayoutPosting from './pages/reports/settlements/PayoutPosting'
 
 import MdbImport from './pages/tools/MdbImport'
 import SettingsPage from './pages/tools/SettingsPage'
+import DeviceDownload from './pages/tools/DeviceDownload'
 
 import NotFound from './components/NotFound'
 
@@ -106,28 +106,24 @@ const router = createBrowserRouter([
             element: <DeviceApprovals />
           },
           {
+            path: 'device-registry',
+            element: <DeviceRegistry />
+          },
+          {
             path: 'data-import',
             element: <MdbImport/>
-          },
-          {
-            path: 'master-data/bus-types',
-            element: <BusTypeListing />
-          },
-          {
-            path: 'master-data/employee-types',
-            element: <EmployeeTypeListing />
           },
           {
             path: 'master-data/currencies',
             element: <CurrencyListing />
           },
           {
-            path: 'master-data/employees',
-            element: <EmployeeListing />
+            path: 'master-data/staff',
+            element: <EmployeeCombined />
           },
           {
-            path: 'master-data/vehicles',
-            element: <VehicleListing />
+            path: 'master-data/fleet',
+            element: <VehicleCombined />
           },
           {
             path: 'master-data/routes',
@@ -152,6 +148,10 @@ const router = createBrowserRouter([
           {
             path: 'master-data/settings',
             element: <SettingsPage />
+          },
+          {
+            path: 'device-download',
+            element: <DeviceDownload />
           },
         ]
       }

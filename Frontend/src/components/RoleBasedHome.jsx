@@ -12,8 +12,8 @@ export default function RoleBasedHome() {
   if (role === 'superadmin') return <AdminHome />;
   if (role === 'company_admin') return <CompanyDashboard />;
   if (role === 'user') return <UserHome />;
-  if (role === 'dealer_user') return <DealerDashboard />;
-  if (role === 'executive_user') return <ExecutiveDashboard />;
+  if (role === 'dealer_admin') return <DealerDashboard />;
+  if (role === 'executive') return <ExecutiveDashboard />;
 
   return (
     <div className="p-6">

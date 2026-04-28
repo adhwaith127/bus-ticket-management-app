@@ -77,6 +77,11 @@ htmlcov/
 ##################################
 PVT BUS NORMAL-GPRS_2.17 - 14112019/
 
+##################################
+# Device file analysis (local only)
+##################################
+device_file_check/
+
 
 
 
@@ -86,3 +91,11 @@ _backups/
 pending-implementations.txt
 
 CallQ/
+
+faster-loading-suggestions.txt
+
+NTC-ETM-API-AND-STRUCTURE-DETAILS.txt
+
+commands.txt
+
+masterdata-apis.txt

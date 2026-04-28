@@ -1,9 +1,11 @@
+from django.db import models
 from rest_framework import serializers
 from .models import Company,CustomUser,Depot
 from .models import TransactionData,TripCloseData,MosambeeTransaction
 from .models import DealerCustomerMapping,ExecutiveCompanyMapping,UserDeviceMapping
 from .models import Dealer,CrewAssignment,BusType,EmployeeType,Stage,Currency,Employee,VehicleType
 from .models import RouteStage,Route,Settings,RouteBusType,Fare
+from .models import ETMDevice, DeviceSettings, SettingsProfile
 
 class CompanySerializer(serializers.ModelSerializer):
     # Read-only fields that are computed or set by system
@@ -49,9 +51,9 @@ class CompanySerializer(serializers.ModelSerializer):
             'unique_identifier',
             'product_from_date',
             'product_to_date',
-            'device_count',
-            'depot_count',
-            'mobile_device_count',
+            # device_count, depot_count, mobile_device_count are writable so that
+            # dealer_admin can set them at company-creation time (licence allocation).
+            # The license-validation background job overwrites them directly on the model.
             'created_at',
             'updated_at',
             'created_by',
@@ -122,6 +124,10 @@ class UserDeviceMappingSerializer(serializers.ModelSerializer):
 
 class DealerSerializer(serializers.ModelSerializer):
     created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    # Computed: total licences already distributed to mapped companies
+    used_licence_count = serializers.SerializerMethodField()
+    used_device_count = serializers.SerializerMethodField()
+    used_mobile_device_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Dealer
@@ -138,16 +144,44 @@ class DealerSerializer(serializers.ModelSerializer):
             'zip_code',
             'gst_number',
             'is_active',
+            # licence pool
+            'allocated_licence_count',
+            'allocated_device_count',
+            'allocated_mobile_device_count',
+            'used_licence_count',
+            'used_device_count',
+            'used_mobile_device_count',
             'created_by',
             'created_at',
             'updated_at',
         ]
         read_only_fields = [
             'id',
+            'used_licence_count',
+            'used_device_count',
+            'used_mobile_device_count',
             'created_by',
             'created_at',
             'updated_at',
         ]
+
+    def get_used_licence_count(self, obj):
+        from .models import Company, DealerCustomerMapping
+        mapped_ids = DealerCustomerMapping.objects.filter(dealer=obj, is_active=True).values_list('company_id', flat=True)
+        result = Company.objects.filter(id__in=mapped_ids).aggregate(total=models.Sum('number_of_licence'))
+        return result['total'] or 0
+
+    def get_used_device_count(self, obj):
+        from .models import Company, DealerCustomerMapping
+        mapped_ids = DealerCustomerMapping.objects.filter(dealer=obj, is_active=True).values_list('company_id', flat=True)
+        result = Company.objects.filter(id__in=mapped_ids).aggregate(total=models.Sum('device_count'))
+        return result['total'] or 0
+
+    def get_used_mobile_device_count(self, obj):
+        from .models import Company, DealerCustomerMapping
+        mapped_ids = DealerCustomerMapping.objects.filter(dealer=obj, is_active=True).values_list('company_id', flat=True)
+        result = Company.objects.filter(id__in=mapped_ids).aggregate(total=models.Sum('mobile_device_count'))
+        return result['total'] or 0
 
 
 class DealerCustomerMappingSerializer(serializers.ModelSerializer):
@@ -207,8 +241,8 @@ class ExecutiveCompanyMappingSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         executive_user = attrs.get('executive_user') or getattr(self.instance, 'executive_user', None)
         company = attrs.get('company') or getattr(self.instance, 'company', None)
-        if executive_user and executive_user.role != 'executive_user':
-            raise serializers.ValidationError("Selected user is not an executive_user.")
+        if executive_user and executive_user.role != 'executive':
+            raise serializers.ValidationError("Selected user does not have the executive role.")
         if executive_user and company:
             existing = ExecutiveCompanyMapping.objects.filter(executive_user=executive_user, company=company)
             if self.instance:
@@ -238,7 +272,7 @@ class TicketDataSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'request_type',
-            'device_id',
+            'palmtec_id',
             'trip_number',
             'ticket_number',
             'ticket_date',
@@ -272,6 +306,7 @@ class TicketDataSerializer(serializers.ModelSerializer):
             # EXCLUDED: raw_payload, company_code
         ]
     
+    # cash or upi
     def get_payment_mode_display(self, obj):
         """Convert ticket_status integer to display string"""
         if obj.ticket_status == 0:
@@ -631,7 +666,6 @@ class EmployeeTypeSerializer(serializers.ModelSerializer):
         model  = EmployeeType
         fields = [
             'id',
-            'emp_type_code',
             'emp_type_name',
             'company',
             'created_by',
@@ -999,9 +1033,21 @@ class RouteSerializer(serializers.ModelSerializer):
     created_by = serializers.PrimaryKeyRelatedField(read_only=True)
     updated_by = serializers.PrimaryKeyRelatedField(read_only=True)
 
-    bus_type_name = serializers.CharField(source='bus_type.name', read_only=True)
-    route_stages  = RouteStageSerializer(many=True, read_only=True)
-    route_bus_types = RouteBusTypeSerializer(many=True, read_only=True)  # future-ready
+    bus_type_name   = serializers.CharField(source='bus_type.name', read_only=True)
+    route_stages    = RouteStageSerializer(many=True, read_only=True)
+    route_bus_types = RouteBusTypeSerializer(many=True, read_only=True)
+
+    # Depot mapping — read: list of {id, depot_code, depot_name}; write: list of depot IDs
+    depot_ids = serializers.ListField(
+        child=serializers.IntegerField(), write_only=True, required=False, default=list
+    )
+    depots = serializers.SerializerMethodField(read_only=True)
+
+    def get_depots(self, obj):
+        return list(
+            obj.route_depots.select_related('depot')
+            .values('depot__id', 'depot__depot_code', 'depot__depot_name')
+        )
 
     class Meta:
         model  = Route
@@ -1028,12 +1074,14 @@ class RouteSerializer(serializers.ModelSerializer):
             'updated_by',
             'created_at',
             'updated_at',
-            'route_stages',    # used by RouteListing and FareEditor
-            'route_bus_types', # future use
+            'route_stages',
+            'route_bus_types',
+            'depot_ids',
+            'depots',
         ]
         read_only_fields = [
             'id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at',
-            'bus_type_name', 'route_stages', 'route_bus_types',
+            'bus_type_name', 'route_stages', 'route_bus_types', 'depots',
         ]
 
     def validate_bus_type(self, value):
@@ -1041,7 +1089,36 @@ class RouteSerializer(serializers.ModelSerializer):
         if company and value.company != company:
             raise serializers.ValidationError("Selected bus type does not belong to your company.")
         return value
-    
+
+
+class RouteListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for route listing — no nested stages/depots/bus_types."""
+    bus_type_name = serializers.CharField(source='bus_type.name', read_only=True)
+    stage_count   = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model  = Route
+        fields = [
+            'id',
+            'route_code',
+            'route_name',
+            'min_fare',
+            'fare_type',
+            'bus_type',
+            'bus_type_name',
+            'start_from',
+            'half',
+            'luggage',
+            'student',
+            'adjust',
+            'conc',
+            'ph',
+            'pass_allow',
+            'use_stop',
+            'is_deleted',
+            'stage_count',
+        ]
+
 
 
 class FareSerializer(serializers.ModelSerializer):
@@ -1076,3 +1153,111 @@ class FareSerializer(serializers.ModelSerializer):
         if company and value.company != company:
             raise serializers.ValidationError("Selected route does not belong to your company.")
         return value
+
+
+class ETMDeviceSerializer(serializers.ModelSerializer):
+    is_expired = serializers.ReadOnlyField()
+    days_until_expiry = serializers.ReadOnlyField()
+    company_name = serializers.CharField(source='company.company_name', read_only=True)
+    depot_name = serializers.CharField(source='depot.depot_name', read_only=True)
+    dealer_name = serializers.CharField(source='dealer.dealer_name', read_only=True)
+    approved_by_username = serializers.CharField(source='approved_by.username', read_only=True)
+
+    class Meta:
+        model = ETMDevice
+        fields = [
+            'id',
+            'serial_number',
+            'display_name',
+            'device_type',
+            'mac_address',
+            'company',
+            'company_name',
+            'depot',
+            'depot_name',
+            'dealer',
+            'dealer_name',
+            'device_registration_id',
+            'licence_status',
+            'licence_active_to',
+            'is_active',
+            'is_expired',
+            'days_until_expiry',
+            'approved_by',
+            'approved_by_username',
+            'approved_at',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'device_registration_id',
+            'licence_status',
+            'licence_active_to',
+            'is_active',
+            'is_expired',
+            'days_until_expiry',
+            'approved_by',
+            'approved_by_username',
+            'approved_at',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class DeviceSettingsSerializer(serializers.ModelSerializer):
+    device_serial  = serializers.CharField(source='device.serial_number',  read_only=True)
+    device_name    = serializers.CharField(source='device.display_name',    read_only=True)
+    created_by     = serializers.PrimaryKeyRelatedField(read_only=True)
+    updated_by     = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model  = DeviceSettings
+        fields = [
+            'id', 'device', 'device_serial', 'device_name',
+            'user_pwd', 'master_pwd',
+            'half_per', 'con_per', 'phy_per', 'round_amt', 'luggage_unit_rate',
+            'main_display', 'main_display2',
+            'header1', 'header2', 'header3', 'footer1', 'footer2',
+            'language_option', 'report_font',
+            'st_fare_edit', 'st_max_amt', 'st_ratio', 'st_min_amt',
+            'st_roundoff_enable', 'st_roundoff_amt',
+            'roundoff', 'round_up', 'remove_ticket_flag', 'stage_font_flag',
+            'next_fare_flag', 'odometer_entry', 'ticket_no_big_font',
+            'crew_check', 'tripsend_enable', 'schedulesend_enable',
+            'inspect_rpt', 'multiple_pass', 'simple_report', 'inspector_sms',
+            'auto_shut_down', 'userpswd_enable', 'exp_enable',
+            'stage_updation_msg', 'default_stage',
+            'created_at', 'updated_at', 'created_by', 'updated_by',
+        ]
+        read_only_fields = [
+            'id', 'device_serial', 'device_name',
+            'created_at', 'updated_at', 'created_by', 'updated_by',
+        ]
+
+
+class SettingsProfileSerializer(serializers.ModelSerializer):
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    updated_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    company    = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model  = SettingsProfile
+        fields = [
+            'id', 'name', 'company',
+            'user_pwd', 'master_pwd',
+            'half_per', 'con_per', 'phy_per', 'round_amt', 'luggage_unit_rate',
+            'main_display', 'main_display2',
+            'header1', 'header2', 'header3', 'footer1', 'footer2',
+            'language_option', 'report_font',
+            'st_fare_edit', 'st_max_amt', 'st_ratio', 'st_min_amt',
+            'st_roundoff_enable', 'st_roundoff_amt',
+            'roundoff', 'round_up', 'remove_ticket_flag', 'stage_font_flag',
+            'next_fare_flag', 'odometer_entry', 'ticket_no_big_font',
+            'crew_check', 'tripsend_enable', 'schedulesend_enable',
+            'inspect_rpt', 'multiple_pass', 'simple_report', 'inspector_sms',
+            'auto_shut_down', 'userpswd_enable', 'exp_enable',
+            'stage_updation_msg', 'default_stage',
+            'created_at', 'updated_at', 'created_by', 'updated_by',
+        ]
+        read_only_fields = ['id', 'company', 'created_at', 'updated_at', 'created_by', 'updated_by']

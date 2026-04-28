@@ -5,9 +5,9 @@ AUTH_MODELS = ['CustomUser', 'UserDeviceMapping']
 
 
 # Company models
-from .company import Company, Depot, Dealer, DealerCustomerMapping, ExecutiveCompanyMapping
+from .company import Company, Depot, Dealer, DealerCustomerMapping, ExecutiveCompanyMapping, ETMDevice
 
-COMPANY_MODELS = ['Company','Depot','Dealer','DealerCustomerMapping','ExecutiveCompanyMapping',]
+COMPANY_MODELS = ['Company','Depot','Dealer','DealerCustomerMapping','ExecutiveCompanyMapping','ETMDevice',]
 
 
 # Master data models
@@ -21,8 +21,11 @@ from .master_data import (
     RouteStage,
     Fare,
     RouteBusType,
+    RouteDepot,
     VehicleType,
     Settings,
+    DeviceSettings,
+    SettingsProfile,
 )
 
 MASTER_DATA_MODELS = [
@@ -35,8 +38,11 @@ MASTER_DATA_MODELS = [
     'RouteStage',
     'Fare',
     'RouteBusType',
+    'RouteDepot',
     'VehicleType',
     'Settings',
+    'DeviceSettings',
+    'SettingsProfile',
 ]
 
 

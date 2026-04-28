@@ -4,6 +4,10 @@ import TableSkeleton from '../../components/TableSkeleton';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 
 export default function CompanyListing() {
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentRole = currentUser?.role;
+  const isDealerAdmin = currentRole === 'dealer_admin';
+
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,7 +21,7 @@ export default function CompanyListing() {
   const [registeringLicense, setRegisteringLicense] = useState({});
   const [validatingLicense, setValidatingLicense] = useState({});
 
-  // Import-existing flow state
+  // Import-existing flow state (superadmin only)
   const [importStep, setImportStep] = useState('search'); // 'search' | 'confirm'
   const [importCompanyId, setImportCompanyId] = useState('');
   const [importFetching, setImportFetching] = useState(false);
@@ -38,6 +42,9 @@ export default function CompanyListing() {
     state: '',
     zip_code: '',
     number_of_licence: 1,
+    // dealer_admin sets these to allocate from their licence pool
+    device_count: 0,
+    mobile_device_count: 0,
   });
 
   useEffect(() => { fetchCompanies(); }, []);
@@ -81,6 +88,8 @@ export default function CompanyListing() {
       state: '',
       zip_code: '',
       number_of_licence: 1,
+      device_count: 0,
+      mobile_device_count: 0,
     });
   };
 
@@ -375,6 +384,34 @@ export default function CompanyListing() {
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50" />
         </div>
       </div>
+
+      {/* Dealer licence allocation — only shown to dealer_admin on create */}
+      {isDealerAdmin && (modalMode === 'create') && (
+        <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-3">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Licence Allocation from your pool</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Total Licences <span className="text-red-500">*</span></label>
+              <input type="number" name="number_of_licence" value={formData.number_of_licence} onChange={handleInputChange}
+                min="0" required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all bg-white" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">ETM Devices <span className="text-red-500">*</span></label>
+              <input type="number" name="device_count" value={formData.device_count} onChange={handleInputChange}
+                min="0" required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all bg-white" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Android Devices <span className="text-red-500">*</span></label>
+              <input type="number" name="mobile_device_count" value={formData.mobile_device_count} onChange={handleInputChange}
+                min="0" required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all bg-white" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-end gap-3 pt-5 border-t border-slate-100 mt-4">
         <button type="button" onClick={closeModal}
           className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
@@ -560,8 +597,8 @@ export default function CompanyListing() {
       {/* ── Modal ───────────────────────────────────────────────────────────── */}
       <Modal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
 
-        {/* Split toggle — only for create/import, not view/edit */}
-        {(modalMode === 'create' || modalMode === 'import') && (
+        {/* Split toggle — only for create/import, not view/edit; import hidden for dealer_admin */}
+        {(modalMode === 'create' || modalMode === 'import') && !isDealerAdmin && (
           <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-100 mb-5">
             <button type="button" onClick={() => switchModalTab('create')}
               className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${

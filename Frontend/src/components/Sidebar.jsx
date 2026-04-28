@@ -6,9 +6,9 @@ import {
   BarChart2, Receipt, LogOut, Menu,
   AlertTriangle, XCircle, QrCode,
   ChevronDown, ChevronLeft, ChevronRight,
-  Bus, Coins, UserCog, UserRound,
-  Route, Truck, CalendarCog, BadgeDollarSign, Settings,
-  Ticket, TrendingDown, Layers, IndianRupee,
+  Coins, Users2,
+  Route, Truck, CalendarCog, Settings,
+  Ticket, TrendingDown, IndianRupee, Cpu, MonitorDown,
 } from "lucide-react";
 import api, { BASE_URL } from "../assets/js/axiosConfig";
 import cacheManager from "../assets/js/reportCache";
@@ -286,8 +286,29 @@ export default function Sidebar() {
                 <NavItem to="/dashboard/companies"        icon={Building2}     label="Companies"        isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/users"            icon={Users}         label="Users"            isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/dealers"          icon={Handshake}     label="Dealers"          isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/device-registry"  icon={Cpu}           label="Device Registry"  isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/device-approvals" icon={SmartphoneNfc} label="Device Approvals" isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/data-import"      icon={FileInput}     label="MDB Data Import"  isCollapsed={isCollapsed} onClose={close} />
+              </>
+            )}
+
+            {/* Executive */}
+            {role === "executive" && (
+              <>
+                <SectionLabel label="Administration" isCollapsed={isCollapsed} />
+                <NavItem to="/dashboard/companies"       icon={Building2}     label="Companies"       isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/users"           icon={Users}         label="Users"           isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/device-registry" icon={Cpu}           label="Device Registry" isCollapsed={isCollapsed} onClose={close} />
+              </>
+            )}
+
+            {/* Dealer Admin */}
+            {role === "dealer_admin" && (
+              <>
+                <SectionLabel label="My Portfolio" isCollapsed={isCollapsed} />
+                <NavItem to="/dashboard/companies"       icon={Building2} label="My Companies"    isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/users"           icon={Users}     label="Users"           isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/device-registry" icon={Cpu}       label="Device Registry" isCollapsed={isCollapsed} onClose={close} />
               </>
             )}
 
@@ -302,19 +323,16 @@ export default function Sidebar() {
                   isCollapsed={isCollapsed} isOpen={masterDataOpen}
                   onToggle={() => setMasterDataOpen(p => !p)}
                 >
-                  <SubLink to="/dashboard/master-data/bus-types"       icon={Bus}             label="Bus Types"        onClose={close} />
                   <SubLink to="/dashboard/master-data/currencies"       icon={Coins}           label="Currencies"       onClose={close} />
-                  <SubLink to="/dashboard/master-data/employee-types"   icon={UserCog}         label="Employee Types"   onClose={close} />
-                  <SubLink to="/dashboard/master-data/employees"        icon={UserRound}       label="Employees"        onClose={close} />
+                  <SubLink to="/dashboard/master-data/staff"            icon={Users2}          label="Employee"         onClose={close} />
+                  <SubLink to="/dashboard/master-data/fleet"            icon={Truck}           label="Vehicles"         onClose={close} />
                   <SubLink to="/dashboard/master-data/routes"           icon={Route}           label="Routes"           onClose={close} />
-                  <SubLink to="/dashboard/master-data/vehicles"         icon={Truck}           label="Vehicles"         onClose={close} />
-                  <SubLink to="/dashboard/master-data/crew-assignments" icon={CalendarCog}     label="Crew Assignments" onClose={close} />
-                  <SubLink to="/dashboard/master-data/fares"            icon={BadgeDollarSign} label="Fare Editor"      onClose={close} />
-                  <SubLink to="/dashboard/master-data/stages"           icon={Layers}          label="Stage Editor"     onClose={close} />
-                  <SubLink to="/dashboard/master-data/expense-master"   icon={IndianRupee}     label="Expense Master"   onClose={close} />
+                  <SubLink to="/dashboard/master-data/crew-assignments" icon={CalendarCog} label="Crew Assignments" onClose={close} />
+                  <SubLink to="/dashboard/master-data/expense-master"   icon={IndianRupee} label="Expense Master"   onClose={close} />
                   <SubLink to="/dashboard/master-data/settings"         icon={Settings}        label="Settings"         onClose={close} />
                 </DropdownSection>
 
+                <NavItem to="/dashboard/device-download"          icon={MonitorDown} label="Device Download" isCollapsed={isCollapsed} onClose={close} />
                 <DropdownSection
                   icon={BarChart2} label="Reports"
                   isCollapsed={isCollapsed} isOpen={reportsOpen}

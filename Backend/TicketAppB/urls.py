@@ -1,12 +1,11 @@
 from django.urls import path
-from .views import transport_views, crew_views, settings_views
-from .views import auth_views, company_views, user_views, data_views, mdb_views
+from .views import ticket_data_views, transport_views, crew_views, settings_views
+from .views import auth_views, company_views, user_views, mdb_views
 from .views import palmtec_data_views
 from .views import depot_views, mosambee_views, dealer_views, executive_views, device_approval_views
-from .views.reports import (
-    duty_report, bus_summary, payment_type, farewise,
-    passenger_info, trip_details, ticket_details,
-)
+from .views import device_registry_views
+from .views import route_import_views
+from .views import apk_views
 
 urlpatterns = [
     # authentication
@@ -43,10 +42,10 @@ urlpatterns = [
     path('update-depot-details/<int:pk>', depot_views.update_depot_details, name='update_depot_details'),
 
     # ticket data
-    path('getTicket', data_views.getTransactionDataFromDevice, name='get_transaction_data'),
-    path('get_all_transaction_data', data_views.get_all_transaction_data, name='get_all_transaction_data'),
-    path('getTripClose', data_views.getTripCloseDataFromDevice, name='get_trip_close_data'),
-    path('get_all_trip_close_data', data_views.get_all_trip_close_data, name='get_all_trip_close_data'),
+    path('getTicket', ticket_data_views.getTransactionDataFromDevice, name='get_transaction_data'),
+    path('get_all_transaction_data', ticket_data_views.get_all_transaction_data, name='get_all_transaction_data'),
+    path('getTripClose', ticket_data_views.getTripCloseDataFromDevice, name='get_trip_close_data'),
+    path('get_all_trip_close_data', ticket_data_views.get_all_trip_close_data, name='get_all_trip_close_data'),
 
     # mosambee data
     path('postTransactionDetails', mosambee_views.mosambee_settlement_data, name='postTransactionDetails'),
@@ -85,13 +84,19 @@ urlpatterns = [
     path('masterdata/vehicles/create', transport_views.create_vehicle),
     path('masterdata/vehicles/update/<int:pk>', transport_views.update_vehicle),
     path('masterdata/routes', transport_views.get_routes),
+    path('masterdata/routes/<int:pk>', transport_views.get_route_detail),
     path('masterdata/routes/create', transport_views.create_route),
     path('masterdata/routes/update/<int:pk>', transport_views.update_route),
     path('masterdata/routes/create-wizard', transport_views.create_route_wizard),
+    path('masterdata/routes/import-excel', transport_views.RouteExcelImportView.as_view()),
+    path('masterdata/routes/import/validate', route_import_views.RouteImportValidateView.as_view()),
+    path('masterdata/routes/import/confirm', route_import_views.RouteImportConfirmView.as_view()),
+    path('masterdata/routes/import/template/<str:fare_type>', route_import_views.RouteImportTemplateView.as_view()),
     path('masterdata/routestages/update/<int:pk>', transport_views.update_route_stage),
     path('masterdata/dropdowns/bus-types', transport_views.get_bus_types_dropdown),
     path('masterdata/dropdowns/stages', transport_views.get_stages_dropdown, name='get_stages_dropdown'),
     path('masterdata/dropdowns/vehicles', transport_views.get_vehicles_dropdown),
+    path('masterdata/dropdowns/depots',   transport_views.get_depots_dropdown),
     path('masterdata/fares/editor/<int:route_id>', transport_views.get_fare_editor, name='get_fare_editor'),
     path('masterdata/fares/update/<int:route_id>', transport_views.update_fare_table, name='update_fare_table'),
 
@@ -114,22 +119,45 @@ urlpatterns = [
     path('masterdata/currencies/create', settings_views.create_currency),
     path('masterdata/currencies/update/<int:pk>', settings_views.update_currency),
     path('masterdata/settings', settings_views.get_settings),
+    path('masterdata/device-settings/devices', settings_views.list_company_devices),
+    path('masterdata/device-settings/<int:device_id>', settings_views.get_device_settings),
+    path('masterdata/settings-profiles', settings_views.list_profiles),
+    path('masterdata/settings-profiles/create', settings_views.create_profile),
+    path('masterdata/settings-profiles/<int:profile_id>', settings_views.profile_detail),
+    path('masterdata/settings-profiles/<int:profile_id>/apply/<int:device_id>', settings_views.apply_profile_to_device),
 
+
+    # ETM Device Registry
+    path('etm-devices/register',                  device_registry_views.register_device,     name='etm_register'),
+    path('etm-devices',                           device_registry_views.list_devices,        name='etm_list'),
+    path('etm-devices/pending',                   device_registry_views.pending_devices,     name='etm_pending'),
+    path('etm-devices/summary',                   device_registry_views.device_summary,      name='etm_summary'),
+    path('etm-devices/<int:device_id>/assign',    device_registry_views.assign_device,       name='etm_assign'),
+    path('etm-devices/<int:device_id>/approve',   device_registry_views.approve_device,      name='etm_approve'),
+    path('etm-devices/<int:device_id>/revoke',    device_registry_views.revoke_device,       name='etm_revoke'),
+    path('etm-devices/<int:device_id>/check-status', device_registry_views.check_device_status, name='etm_check_status'),
 
     # Palmtec device data APIs (server → APK → USB → device)
-    path('device/routes', palmtec_data_views.get_routes_list),
-    path('device/schedule', palmtec_data_views.get_schedule_file),
-    path('device/settings', palmtec_data_views.get_settings_file),
-    path('device/crew', palmtec_data_views.get_crew_file),
-    path('device/vehicles', palmtec_data_views.get_vehicles_file),
-    path('device/expenses', palmtec_data_views.get_expenses_file),
+    path('device/routes',      palmtec_data_views.get_routes_list),
+    path('device/schedule',    palmtec_data_views.get_schedule_file),
+    path('device/settings',    palmtec_data_views.get_settings_file),
+    path('device/crew',        palmtec_data_views.get_crew_file),
+    path('device/vehicles',    palmtec_data_views.get_vehicles_file),
+    path('device/expenses',    palmtec_data_views.get_expenses_file),
+    # Route group
+    path('device/routelst',    palmtec_data_views.get_routelst_file),
+    path('device/stagelst',    palmtec_data_views.get_stagelst_file),
+    path('device/languagedat', palmtec_data_views.get_languagedat_file),
+    path('device/rtedat',      palmtec_data_views.get_rtedat_file),
+    # Settings group
+    path('device/currency',    palmtec_data_views.get_currency_file),
 
     # android apk data apis
-    path('reports/duty', duty_report.duty_report, name='duty_report'),
-    path('reports/bus-summary', bus_summary.bus_summary_report, name='bus_summary_report'),
-    path('reports/payment-type', payment_type.payment_type_report, name='payment_type_report'),
-    path('reports/farewise', farewise.farewise_report, name='farewise_report'),
-    path('reports/passenger-info', passenger_info.passenger_info, name='passenger_info'),
-    path('reports/trip-details', trip_details.trip_details, name='trip_details'),
-    path('reports/ticket-details', ticket_details.ticket_details, name='ticket_details'),
+    path('reports/duty', apk_views.duty_report, name='duty_report'),
+    path('reports/bus-summary', apk_views.bus_summary_report, name='bus_summary_report'),
+    path('reports/payment-type', apk_views.payment_type_report, name='payment_type_report'),
+    path('reports/farewise', apk_views.farewise_report, name='farewise_report'),
+    path('reports/passenger-info', apk_views.passenger_info, name='passenger_info'),
+    path('reports/trip-details', apk_views.trip_details, name='trip_details'),
+    path('reports/ticket-details', apk_views.ticket_details, name='ticket_details'),
 ]

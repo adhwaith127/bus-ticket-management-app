@@ -16,7 +16,8 @@ from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view
 from django.db.utils import OperationalError, ProgrammingError
 from django.db.models import Sum, Q, Count, Case, When, IntegerField
-from ..models import Company,TransactionData,TripCloseData,Route,VehicleType,MosambeeTransaction
+from ..models import Company,TransactionData,TripCloseData,Route,VehicleType,MosambeeTransaction,Dealer,DealerCustomerMapping
+from .utils import _is_superadmin, _is_executive, _is_dealer_admin, _is_company_admin
 
 
 # Setup logger  
@@ -705,70 +706,137 @@ def import_company(request):
 @api_view(['GET'])
 def all_company_data(request):
     """
-    Retrieve all companies.
-    Returns companies ordered by most recent first.
+    Retrieve companies based on the requesting user's role.
+
+    Visibility rules:
+      - superadmin   → all companies
+      - executive    → only companies in their ExecutiveCompanyMapping
+      - dealer_admin → only companies in their DealerCustomerMapping
+      - company_admin→ only their own company
     """
     user = get_user_from_cookie(request)
     if not user:
         return Response(
-            {'error': 'Authentication required'}, 
+            {'error': 'Authentication required'},
             status=status.HTTP_401_UNAUTHORIZED
         )
-    
-    companies = Company.objects.all().order_by('-id')
+
+    if _is_superadmin(user):
+        # Superadmin sees only companies they personally created.
+        companies = Company.objects.filter(created_by=user).order_by('-id')
+
+    elif _is_executive(user):
+        # Executive sees only companies they are explicitly mapped to.
+        from ..models import ExecutiveCompanyMapping  # avoid circular at module level
+        company_ids = ExecutiveCompanyMapping.objects.filter(
+            executive_user_id=user.id, is_active=True
+        ).values_list('company_id', flat=True)
+        companies = Company.objects.filter(id__in=company_ids).order_by('-id')
+
+    elif _is_dealer_admin(user):
+        if not user.dealer_id:
+            return Response({'message': 'No dealer linked to this user'}, status=status.HTTP_400_BAD_REQUEST)
+        company_ids = DealerCustomerMapping.objects.filter(
+            dealer_id=user.dealer_id, is_active=True
+        ).values_list('company_id', flat=True)
+        companies = Company.objects.filter(id__in=company_ids).order_by('-id')
+
+    elif _is_company_admin(user):
+        if not user.company:
+            return Response({'message': 'No company linked to this user'}, status=status.HTTP_400_BAD_REQUEST)
+        companies = Company.objects.filter(pk=user.company.pk)
+
+    else:
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+
     serializer = CompanySerializer(companies, many=True)
-    
-    logger.info(f"Retrieved {len(companies)} companies")
-    
-    return Response(
-        {
-            "message": "Success",
-            "data": serializer.data
-        },
-        status=status.HTTP_200_OK
-    )
+    logger.info(f"Retrieved {len(companies)} companies for role={user.role}")
+    return Response({"message": "Success", "data": serializer.data}, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
+@transaction.atomic
 def create_company(request):
     """
     Create a new company.
-    Initial authentication_status will be 'Pending'.
+
+    Allowed roles:
+      - superadmin   : creates company for themselves; no dealer involvement.
+      - dealer_admin : creates company under their dealer; auto-creates
+                       DealerCustomerMapping and validates against dealer's
+                       licence pool.
     """
     user = get_user_from_cookie(request)
     if not user:
-        return Response(
-            {'error': 'Authentication required'}, 
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-    
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if not _is_superadmin(user) and not _is_dealer_admin(user):
+        return Response({'error': 'Only superadmin or dealer_admin can create companies.'}, status=status.HTTP_403_FORBIDDEN)
+
     if not request.data:
-        return Response(
-            {"message": "No input received"},
-            status=status.HTTP_400_BAD_REQUEST
+        return Response({"message": "No input received"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── Dealer pool validation ────────────────────────────────────────────────
+    dealer = None
+    if _is_dealer_admin(user):
+        if not user.dealer_id:
+            return Response({'error': 'No dealer linked to this account.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            dealer = Dealer.objects.select_for_update().get(pk=user.dealer_id)
+        except Dealer.DoesNotExist:
+            return Response({'error': 'Dealer not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # How many licences this new company will consume
+        new_number_of_licence = int(request.data.get('number_of_licence', 0))
+        new_device_count      = int(request.data.get('device_count', 0))
+        new_mobile_count      = int(request.data.get('mobile_device_count', 0))
+
+        # Compute already-distributed totals from active mapped companies
+        mapped_ids = DealerCustomerMapping.objects.filter(
+            dealer=dealer, is_active=True
+        ).values_list('company_id', flat=True)
+        used = Company.objects.filter(id__in=mapped_ids).aggregate(
+            used_licence=Sum('number_of_licence'),
+            used_device=Sum('device_count'),
+            used_mobile=Sum('mobile_device_count'),
         )
-    
+        used_licence = used['used_licence'] or 0
+        used_device  = used['used_device'] or 0
+        used_mobile  = used['used_mobile'] or 0
+
+        remaining_licence = dealer.allocated_licence_count - used_licence
+        remaining_device  = dealer.allocated_device_count  - used_device
+        remaining_mobile  = dealer.allocated_mobile_device_count - used_mobile
+
+        errors = []
+        if new_number_of_licence > remaining_licence:
+            errors.append(f"Total licence quota exceeded (requested {new_number_of_licence}, remaining {remaining_licence}).")
+        if new_device_count > remaining_device:
+            errors.append(f"ETM device quota exceeded (requested {new_device_count}, remaining {remaining_device}).")
+        if new_mobile_count > remaining_mobile:
+            errors.append(f"Android device quota exceeded (requested {new_mobile_count}, remaining {remaining_mobile}).")
+        if errors:
+            return Response({'message': 'Dealer licence pool insufficient.', 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
+
     serializer = CompanySerializer(data=request.data)
-    
-    if serializer.is_valid():
-        company = serializer.save(created_by=user)
-        logger.info(f"Created new company: {company.company_name} (ID: {company.id})")
-        return Response(
-            {
-                "message": "Company created successfully",
-                "data": serializer.data
-            },
-            status=status.HTTP_201_CREATED
+    if not serializer.is_valid():
+        logger.warning(f"Company creation failed: {serializer.errors}")
+        return Response({"message": "Validation failed", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    company = serializer.save(created_by=user)
+    logger.info(f"Created new company: {company.company_name} (ID: {company.id}) by {user.role} {user.username}")
+
+    # ── Auto-create DealerCustomerMapping for dealer_admin ────────────────────
+    if dealer:
+        DealerCustomerMapping.objects.create(
+            dealer=dealer,
+            company=company,
+            created_by=user,
+            is_active=True,
         )
-    
-    logger.warning(f"Company creation failed: {serializer.errors}")
-    return Response(
-        {
-            "message": "Validation failed",
-            "errors": serializer.errors
-        },
-        status=status.HTTP_400_BAD_REQUEST
-    )
+        logger.info(f"Auto-created DealerCustomerMapping: dealer={dealer.id} → company={company.id}")
+
+    return Response({"message": "Company created successfully", "data": serializer.data}, status=status.HTTP_201_CREATED)
 
 
 @api_view(['PUT'])

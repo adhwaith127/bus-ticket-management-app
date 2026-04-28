@@ -19,7 +19,6 @@ from .utils import _get_company
 logger = logging.getLogger(__name__)
 
 
-
 @csrf_exempt
 def getTransactionDataFromDevice(request):
     if request.method != "GET":

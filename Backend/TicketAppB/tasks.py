@@ -57,8 +57,8 @@ def process_transaction_data(self, log_id):
                 with transaction.atomic():  # inner savepoint — isolates IntegrityError
                     TransactionData.objects.create(
                         request_type     = parts[0]  if len(parts) > 0  else None,
-                        device_id        = parts[1]  if len(parts) > 1  else None,
-                        trip_number      = parts[2]  if len(parts) > 2  else None,
+                        palmtec_id       = parts[1]  if len(parts) > 1  else None,
+                        trip_number      = int(parts[2]) if len(parts) > 2 and parts[2] else None,
                         ticket_number    = parts[3]  if len(parts) > 3  else None,
 
                         ticket_date = datetime.strptime(parts[4], "%Y-%m-%d").date()

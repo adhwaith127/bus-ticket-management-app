@@ -776,29 +776,23 @@ class MdbImportService:
     @staticmethod
     def _process_fares(rows, company, user, lookups):
         """
-        Bulk approach — avoids N individual get_or_create queries.
+        Full-refresh approach per route — avoids stale fare data on re-import.
 
         Steps:
-          1. Load all existing (route_id, row, col) keys for this company
-             into a Python set — 1 SELECT query total.
-          2. Loop rows in Python: validate, skip if key already exists,
-             otherwise stage a Fare object.
-          3. bulk_create all new objects — 1 INSERT query total.
+          1. First pass: collect all valid fare objects and track which routes
+             appear in this import batch.
+          2. Delete ALL existing fares for those routes (clean slate).
+          3. bulk_create the fresh fare records — 1 INSERT query total.
 
-        This keeps the import fast regardless of how many fare rows exist.
+        This ensures re-importing an updated MDB always reflects the latest
+        fare amounts rather than silently keeping stale values.
         """
         if not rows:
             return 0, 0, 0, []
 
         imported, existing, skipped, errors = 0, 0, 0, []
-
-        # Load existing keys once — O(1) lookup per row from here on
-        existing_keys = set(
-            Fare.objects.filter(company=company)
-            .values_list('route_id', 'row', 'col')
-        )
-
         to_create = []
+        routes_in_batch = set()   # route PKs whose fares we will fully replace
 
         for i, row in enumerate(rows):
             try:
@@ -819,28 +813,35 @@ class MdbImportService:
                 col_val    = MdbImportService._to_int(raw_col)
                 number_val = MdbImportService._to_int(raw_number)
 
-                key = (route.id, row_val, col_val)
-                if key in existing_keys:
-                    existing += 1
-                else:
-                    to_create.append(Fare(
-                        company=company,
-                        route=route,
-                        row=row_val,
-                        col=col_val,
-                        number=number_val,
-                        fare_amount=fare_amt,
-                        route_name=route.route_name,
-                        created_by=user,
-                    ))
+                routes_in_batch.add(route.id)
+                to_create.append(Fare(
+                    company=company,
+                    route=route,
+                    row=row_val,
+                    col=col_val,
+                    number=number_val,
+                    fare_amount=fare_amt,
+                    route_name=route.route_name,
+                    created_by=user,
+                ))
 
             except Exception as e:
                 skipped += 1
                 errors.append(f"Row {i+1} FARE: {str(e)}")
 
         if to_create:
-            # ignore_conflicts=True handles any unexpected DB-level duplicates
-            # (e.g. duplicate number values) without crashing the whole batch
+            # Delete existing fares only for routes present in this batch so
+            # that routes not covered by the MDB are left untouched.
+            existing_count = Fare.objects.filter(
+                company=company, route_id__in=routes_in_batch
+            ).count()
+            Fare.objects.filter(
+                company=company, route_id__in=routes_in_batch
+            ).delete()
+            existing = existing_count  # report how many were replaced
+
+            # ignore_conflicts=True guards against duplicate Number values
+            # within the same batch (MDB quirk) without aborting the whole insert.
             Fare.objects.bulk_create(to_create, ignore_conflicts=True)
             imported = len(to_create)
 

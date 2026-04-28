@@ -98,7 +98,7 @@ export default function ProtectedRoute() {
         }
       }
 
-      if (userRole === 'executive_user') {
+      if (userRole === 'executive') {
         if (path.includes('/companies') || 
             path.includes('/users') ||
             path.includes('/device-approvals') ||
@@ -113,18 +113,17 @@ export default function ProtectedRoute() {
         }
       }
 
-      if (userRole === 'dealer_user') {
-        if (path.includes('/companies') || 
-            path.includes('/users') ||
-            path.includes('/device-approvals') ||
-            path.includes('/depots') || 
-            path.includes('/ticket-report') || 
+      if (userRole === 'dealer_admin') {
+        // dealer_admin CAN access /companies (their mapped companies) and /users (create company_admins)
+        if (path.includes('/device-approvals') ||
+            path.includes('/depots') ||
+            path.includes('/ticket-report') ||
             path.includes('/trip-close-report') ||
             isMasterDataPath ||
             path.includes('/settlements') ||
             path.includes('/dealers') ||
             path.includes('/executive-dashboard')) {
-          window.alert('Access Denied: This page is only for Dealers');
+          window.alert('Access Denied: This page is not available for Dealer Admins');
           navigate('/dashboard', { replace: true });
         }
       }

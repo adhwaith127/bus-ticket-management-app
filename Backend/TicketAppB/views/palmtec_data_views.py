@@ -1,7 +1,7 @@
 import struct
 import logging
 from django.http import HttpResponse, JsonResponse
-from ..models import Settings, Route, Employee, VehicleType, ExpenseMaster
+from ..models import Settings, Route, Employee, VehicleType, ExpenseMaster, Stage, Fare, Currency, RouteStage
 from .auth_views import get_user_from_cookie
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ def _pack_busdat(s):
     data += _bool(s.odometer_entry)
     data += _bool(s.ticket_no_big_font)
     data += _bool(s.crew_check)
-    data += _s(s.ph_no2, 13)                 # PhNo
+    data += b'\x00' * 13                       # PhNo (no ph_no field in Settings model)
     data += b'\x00'                          # TripSMS
     data += _bool(s.schedulesend_enable)     # ScheduleSMS
     data += b'\x00'                          # TicketRpt
@@ -224,32 +224,120 @@ def _pack_crewdat(employees):
 
 def _pack_expensedet(expenses):
     """
-    Build EXPENSEDET.DAT binary (31 bytes per expense).
-    expense_code(5) + expense_name(25) + palmtec_id byte(1)
+    Build EXPENSEDET.DAT binary (64 bytes per expense).
+    Matches VB6 Type EXPENSEDET and device struct EXPENSEDET1:
+      ucType(5) + expname(16) + Reserved(43) = 64 bytes
     """
     data = b''
     for exp in expenses:
-        try:
-            palmtec_byte = max(0, min(255, int(exp.palmtec_id or 0)))
-        except (ValueError, TypeError):
-            palmtec_byte = 0
         data += _s(exp.expense_code, 5)
-        data += _s(exp.expense_name, 25)
-        data += bytes([palmtec_byte])
-    return data  # 31 bytes × expense_count
+        data += _s(exp.expense_name, 16)
+        data += b'\x00' * 43             # Reserved padding
+    return data  # 64 bytes × expense_count
 
 
 def _pack_vehicledat(vehicles):
     """
-    Build VEHICLE.DAT binary (33 bytes per vehicle).
-    bus_reg_num(12) + bus_type_name(16) + bus_type_code(5)
+    Build VEHICLE.DAT binary (32 bytes per vehicle).
+    Matches VB6 Type VEHICLE and device struct VEHICLE1:
+      BUSID(1) + BusNo(16) + Reserved(15) = 32 bytes
+    BUSID is the bus-type primary key (modulo 256).
     """
     data = b''
     for v in vehicles:
-        data += _s(v.bus_reg_num, 12)
-        data += _s(v.bus_type.name, 16)
-        data += _s(v.bus_type.bustype_code, 5)
-    return data  # 33 bytes × vehicle_count
+        data += bytes([v.bus_type.pk % 256])  # BUSID
+        data += _s(v.bus_reg_num, 16)          # BusNo
+        data += b'\x00' * 15                   # Reserved
+    return data  # 32 bytes × vehicle_count
+
+
+# ─── Additional file packers ───────────────────────────────────────────────────
+
+def _pack_routelst_all(routes):
+    """
+    Build ROUTELST.LST binary — all routes, 64 bytes each.
+    Reuses _pack_routelst() for each route.
+    """
+    data = b''
+    for route in routes:
+        data += _pack_routelst(route)
+    return data
+
+
+def _pack_stagelst_global(route_stages):
+    """
+    Build STAGE.LST binary — all company RouteStage entries, 16 bytes each.
+    Matches VB6 Type STAGEDETAILS: StageName(12) + Distance Single(4).
+
+    VB STAGE table is per-route (route, stage, distance), equivalent to RouteStage.
+    Stage name truncated to 11 chars + null to ensure null-termination within 12 bytes.
+    """
+    data = b''
+    for rs in route_stages:
+        name = (rs.stage.stage_name or '')[:11]
+        data += _s(name, 11) + b'\x00'     # 12 bytes, always null-terminated
+        data += _f(float(rs.distance or 0))  # Distance (4 bytes)
+    return data  # 16 bytes × route_stage_count
+
+
+def _pack_languagedat(route_stages):
+    """
+    Build LANGUAGE.DAT binary — 24 bytes per entry (same order as STAGE.LST).
+    Matches VB6 LanguageStageCode As String * 24.
+    """
+    data = b''
+    for rs in route_stages:
+        data += _s(rs.stage_local_lang or '', 24)
+    return data  # 24 bytes × route_stage_count
+
+
+def _pack_rtedat(routes, stage_index):
+    """
+    Build RTE.DAT binary.
+    Per route: Route header (8 bytes) + fare Singles + stage Int16 IDs.
+    Matches VB6 Type Route and fare/stage writing in mdFunctions.bas CreateRTE().
+    stage_index: {RouteStage.pk: 1-based position in global STAGE.LST}
+    """
+    data = b''
+    for route in routes:
+        rs_qs = list(
+            route.route_stages.select_related('stage').order_by('sequence_no')
+        )
+        nos = len(rs_qs)
+
+        # Route header (8 bytes)
+        data += _s(route.route_code, 5)
+        data += _b(route.fare_type)
+        data += bytes([nos % 256])
+        data += b'\x00'  # NoOfDupFare
+
+        fares_qs = Fare.objects.filter(route=route)
+        if route.fare_type == 2:
+            # Graph/matrix fare: N*(N-1)/2 Singles ordered by number ASC
+            fares = list(fares_qs.order_by('number').values_list('fare_amount', flat=True))
+        else:
+            # Table fare: Singles ordered by fare_amount ASC
+            fares = list(fares_qs.order_by('fare_amount').values_list('fare_amount', flat=True))
+
+        for f in fares:
+            data += struct.pack('<f', float(f))
+
+        # Stage IDs as Int16 — 1-based position in global STAGE.LST (RouteStage.pk order)
+        for rs in rs_qs:
+            data += struct.pack('<h', stage_index.get(rs.pk, 0))
+
+    return data
+
+
+def _pack_currencydat(currencies):
+    """
+    Build CURRENCY.DAT binary — 8 bytes per entry.
+    Matches VB6 Type CREATE_CUR: CurString As String * 8.
+    """
+    data = b''
+    for c in currencies:
+        data += _s(c.currency, 8)
+    return data  # 8 bytes × currency_count
 
 
 # ─── Auth helper ───────────────────────────────────────────────────────────────
@@ -414,4 +502,145 @@ def get_expenses_file(request):
     binary = _pack_expensedet(expenses)
     response = HttpResponse(binary, content_type='application/octet-stream')
     response['Content-Disposition'] = 'attachment; filename="EXPENSEDET.DAT"'
+    return response
+
+
+def get_routelst_file(request):
+    """
+    GET /device/routelst
+    Returns ROUTELST.LST binary — all routes, 64 bytes each.
+    """
+    if request.method != 'GET':
+        return HttpResponse('METHOD_NOT_ALLOWED', status=405)
+
+    company = _get_company(request)
+    if not company:
+        return HttpResponse('UNAUTHORIZED', status=401)
+
+    routes = (
+        Route.objects
+        .filter(company=company, is_deleted=False)
+        .select_related('bus_type')
+        .prefetch_related('route_stages__stage')
+        .order_by('route_code')
+    )
+    binary = _pack_routelst_all(routes)
+    response = HttpResponse(binary, content_type='application/octet-stream')
+    response['Content-Disposition'] = 'attachment; filename="ROUTELST.LST"'
+    return response
+
+
+def _parse_route_codes(request):
+    """
+    Parse optional ?route_codes=R01,R02 query param.
+    Returns a list of stripped codes, or None if param absent/empty.
+    """
+    raw = request.GET.get('route_codes', '').strip()
+    if not raw:
+        return None
+    codes = [c.strip() for c in raw.split(',') if c.strip()]
+    return codes or None
+
+
+def _get_ordered_route_stages(company, route_codes=None):
+    """
+    Return RouteStage entries for company ordered by pk — the canonical
+    order used by both STAGE.LST and LANGUAGE.DAT, and indexed by RTE.DAT.
+    Mirrors VB: SELECT * FROM STAGE ORDER BY ID (auto-increment pk).
+    If route_codes is provided, only stages for those routes are returned.
+    """
+    qs = RouteStage.objects.filter(company=company).select_related('stage')
+    if route_codes:
+        qs = qs.filter(route__route_code__in=route_codes)
+    return list(qs.order_by('pk'))
+
+
+def get_stagelst_file(request):
+    """
+    GET /device/stagelst[?route_codes=R01,R02]
+    Returns STAGE.LST binary — RouteStage entries, 16 bytes each.
+    If route_codes provided, only stages for those routes are included.
+    """
+    if request.method != 'GET':
+        return HttpResponse('METHOD_NOT_ALLOWED', status=405)
+
+    company = _get_company(request)
+    if not company:
+        return HttpResponse('UNAUTHORIZED', status=401)
+
+    route_stages = _get_ordered_route_stages(company, _parse_route_codes(request))
+    binary = _pack_stagelst_global(route_stages)
+    response = HttpResponse(binary, content_type='application/octet-stream')
+    response['Content-Disposition'] = 'attachment; filename="STAGE.LST"'
+    return response
+
+
+def get_languagedat_file(request):
+    """
+    GET /device/languagedat[?route_codes=R01,R02]
+    Returns LANGUAGE.DAT binary — 24 bytes per entry, same order as STAGE.LST.
+    If route_codes provided, only entries for those routes are included.
+    """
+    if request.method != 'GET':
+        return HttpResponse('METHOD_NOT_ALLOWED', status=405)
+
+    company = _get_company(request)
+    if not company:
+        return HttpResponse('UNAUTHORIZED', status=401)
+
+    route_stages = _get_ordered_route_stages(company, _parse_route_codes(request))
+    binary = _pack_languagedat(route_stages)
+    response = HttpResponse(binary, content_type='application/octet-stream')
+    response['Content-Disposition'] = 'attachment; filename="LANGUAGE.DAT"'
+    return response
+
+
+def get_rtedat_file(request):
+    """
+    GET /device/rtedat[?route_codes=R01,R02]
+    Returns RTE.DAT binary — route headers + fare matrices.
+    If route_codes provided, only those routes are included.
+    stage_index is built from the same filtered route_stages to stay consistent
+    with the STAGE.LST that would be generated for the same route_codes.
+    """
+    if request.method != 'GET':
+        return HttpResponse('METHOD_NOT_ALLOWED', status=405)
+
+    company = _get_company(request)
+    if not company:
+        return HttpResponse('UNAUTHORIZED', status=401)
+
+    route_codes = _parse_route_codes(request)
+
+    routes_qs = Route.objects.filter(company=company, is_deleted=False)
+    if route_codes:
+        routes_qs = routes_qs.filter(route_code__in=route_codes)
+    routes = list(routes_qs.prefetch_related('route_stages__stage').order_by('route_code'))
+
+    # Must use same filtered set as get_stagelst_file for positional index consistency
+    route_stages = _get_ordered_route_stages(company, route_codes)
+    stage_index = {rs.pk: i for i, rs in enumerate(route_stages, start=1)}
+
+    binary = _pack_rtedat(routes, stage_index)
+    response = HttpResponse(binary, content_type='application/octet-stream')
+    response['Content-Disposition'] = 'attachment; filename="RTE.DAT"'
+    return response
+
+
+def get_currency_file(request):
+    """
+    GET /device/currency
+    Returns CURRENCY.DAT binary — 8 bytes per currency entry.
+    """
+    if request.method != 'GET':
+        return HttpResponse('METHOD_NOT_ALLOWED', status=405)
+
+    company = _get_company(request)
+    if not company:
+        return HttpResponse('UNAUTHORIZED', status=401)
+
+    currencies = Currency.objects.filter(company=company).order_by('pk')
+    binary = _pack_currencydat(currencies)
+    response = HttpResponse(binary, content_type='application/octet-stream')
+    response['Content-Disposition'] = 'attachment; filename="CURRENCY.DAT"'
     return response

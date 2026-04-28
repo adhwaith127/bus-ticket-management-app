@@ -1,12 +1,17 @@
 import logging
+import io
 from django.db import transaction
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.views import APIView
 
-from ..models import BusType, Stage, Route, VehicleType, RouteStage, RouteBusType, Fare
-from ..serializers import BusTypeSerializer, StageSerializer, RouteSerializer, VehicleTypeSerializer
+from ..models import BusType, Stage, Route, VehicleType, RouteStage, RouteBusType, RouteDepot, Fare, Depot
+from django.db.models import Count
+from ..serializers import BusTypeSerializer, StageSerializer, RouteSerializer, RouteListSerializer, VehicleTypeSerializer
 from .utils import _get_authenticated_company_admin, _get_object_or_404
+from .auth_views import get_user_from_cookie
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +72,9 @@ def get_stages(request):
 
     show_deleted = request.query_params.get('show_deleted', 'false').lower() == 'true'
     qs = Stage.objects.filter(company=company)
-    if not show_deleted:
+    if show_deleted:
+        qs = qs.filter(is_deleted=True)
+    else:
         qs = qs.filter(is_deleted=False)
 
     qs = qs.order_by('id')
@@ -117,15 +124,36 @@ def get_routes(request):
 
     show_deleted = request.query_params.get('show_deleted', 'false').lower() == 'true'
     qs = Route.objects.filter(company=company)
-    if not show_deleted:
+    if show_deleted:
+        qs = qs.filter(is_deleted=True)
+    else:
         qs = qs.filter(is_deleted=False)
 
-    qs = qs.select_related('bus_type').prefetch_related(
-        'route_stages__stage',
-        'route_bus_types__bus_type'
+    qs = qs.select_related('bus_type').annotate(
+        stage_count=Count('route_stages')
     ).order_by('id')
 
-    serializer = RouteSerializer(qs, many=True)
+    serializer = RouteListSerializer(qs, many=True)
+    return Response({'message': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def get_route_detail(request, pk):
+    user, company, err = _get_authenticated_company_admin(request)
+    if err:
+        return err
+
+    obj, err = _get_object_or_404(Route, pk, company)
+    if err:
+        return err
+
+    obj = Route.objects.select_related('bus_type').prefetch_related(
+        'route_stages__stage',
+        'route_bus_types__bus_type',
+        'route_depots__depot',
+    ).get(pk=pk)
+
+    serializer = RouteSerializer(obj)
     return Response({'message': 'Success', 'data': serializer.data}, status=status.HTTP_200_OK)
 
 
@@ -184,9 +212,16 @@ def update_route(request, pk):
             if allowed_bus_type_ids:
                 _save_route_bus_types(route, allowed_bus_type_ids, company, user)
 
+        if 'depot_ids' in request.data:
+            depot_ids = request.data.get('depot_ids', [])
+            RouteDepot.objects.filter(route=route).delete()
+            if depot_ids:
+                _save_route_depots(route, depot_ids, company, user)
+
         route_with_nested = Route.objects.prefetch_related(
             'route_stages__stage',
-            'route_bus_types__bus_type'
+            'route_bus_types__bus_type',
+            'route_depots__depot',
         ).get(pk=route.id)
         return_serializer = RouteSerializer(route_with_nested)
 
@@ -242,6 +277,19 @@ def _save_route_bus_types(route, bus_type_ids, company, user):
         RouteBusType.objects.bulk_create(route_bus_types_to_create)
 
 
+def _save_route_depots(route, depot_ids, company, user):
+    valid_depots = Depot.objects.filter(id__in=depot_ids, company=company).values_list('id', flat=True)
+    valid_depot_set = set(valid_depots)
+
+    to_create = [
+        RouteDepot(route=route, depot_id=depot_id, company=company, created_by=user)
+        for depot_id in depot_ids
+        if depot_id in valid_depot_set
+    ]
+    if to_create:
+        RouteDepot.objects.bulk_create(to_create, ignore_conflicts=True)
+
+
 # ── Vehicle ───────────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -252,7 +300,9 @@ def get_vehicles(request):
 
     show_deleted = request.query_params.get('show_deleted', 'false').lower() == 'true'
     qs = VehicleType.objects.filter(company=company)
-    if not show_deleted:
+    if show_deleted:
+        qs = qs.filter(is_deleted=True)
+    else:
         qs = qs.filter(is_deleted=False)
 
     qs = qs.select_related('bus_type').order_by('id')
@@ -344,6 +394,20 @@ def get_vehicles_dropdown(request):
     return Response({'message': 'Success', 'data': data}, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+def get_depots_dropdown(request):
+    user, company, err = _get_authenticated_company_admin(request)
+    if err:
+        return err
+
+    data = list(
+        Depot.objects.filter(company=company)
+        .values('id', 'depot_code', 'depot_name')
+        .order_by('depot_name')
+    )
+    return Response({'message': 'Success', 'data': data}, status=status.HTTP_200_OK)
+
+
 # ── Fare Editor ───────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -381,8 +445,14 @@ def get_fare_editor(request, route_id):
     fares = Fare.objects.filter(route=route).order_by('row', 'col')
 
     if route.fare_type == 1:
-        fare_dict = {f.col: f.fare_amount for f in fares if f.row == 1}
-        fare_list = [fare_dict.get(i + 1, 0) for i in range(n_stages)]
+        # Support both wizard/edit convention (row=1, col=stage_idx)
+        # and MDB-imported convention (row=stage_idx, col=0 or row=0)
+        fare_dict_col = {f.col: f.fare_amount for f in fares if f.row == 1 and f.col > 0}
+        fare_dict_row = {f.row: f.fare_amount for f in fares if f.col == 0 and f.row > 0}
+        fare_list = [
+            fare_dict_col.get(i + 1, fare_dict_row.get(i + 1, 0))
+            for i in range(n_stages)
+        ]
         return Response({
             'message': 'Success',
             'data': {
@@ -394,14 +464,15 @@ def get_fare_editor(request, route_id):
         }, status=status.HTTP_200_OK)
 
     else:
-        # Return lower-triangular matrix matching EXE format
-        # fare_matrix[i] has (i+1) entries: fare between stage (i+2) and stages 1..(i+1)
+        # DB convention: row=from_stage (1-indexed), col=to_stage-1
+        # fare_matrix[i] has (i+1) entries: fare_matrix[i][j] = fare from stage j+1 to stage i+2
         fare_dict = {(f.row, f.col): f.fare_amount for f in fares}
         fare_matrix = []
-        for row_idx in range(1, n_stages):   # stages 2..N (0-indexed 1..N-1)
+        for row_idx in range(1, n_stages):   # row_idx = 1..N-1, to_stage = row_idx+1
             row_data = []
-            for col_idx in range(row_idx):   # cols 0..row_idx-1 → stages 1..row_idx
-                fare_amount = fare_dict.get((row_idx + 1, col_idx + 1), 0)
+            for col_idx in range(row_idx):   # from_stage = col_idx+1
+                # DB key: (from_stage, to_stage-1) = (col_idx+1, row_idx)
+                fare_amount = fare_dict.get((col_idx + 1, row_idx), 0)
                 row_data.append(fare_amount)
             fare_matrix.append(row_data)
         return Response({
@@ -461,9 +532,10 @@ def update_fare_table(request, route_id):
                 return Response({'message': f'Row {i} must have {i + 1} entries.'}, status=status.HTTP_400_BAD_REQUEST)
 
         for i, row in enumerate(fare_matrix):
-            actual_row = i + 2   # 1-indexed stage row
             for j, fare_amount in enumerate(row):
-                actual_col = j + 1  # 1-indexed stage col
+                # DB convention: row=from_stage (j+1), col=to_stage-1 (i+1)
+                actual_row = j + 1   # from_stage
+                actual_col = i + 1   # to_stage - 1
                 if fare_amount == 0:
                     continue
                 fares_to_create.append(
@@ -607,11 +679,12 @@ def create_route_wizard(request):
                     )
             else:
                 # fare_matrix is lower-triangular: row i has (i+1) entries
-                # row 0 → stage pair (2,1), row 1 → (3,1),(3,2), etc.
+                # fare_matrix[i][j] = fare from stage j+1 to stage i+2
+                # DB convention: row=from_stage (j+1), col=to_stage-1 (i+1)
                 for i, row_data in enumerate(fare_matrix):
-                    actual_row = i + 2  # 1-indexed stage row (stage 2, 3, ..., N)
                     for j, fare_amount in enumerate(row_data):
-                        actual_col = j + 1  # 1-indexed stage col (stage 1, 2, ..., i+1)
+                        actual_row = j + 1  # from_stage
+                        actual_col = i + 1  # to_stage - 1
                         if int(fare_amount or 0) == 0:
                             continue
                         fares_to_create.append(
@@ -624,8 +697,12 @@ def create_route_wizard(request):
             if fares_to_create:
                 Fare.objects.bulk_create(fares_to_create)
 
+            depot_ids = data.get('depot_ids', [])
+            if depot_ids and isinstance(depot_ids, list):
+                _save_route_depots(route, depot_ids, company, user)
+
             route_final = Route.objects.prefetch_related(
-                'route_stages__stage', 'route_bus_types__bus_type'
+                'route_stages__stage', 'route_bus_types__bus_type', 'route_depots__depot',
             ).get(pk=route.id)
             return Response(
                 {'message': 'Route created successfully', 'data': RouteSerializer(route_final).data},
@@ -677,3 +754,142 @@ def update_route_stage(request, pk):
             'distance': rs.distance,
         }
     }, status=status.HTTP_200_OK)
+
+
+# ── Route Excel Import ────────────────────────────────────────────────────────
+
+class RouteExcelImportView(APIView):
+    """
+    POST /masterdata/routes/import-excel
+    multipart/form-data: file (.xlsx)
+
+    Expected columns (row 1 = headers, row 2+ = data):
+      route_code, route_name, min_fare, fare_type (1=Table/2=Graph),
+      bus_type (bus type name), half, luggage, student, adjust,
+      conc, ph, pass_allow, use_stop  (all flags: 0 or 1)
+
+    Returns JSON with created/skipped counts and per-row errors.
+    """
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        user = get_user_from_cookie(request)
+        if not user:
+            return Response({'message': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        if user.role != 'company_admin':
+            return Response({'message': 'Only company admins can import routes.'}, status=status.HTTP_403_FORBIDDEN)
+        company = user.company
+        if not company:
+            return Response({'message': 'No company mapped to this user.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        excel_file = request.FILES.get('file')
+        if not excel_file:
+            return Response({'message': 'No file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not excel_file.name.lower().endswith('.xlsx'):
+            return Response({'message': 'Only .xlsx files are accepted.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            import openpyxl
+        except ImportError:
+            return Response({'message': 'openpyxl is not installed on the server. Run: pip install openpyxl'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(excel_file.read()), data_only=True)
+            ws = wb.active
+        except Exception as e:
+            return Response({'message': f'Failed to read Excel file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        rows = list(ws.iter_rows(values_only=True))
+        if len(rows) < 2:
+            return Response({'message': 'Excel file has no data rows (need header + at least 1 data row).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        header = [str(h or '').strip().lower() for h in rows[0]]
+        required_cols = {'route_code', 'route_name', 'min_fare', 'fare_type', 'bus_type'}
+        missing = required_cols - set(header)
+        if missing:
+            return Response({'message': f'Missing required columns: {", ".join(sorted(missing))}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        def col(row_dict, key, default=''):
+            return str(row_dict.get(key, '') or '').strip()
+
+        def to_bool(val):
+            try:
+                return bool(int(float(str(val or 0))))
+            except (ValueError, TypeError):
+                return False
+
+        # Pre-load bus types for fast lookup
+        bus_type_map = {bt.name.strip().lower(): bt for bt in BusType.objects.filter(company=company)}
+
+        created = 0
+        skipped = 0
+        errors = []
+
+        for i, row_values in enumerate(rows[1:], start=2):
+            row_dict = dict(zip(header, row_values))
+            route_code = col(row_dict, 'route_code').upper()
+            route_name = col(row_dict, 'route_name')
+            bus_type_name = col(row_dict, 'bus_type').lower()
+
+            try:
+                if not route_code:
+                    raise ValueError('route_code is empty')
+                if len(route_code) != 4 or not route_code.isalnum():
+                    raise ValueError(f'route_code must be exactly 4 alphanumeric characters, got "{route_code}"')
+                if not route_name:
+                    raise ValueError('route_name is empty')
+
+                try:
+                    min_fare = float(col(row_dict, 'min_fare') or 0)
+                except ValueError:
+                    raise ValueError('min_fare must be numeric')
+
+                try:
+                    fare_type = int(float(col(row_dict, 'fare_type') or 1))
+                    if fare_type not in (1, 2):
+                        raise ValueError()
+                except ValueError:
+                    raise ValueError('fare_type must be 1 (Table) or 2 (Graph)')
+
+                bus_type_obj = bus_type_map.get(bus_type_name)
+                if not bus_type_obj:
+                    available = ', '.join(sorted(bus_type_map.keys())) or 'none'
+                    raise ValueError(f'bus_type "{bus_type_name}" not found. Available: {available}')
+
+                with transaction.atomic():
+                    _, was_created = Route.objects.get_or_create(
+                        company=company,
+                        route_code=route_code,
+                        defaults={
+                            'route_name':  route_name,
+                            'min_fare':    min_fare,
+                            'fare_type':   fare_type,
+                            'bus_type':    bus_type_obj,
+                            'half':        to_bool(row_dict.get('half')),
+                            'luggage':     to_bool(row_dict.get('luggage')),
+                            'student':     to_bool(row_dict.get('student')),
+                            'adjust':      to_bool(row_dict.get('adjust')),
+                            'conc':        to_bool(row_dict.get('conc')),
+                            'ph':          to_bool(row_dict.get('ph')),
+                            'pass_allow':  to_bool(row_dict.get('pass_allow')),
+                            'use_stop':    to_bool(row_dict.get('use_stop')),
+                            'created_by':  user,
+                        }
+                    )
+
+                if was_created:
+                    created += 1
+                else:
+                    skipped += 1
+                    errors.append(f'Row {i}: route_code "{route_code}" already exists — skipped')
+
+            except Exception as e:
+                skipped += 1
+                errors.append(f'Row {i}: {str(e)}')
+
+        return Response({
+            'message': f'Import complete. {created} created, {skipped} skipped.',
+            'created': created,
+            'skipped': skipped,
+            'errors':  errors,
+        }, status=status.HTTP_200_OK)

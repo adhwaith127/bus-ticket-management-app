@@ -133,7 +133,7 @@ export default function VehicleListing() {
             onChange={() => setShowDeleted(p => !p)}
             className="w-3.5 h-3.5 rounded border-slate-300 accent-slate-900"
           />
-          <span className="text-slate-600">Show deleted</span>
+          <span className="text-slate-600">Deleted only</span>
         </label>
       </div>
 

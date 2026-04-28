@@ -3,7 +3,6 @@ import { UserCog, Plus, Eye, Pencil, Search } from 'lucide-react';
 import { useFilteredList } from '../../assets/js/useFilteredList';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 import { Button }   from '@/components/ui/button';
-import { Badge }    from '@/components/ui/badge';
 import { Input }    from '@/components/ui/input';
 import { Label }    from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,12 +22,12 @@ export default function EmployeeTypeListing() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const emptyForm = { emp_type_code: '', emp_type_name: '' };
+  const emptyForm = { emp_type_name: '' };
   const [formData, setFormData] = useState(emptyForm);
 
   // ── Search ───────────────────────────────────────────────────────────────────
   const { filteredItems, searchTerm, setSearchTerm } = useFilteredList(
-    empTypes, ['emp_type_code', 'emp_type_name']
+    empTypes, ['emp_type_name']
   );
 
   // ── Pagination ───────────────────────────────────────────────────────────────
@@ -127,7 +126,7 @@ export default function EmployeeTypeListing() {
         <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
           <Search size={15} className="text-slate-400 shrink-0" />
           <Input
-            placeholder="Search by code or name..."
+            placeholder="Search by name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="border-0 shadow-none focus-visible:ring-0 text-sm h-8 px-0"
@@ -138,7 +137,7 @@ export default function EmployeeTypeListing() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                {['ID', 'Type Code', 'Type Name', ''].map(h => (
+                {['ID', 'Type Name', ''].map(h => (
                   <th key={h} className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -146,20 +145,15 @@ export default function EmployeeTypeListing() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>{[60, 80, 140, 60].map((w, j) => (
+                  <tr key={i}>{[60, 140, 60].map((w, j) => (
                     <td key={j} className="px-5 py-3"><Skeleton className="h-4 rounded" style={{ width: w }} /></td>
                   ))}</tr>
                 ))
               ) : currentItems.length === 0 ? (
-                <tr><td colSpan={4} className="px-5 py-10 text-center text-slate-400 text-sm">No employee types found.</td></tr>
+                <tr><td colSpan={3} className="px-5 py-10 text-center text-slate-400 text-sm">No employee types found.</td></tr>
               ) : currentItems.map(item => (
                 <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-5 py-3.5"><span className="font-mono text-slate-500 text-xs font-semibold">#{item.id}</span></td>
-                  <td className="px-5 py-3.5">
-                    <Badge className="bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-100 uppercase font-bold tracking-wide min-w-[3rem] justify-center">
-                      {item.emp_type_code}
-                    </Badge>
-                  </td>
                   <td className="px-5 py-3.5"><span className="text-slate-700 font-medium text-sm">{item.emp_type_name}</span></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-1.5">
@@ -203,12 +197,6 @@ export default function EmployeeTypeListing() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <div className="space-y-1.5">
-              <Label className="text-slate-700">Type Code *</Label>
-              <Input name="emp_type_code" value={formData.emp_type_code} onChange={handleInputChange} readOnly={isReadOnly}
-                placeholder="e.g. DRIVER"
-                className={isReadOnly ? 'bg-slate-50 text-slate-600' : ''} />
-            </div>
             <div className="space-y-1.5">
               <Label className="text-slate-700">Type Name *</Label>
               <Input name="emp_type_name" value={formData.emp_type_name} onChange={handleInputChange} readOnly={isReadOnly}

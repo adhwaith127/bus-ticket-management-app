@@ -6,6 +6,24 @@ import api, { BASE_URL } from '../../assets/js/axiosConfig';
 import { useNavigate } from 'react-router-dom';
 
 export default function UserListing() {
+  // ========== CURRENT USER ============
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentRole = currentUser?.role;
+  const isSuperadmin = currentRole === 'superadmin';
+  const isDealerAdmin = currentRole === 'dealer_admin';
+  const isCompanyAdmin = currentRole === 'company_admin';
+
+  // Allowed roles this user can create
+  const allowedRoles = isSuperadmin
+    ? [{ value: 'company_admin', label: 'Company Admin' }, { value: 'executive', label: 'Executive' }]
+    : isDealerAdmin
+    ? [{ value: 'company_admin', label: 'Company Admin' }]
+    : isCompanyAdmin
+    ? [{ value: 'user', label: 'User' }]
+    : [];
+
+  const defaultRole = allowedRoles[0]?.value || 'user';
+
   // ========== STATE MANAGEMENT ==========
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -44,7 +62,7 @@ export default function UserListing() {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    role: 'user',
+    role: defaultRole,
     company_id: '',
     password: ''
   });
@@ -99,7 +117,7 @@ export default function UserListing() {
     setFormData({
       username: '',
       email: '',
-      role: 'user',
+      role: defaultRole,
       company_id: '',
       password: ''
     });
@@ -159,7 +177,7 @@ export default function UserListing() {
     const { name, value } = e.target;
     setFormData(prev => {
       const next = { ...prev, [name]: value };
-      if (name === 'role' && value === 'executive_user') {
+      if (name === 'role' && value === 'executive') {
         next.company_id = '';
       }
       return next;
@@ -265,8 +283,8 @@ export default function UserListing() {
       case 'company_admin': return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'superadmin':
       case 'super_admin': return 'bg-rose-100 text-rose-700 border-rose-200';
-      case 'executive_user': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'dealer_user': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'executive': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'dealer_admin': return 'bg-amber-100 text-amber-700 border-amber-200';
       default: return 'bg-blue-100 text-blue-700 border-blue-200';
     }
   };
@@ -304,6 +322,7 @@ export default function UserListing() {
         </button>
       </div>
 
+      {isSuperadmin && (
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Map Executive Users to Companies</h2>
         <form onSubmit={handleCreateExecutiveMapping} className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -317,7 +336,7 @@ export default function UserListing() {
               className="w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg"
             >
               <option value="" disabled>Select executive</option>
-              {users.filter(u => u.role === 'executive_user').map(user => (
+              {users.filter(u => u.role === 'executive').map(user => (
                 <option key={user.id} value={user.id}>{user.username}</option>
               ))}
             </select>
@@ -380,6 +399,7 @@ export default function UserListing() {
           </div>
         )}
       </div>
+      )}
 
       {/* Table Container */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -494,17 +514,17 @@ export default function UserListing() {
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-700">Role</label>
               <div className="relative">
-                <select 
-                  name="role" 
-                  value={formData.role} 
-                  onChange={handleInputChange} 
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleInputChange}
                   required
                   disabled={isReadOnly}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all appearance-none bg-white disabled:bg-slate-50"
                 >
-                  <option value="user">User</option>
-                  <option value="company_admin">Company Admin</option>
-                  <option value="executive_user">Executive User</option>
+                  {allowedRoles.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
                 {!isReadOnly && (
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
@@ -519,12 +539,12 @@ export default function UserListing() {
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-700">Assign Company</label>
               <div className="relative">
-                <select 
-                  name="company_id" 
-                  value={formData.company_id} 
-                  onChange={handleInputChange} 
-                  required
-                  disabled={isReadOnly || formData.role === 'executive_user'}
+                <select
+                  name="company_id"
+                  value={formData.company_id}
+                  onChange={handleInputChange}
+                  required={formData.role !== 'executive' && !isCompanyAdmin}
+                  disabled={isReadOnly || formData.role === 'executive' || isCompanyAdmin}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all appearance-none bg-white disabled:bg-slate-50"
                 >
                   <option value="" disabled>Select company</option>

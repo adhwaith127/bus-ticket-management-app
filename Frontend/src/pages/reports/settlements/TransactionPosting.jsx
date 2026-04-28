@@ -408,7 +408,7 @@ export default function TransactionPosting() {
 
       {/* Verification Modal */}
       <Dialog open={showModal} onOpenChange={open => !open && closeModal()}>
-        <DialogContent className="max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Transaction Verification</DialogTitle>
           </DialogHeader>
