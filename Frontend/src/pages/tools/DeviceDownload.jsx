@@ -198,7 +198,7 @@ export default function DeviceDownload() {
     if (selected.vehicles)  tasks.push({ label: 'Vehicle Details (VEHICLE.DAT)', endpoint: '/device/vehicles',            filename: 'VEHICLE.DAT'      });
     if (selected.expenses)  tasks.push({ label: 'Expense Details (EXPENSEDET.DAT)', endpoint: '/device/expenses',         filename: 'EXPENSEDET.DAT'   });
     if (selected.schedule) {
-      tasks.push({ label: 'Route List (ROUTELST.LST)',  endpoint: `/device/routelst`,                   filename: 'ROUTELST.LST'   });
+      tasks.push({ label: 'Route List (ROUTELST.LST)',  endpoint: `/device/routelst${routeParam}`,      filename: 'ROUTELST.LST'   });
       tasks.push({ label: 'Stage List (STAGE.LST)',     endpoint: `/device/stagelst${routeParam}`,      filename: 'STAGE.LST'      });
       tasks.push({ label: 'Route Data (RTE.DAT)',       endpoint: `/device/rtedat${routeParam}`,        filename: 'RTE.DAT'        });
       tasks.push({ label: 'Language (LANGUAGE.DAT)',    endpoint: `/device/languagedat${routeParam}`,   filename: 'LANGUAGE.DAT'   });
@@ -383,7 +383,7 @@ export default function DeviceDownload() {
           routes={routes}
           selected={selectedRoutes}
           onToggle={toggleRoute}
-          onConfirm={() => { setShowRouteModal(false); }}
+          onConfirm={() => { setShowRouteModal(false); startDownload(); }}
           onClose={() => setShowRouteModal(false)}
         />
       )}

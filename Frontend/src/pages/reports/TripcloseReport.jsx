@@ -398,7 +398,7 @@ export default function TripcloseReport() {
 
     worksheet.columns = [
       { header: 'ID', key: 'id', width: 10 },
-      { header: 'Device ID', key: 'palmtec_id', width: 16 },
+      { header: 'Palmtec ID', key: 'palmtec_id', width: 16 },
       { header: 'Depot Code', key: 'depot_code', width: 14 },
       { header: 'Route', key: 'route_code', width: 12 },
       { header: 'Trip No', key: 'trip_no', width: 10 },
@@ -588,7 +588,7 @@ export default function TripcloseReport() {
                 className="text-sm h-9" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Device ID</label>
+              <label className="text-xs font-medium text-slate-500">Palmtec ID</label>
               <select value={filters.palmtecId} onChange={(e) => handleClientFilter('palmtecId', e.target.value)}
                 className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
                 <option value="ALL">ALL</option>
@@ -650,7 +650,7 @@ export default function TripcloseReport() {
             <table className="w-full text-sm text-left border-collapse">
               <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wide">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Device ID</th>
+                  <th className="px-4 py-3 font-semibold">Palmtec ID</th>
                   <th className="px-4 py-3 font-semibold">Depot</th>
                   <th className="px-4 py-3 font-semibold">Schedule</th>
                   <th className="px-4 py-3 font-semibold">Trip No</th>
@@ -750,7 +750,7 @@ export default function TripcloseReport() {
               {/* Trip Info */}
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Device ID',   val: selectedTrip.palmtec_id },
+                  { label: 'Palmtec ID',   val: selectedTrip.palmtec_id },
                   { label: 'Depot Code',  val: selectedTrip.depot_code || '—' },
                   { label: 'Route Code',  val: selectedTrip.route_code },
                   { label: 'Trip Number', val: selectedTrip.trip_no },

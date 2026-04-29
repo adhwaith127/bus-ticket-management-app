@@ -175,7 +175,7 @@ def _pack_routelst(route):
     Build RouteLST binary record for one route (64 bytes).
     Matches VB6 Type RouteLST in mdFunctions.bas.
     """
-    stage_count = route.route_stages.count()
+    stage_count = len(route.route_stages.all())
     data  = _s(route.route_code, 5)
     data += _s(route.route_name, 25)
     data += _b(stage_count)
@@ -201,8 +201,9 @@ def _pack_stagelst(route_stages):
     """
     data = b''
     for rs in route_stages:
-        data += _s(rs.stage.stage_name, 12)
-        data += _f(rs.distance)
+        name = (rs.stage.stage_name or '')[:11]
+        data += _s(name, 11) + b'\x00'     # 12 bytes, always null-terminated
+        data += _f(rs.distance or 0)
     return data  # 16 bytes × stage_count
 
 
@@ -211,10 +212,14 @@ def _pack_crewdat(employees):
     Build CREW.DAT binary (32 bytes per employee).
     Matches VB6 Type CREWDET in mdFunctions.bas.
     """
-    type_map = {'driver': 1, 'conductor': 2, 'cleaner': 3, 'inspector': 4}
     data = b''
     for emp in employees:
-        type_byte = type_map.get(emp.emp_type.emp_type_name.lower(), 0)
+        name = emp.emp_type.emp_type_name.lower()
+        if 'driver' in name:          type_byte = 1
+        elif 'conductor' in name:     type_byte = 2
+        elif 'cleaner' in name:       type_byte = 3
+        elif 'inspector' in name:     type_byte = 4
+        else:                         type_byte = 0
         data += _s(emp.employee_name, 16)
         data += _s(emp.employee_code, 8)
         data += bytes([type_byte])
@@ -324,7 +329,10 @@ def _pack_rtedat(routes, stage_index):
 
         # Stage IDs as Int16 — 1-based position in global STAGE.LST (RouteStage.pk order)
         for rs in rs_qs:
-            data += struct.pack('<h', stage_index.get(rs.pk, 0))
+            idx = stage_index.get(rs.pk, 0)
+            if idx == 0:
+                logger.warning('RTE.DAT: RouteStage pk=%s not in stage_index for route %s', rs.pk, route.route_code)
+            data += struct.pack('<h', idx)
 
     return data
 
@@ -507,8 +515,9 @@ def get_expenses_file(request):
 
 def get_routelst_file(request):
     """
-    GET /device/routelst
-    Returns ROUTELST.LST binary — all routes, 64 bytes each.
+    GET /device/routelst[?route_codes=R01,R02]
+    Returns ROUTELST.LST binary — 64 bytes per route.
+    If route_codes provided, only those routes are included.
     """
     if request.method != 'GET':
         return HttpResponse('METHOD_NOT_ALLOWED', status=405)
@@ -517,13 +526,12 @@ def get_routelst_file(request):
     if not company:
         return HttpResponse('UNAUTHORIZED', status=401)
 
-    routes = (
-        Route.objects
-        .filter(company=company, is_deleted=False)
-        .select_related('bus_type')
-        .prefetch_related('route_stages__stage')
-        .order_by('route_code')
-    )
+    route_codes = _parse_route_codes(request)
+    routes = Route.objects.filter(company=company, is_deleted=False)
+    if route_codes:
+        routes = routes.filter(route_code__in=route_codes)
+    routes = routes.select_related('bus_type').prefetch_related('route_stages__stage').order_by('route_code')
+
     binary = _pack_routelst_all(routes)
     response = HttpResponse(binary, content_type='application/octet-stream')
     response['Content-Disposition'] = 'attachment; filename="ROUTELST.LST"'

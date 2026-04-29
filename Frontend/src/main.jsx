@@ -118,11 +118,11 @@ const router = createBrowserRouter([
             element: <CurrencyListing />
           },
           {
-            path: 'master-data/staff',
+            path: 'master-data/employees',
             element: <EmployeeCombined />
           },
           {
-            path: 'master-data/fleet',
+            path: 'master-data/vehicles',
             element: <VehicleCombined />
           },
           {

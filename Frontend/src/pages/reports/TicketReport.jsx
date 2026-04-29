@@ -289,7 +289,7 @@ export default function TicketReport() {
 
   // ===== DYNAMIC DROPDOWN OPTIONS =====
   const getUniqueOptions = () => {
-    const deviceIds = [...new Set(transactions.map(t => t.device_id).filter(Boolean))].sort();
+    const deviceIds = [...new Set(transactions.map(t => t.palmtec_id).filter(Boolean))].sort();
     const depotCodes = [...new Set(transactions.map(t => t.depot_code).filter(Boolean))].sort();
     const paymentModes = [...new Set(transactions.map(t => t.payment_mode_display).filter(Boolean))].sort();
     
@@ -302,7 +302,7 @@ export default function TicketReport() {
   const getFilteredData = () =>
     transactions.filter(t => {
       if (filters.deviceId && filters.deviceId !== 'ALL') {
-        if (t.device_id !== filters.deviceId) return false;
+        if (t.palmtec_id !== filters.deviceId) return false;
       }
 
       if (filters.depotCode && filters.depotCode !== 'ALL') {
@@ -450,7 +450,7 @@ export default function TicketReport() {
     const worksheet = workbook.addWorksheet('Transactions');
 
     worksheet.columns = [
-      { header: 'Device ID', key: 'device_id', width: 15 },
+      { header: 'Palmtec ID', key: 'palmtec_id', width: 15 },
       { header: 'Trip Number', key: 'trip_number', width: 14 },
       { header: 'Ticket Number', key: 'ticket_number', width: 16 },
       { header: 'Date', key: 'formatted_ticket_date', width: 14 },
@@ -481,7 +481,7 @@ export default function TicketReport() {
 
     filteredData.forEach(t => {
       worksheet.addRow({
-        device_id: t.device_id,
+        palmtec_id: t.palmtec_id,
         trip_number: t.trip_number,
         ticket_number: t.ticket_number || '-',
         formatted_ticket_date: t.formatted_ticket_date,
@@ -670,7 +670,7 @@ export default function TicketReport() {
                 className="text-sm h-9" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Device ID</label>
+              <label className="text-xs font-medium text-slate-500">Palmtec ID</label>
               <select value={filters.deviceId} onChange={(e) => handleClientFilter('deviceId', e.target.value)}
                 className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
                 <option value="ALL">ALL</option>
@@ -726,7 +726,7 @@ export default function TicketReport() {
             <table className="w-full text-sm text-left border-collapse">
               <thead className="bg-slate-50/60 border-b border-slate-200 text-slate-500 text-xs uppercase tracking-wide">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Device ID</th>
+                  <th className="px-4 py-3 font-semibold">Palmtec ID</th>
                   {[
                     { label: 'Trip No',    key: 'trip_number' },
                     { label: 'Ticket No',  key: 'ticket_number' },
@@ -782,7 +782,7 @@ export default function TicketReport() {
                   currentData.map((t) => (
                     <tr key={t.id}
                       className={`transition-colors hover:bg-slate-50/70 ${newTicketIds.has(t.id) ? 'bg-slate-100/60' : ''}`}>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{t.device_id}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{t.palmtec_id}</td>
                       <td className="px-4 py-3 text-slate-700">{t.trip_number}</td>
                       <td className="px-4 py-3 text-slate-700">{t.ticket_number || '—'}</td>
                       <td className="px-4 py-3 text-slate-600">{t.formatted_ticket_date}</td>

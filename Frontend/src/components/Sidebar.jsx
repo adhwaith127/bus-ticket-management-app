@@ -324,8 +324,8 @@ export default function Sidebar() {
                   onToggle={() => setMasterDataOpen(p => !p)}
                 >
                   <SubLink to="/dashboard/master-data/currencies"       icon={Coins}           label="Currencies"       onClose={close} />
-                  <SubLink to="/dashboard/master-data/staff"            icon={Users2}          label="Employee"         onClose={close} />
-                  <SubLink to="/dashboard/master-data/fleet"            icon={Truck}           label="Vehicles"         onClose={close} />
+                  <SubLink to="/dashboard/master-data/employees"         icon={Users2}          label="Employee"         onClose={close} />
+                  <SubLink to="/dashboard/master-data/vehicles"         icon={Truck}           label="Vehicles"         onClose={close} />
                   <SubLink to="/dashboard/master-data/routes"           icon={Route}           label="Routes"           onClose={close} />
                   <SubLink to="/dashboard/master-data/crew-assignments" icon={CalendarCog} label="Crew Assignments" onClose={close} />
                   <SubLink to="/dashboard/master-data/expense-master"   icon={IndianRupee} label="Expense Master"   onClose={close} />

@@ -126,7 +126,6 @@ urlpatterns = [
     path('masterdata/settings-profiles/<int:profile_id>', settings_views.profile_detail),
     path('masterdata/settings-profiles/<int:profile_id>/apply/<int:device_id>', settings_views.apply_profile_to_device),
 
-
     # ETM Device Registry
     path('etm-devices/register',                  device_registry_views.register_device,     name='etm_register'),
     path('etm-devices',                           device_registry_views.list_devices,        name='etm_list'),
