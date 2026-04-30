@@ -194,18 +194,6 @@ def _pack_routelst(route):
     return data  # 64 bytes
 
 
-def _pack_stagelst(route_stages):
-    """
-    Build STAGE.LST binary for ordered route stages (16 bytes per stage).
-    Matches VB6 Type STAGEDETAILS in mdFunctions.bas.
-    """
-    data = b''
-    for rs in route_stages:
-        name = (rs.stage.stage_name or '')[:11]
-        data += _s(name, 11) + b'\x00'     # 12 bytes, always null-terminated
-        data += _f(rs.distance or 0)
-    return data  # 16 bytes × stage_count
-
 
 def _pack_crewdat(employees):
     """
@@ -383,40 +371,6 @@ def get_routes_list(request):
     )
     return JsonResponse({'routes': list(routes)})
 
-
-def get_schedule_file(request):
-    """
-    GET /device/schedule/?route_code=R01
-    Returns binary: RouteLST record (64 bytes) + STAGE records (16 bytes each).
-    APK sends this to device after operator selects a route.
-    """
-    if request.method != 'GET':
-        return HttpResponse('METHOD_NOT_ALLOWED', status=405)
-
-    company = _get_company(request)
-    if not company:
-        return HttpResponse('UNAUTHORIZED', status=401)
-
-    route_code = request.GET.get('route_code', '').strip()
-    if not route_code:
-        return HttpResponse('MISSING_ROUTE_CODE', status=400)
-
-    try:
-        route = (
-            Route.objects
-            .select_related('bus_type')
-            .prefetch_related('route_stages__stage')
-            .get(company=company, route_code=route_code, is_deleted=False)
-        )
-    except Route.DoesNotExist:
-        return HttpResponse('ROUTE_NOT_FOUND', status=404)
-
-    route_stages = route.route_stages.select_related('stage').order_by('sequence_no')
-    binary = _pack_routelst(route) + _pack_stagelst(route_stages)
-
-    response = HttpResponse(binary, content_type='application/octet-stream')
-    response['Content-Disposition'] = f'attachment; filename="schedule_{route_code}.bin"'
-    return response
 
 
 def get_settings_file(request):

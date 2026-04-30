@@ -138,7 +138,6 @@ urlpatterns = [
 
     # Palmtec device data APIs (server → APK → USB → device)
     path('device/routes',      palmtec_data_views.get_routes_list),
-    path('device/schedule',    palmtec_data_views.get_schedule_file),
     path('device/settings',    palmtec_data_views.get_settings_file),
     path('device/crew',        palmtec_data_views.get_crew_file),
     path('device/vehicles',    palmtec_data_views.get_vehicles_file),
