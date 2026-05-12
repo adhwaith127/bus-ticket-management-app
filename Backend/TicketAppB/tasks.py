@@ -2,7 +2,7 @@ from celery import shared_task
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime,timedelta
 from .models import RawDataLog, TransactionData, TripCloseData, Company
 
 
@@ -111,3 +111,34 @@ def process_transaction_data(self, log_id):
             status=RawDataLog.statusChoices.FAILED,
             error_message=str(exc))
         raise self.retry(exc=exc, countdown=60)
+
+
+@shared_task
+def scan_pending_raw_logs():
+    now = timezone.now()
+
+    stale_cutoff = now - timedelta(hours=12)
+    requeue_cutoff = now - timedelta(seconds=60)
+
+    # mark stale as failed
+    RawDataLog.objects.filter(status=RawDataLog.statusChoices.PENDING, 
+        received_at__lt=stale_cutoff).update(status=RawDataLog.statusChoices.FAILED,error_message="Payload unprocessed for 12 hours")
+    
+    # requeue survivors
+    requeue_records=RawDataLog.objects.filter(status=RawDataLog.statusChoices.PENDING,received_at__range=(requeue_cutoff, stale_cutoff))
+
+    count=0
+    for record in requeue_records:
+        process_transaction_data.delay(record.id)
+        count+=1
+
+    return count
+
+
+@shared_task
+def cleanup_processed_raw_logs():
+    cutoff = timezone.now() - timedelta(days=30)
+
+    deleted_count, _ = RawDataLog.objects.filter(status=RawDataLog.statusChoices.PROCESSED, processed_at__lt=cutoff).delete()
+
+    return deleted_count

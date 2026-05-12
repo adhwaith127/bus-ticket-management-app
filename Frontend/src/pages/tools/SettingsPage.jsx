@@ -144,6 +144,7 @@ const LANGUAGE_OPTIONS = [{ value: 0, label: 'Malayalam' }, { value: 1, label: '
 const FONT_OPTIONS     = [{ value: 0, label: 'Normal' },    { value: 1, label: 'Condensed' }];
 
 const EMPTY_DEVICE_FORM = {
+  palmtec_id: '',
   user_pwd: '', master_pwd: '',
   half_per: '', con_per: '', phy_per: '', round_amt: '', luggage_unit_rate: '',
   main_display: '', main_display2: '',
@@ -406,14 +407,21 @@ function ProfilesTab() {
           </button>
         </div>
 
-        {/* Profile name */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        {/* Profile name + palmtec id */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <TextField
             label="Profile Name"
             name="name"
             value={formData.name}
             onChange={handleChange}
             placeholder="e.g. City Route Default"
+          />
+          <ConstrainedField
+            label="Palmtec ID"
+            name="palmtec_id"
+            value={formData.palmtec_id}
+            onChange={handleChange}
+            maxLen={6}
           />
         </div>
 

@@ -2,11 +2,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.db.models import Q as models_Q
-from ..models import Company, CustomUser, DealerCustomerMapping
-from ..serializers import UserSerializer
+from ...models import Company, CustomUser, DealerCustomerMapping
+from ...serializers.auth import UserSerializer
 from django.contrib.auth import get_user_model
-from .auth_views import get_user_from_cookie
-from .utils import _is_superadmin, _is_dealer_admin, _is_company_admin
+from .auth import get_user_from_cookie
+from ..utils import _is_superadmin, _is_dealer_admin, _is_company_admin
 from datetime import datetime
 
 

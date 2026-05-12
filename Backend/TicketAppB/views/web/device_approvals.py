@@ -3,10 +3,10 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from ..models import UserDeviceMapping
-from ..serializers import UserDeviceMappingSerializer
-from .auth_views import get_user_from_cookie
-from .utils import _is_superadmin
+from ...models import UserDeviceMapping
+from ...serializers.auth import UserDeviceMappingSerializer
+from .auth import get_user_from_cookie
+from ..utils import _is_superadmin
 
 
 @api_view(["GET"])

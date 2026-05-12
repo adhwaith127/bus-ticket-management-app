@@ -8,16 +8,16 @@ from django.conf import settings
 from rest_framework import status
 from django.db import transaction
 from django.http import JsonResponse
-from ..serializers import CompanySerializer
+from ...serializers.company import CompanySerializer
 from rest_framework.response import Response
-from .auth_views import get_user_from_cookie
+from .auth import get_user_from_cookie
 from django.forms.models import model_to_dict
 from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view
 from django.db.utils import OperationalError, ProgrammingError
 from django.db.models import Sum, Q, Count, Case, When, IntegerField
-from ..models import Company,TransactionData,TripCloseData,Route,VehicleType,MosambeeTransaction,Dealer,DealerCustomerMapping
-from .utils import _is_superadmin, _is_executive, _is_dealer_admin, _is_company_admin
+from ...models import Company,TransactionData,TripCloseData,Route,VehicleType,MosambeeTransaction,Dealer,DealerCustomerMapping
+from ..utils import _is_superadmin, _is_executive, _is_dealer_admin, _is_company_admin
 
 
 # Setup logger  
@@ -606,6 +606,17 @@ def import_company(request):
     if not company_id:
         return Response({'message': 'company_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # ── User account validation ───────────────────────────────────────────────
+    imp_user_username = request.data.get('user_username', '').strip()
+    imp_user_email = request.data.get('user_email', '').strip()
+    imp_user_password = request.data.get('user_password', '').strip()
+    if not imp_user_username or not imp_user_email or not imp_user_password:
+        return Response({'error': 'User account details (username, email, password) are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if User.objects.filter(username=imp_user_username).exists():
+        return Response({'message': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+    if User.objects.filter(email=imp_user_email).exists():
+        return Response({'message': 'User email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
     # ── Atomic duplicate check with row-level lock ───────────────────────────
     # select_for_update acquires a DB lock so concurrent requests serialise here.
     existing = Company.objects.select_for_update().filter(company_id=company_id).first()
@@ -688,9 +699,19 @@ def import_company(request):
         device_count            = safe_int(auth_data.get('NoOfUPIDevice'), 0),
         depot_count             = safe_int(auth_data.get('NoOfBranch'), 0),
         mobile_device_count     = safe_int(auth_data.get('NoOfMobileDevice'), 2),
+        client_type             = 'company',
         created_by              = user,
     )
 
+    # ── Create company_admin user ─────────────────────────────────────────────
+    User.objects.create_user(
+        username=imp_user_username,
+        email=imp_user_email,
+        password=imp_user_password,
+        role='company_admin',
+        company=company,
+        is_verified=True,
+    )
     logger.info(f"Imported existing company '{company.company_name}' (company_id={company_id}) by user {user}")
 
     serializer = CompanySerializer(company)
@@ -722,12 +743,12 @@ def all_company_data(request):
         )
 
     if _is_superadmin(user):
-        # Superadmin sees only companies they personally created.
-        companies = Company.objects.filter(created_by=user).order_by('-id')
+        # Superadmin sees only direct companies they created (not dealer sub-companies).
+        companies = Company.objects.filter(created_by=user, client_type='company').order_by('-id')
 
     elif _is_executive(user):
         # Executive sees only companies they are explicitly mapped to.
-        from ..models import ExecutiveCompanyMapping  # avoid circular at module level
+        from ...models import ExecutiveCompanyMapping  # avoid circular at module level
         company_ids = ExecutiveCompanyMapping.objects.filter(
             executive_user_id=user.id, is_active=True
         ).values_list('company_id', flat=True)
@@ -776,55 +797,47 @@ def create_company(request):
     if not request.data:
         return Response({"message": "No input received"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ── Dealer pool validation ────────────────────────────────────────────────
+    # ── User account validation (required for both superadmin and dealer_admin) ─
+    user_username = request.data.get('user_username', '').strip()
+    user_email_field = request.data.get('user_email', '').strip()
+    user_password = request.data.get('user_password', '').strip()
+
+    if not user_username or not user_email_field or not user_password:
+        return Response({'error': 'User account details (username, email, password) are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    if User.objects.filter(username=user_username).exists():
+        return Response({'message': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+    if User.objects.filter(email=user_email_field).exists():
+        return Response({'message': 'User email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── Fetch dealer for mapping (dealer_admin only) ──────────────────────────
     dealer = None
     if _is_dealer_admin(user):
         if not user.dealer_id:
             return Response({'error': 'No dealer linked to this account.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            dealer = Dealer.objects.select_for_update().get(pk=user.dealer_id)
+            dealer = Dealer.objects.get(pk=user.dealer_id)
         except Dealer.DoesNotExist:
             return Response({'error': 'Dealer not found.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # How many licences this new company will consume
-        new_number_of_licence = int(request.data.get('number_of_licence', 0))
-        new_device_count      = int(request.data.get('device_count', 0))
-        new_mobile_count      = int(request.data.get('mobile_device_count', 0))
-
-        # Compute already-distributed totals from active mapped companies
-        mapped_ids = DealerCustomerMapping.objects.filter(
-            dealer=dealer, is_active=True
-        ).values_list('company_id', flat=True)
-        used = Company.objects.filter(id__in=mapped_ids).aggregate(
-            used_licence=Sum('number_of_licence'),
-            used_device=Sum('device_count'),
-            used_mobile=Sum('mobile_device_count'),
-        )
-        used_licence = used['used_licence'] or 0
-        used_device  = used['used_device'] or 0
-        used_mobile  = used['used_mobile'] or 0
-
-        remaining_licence = dealer.allocated_licence_count - used_licence
-        remaining_device  = dealer.allocated_device_count  - used_device
-        remaining_mobile  = dealer.allocated_mobile_device_count - used_mobile
-
-        errors = []
-        if new_number_of_licence > remaining_licence:
-            errors.append(f"Total licence quota exceeded (requested {new_number_of_licence}, remaining {remaining_licence}).")
-        if new_device_count > remaining_device:
-            errors.append(f"ETM device quota exceeded (requested {new_device_count}, remaining {remaining_device}).")
-        if new_mobile_count > remaining_mobile:
-            errors.append(f"Android device quota exceeded (requested {new_mobile_count}, remaining {remaining_mobile}).")
-        if errors:
-            return Response({'message': 'Dealer licence pool insufficient.', 'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
 
     serializer = CompanySerializer(data=request.data)
     if not serializer.is_valid():
         logger.warning(f"Company creation failed: {serializer.errors}")
         return Response({"message": "Validation failed", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-    company = serializer.save(created_by=user)
+    client_type_val = 'dealer_company' if _is_dealer_admin(user) else 'company'
+    company = serializer.save(created_by=user, client_type=client_type_val)
     logger.info(f"Created new company: {company.company_name} (ID: {company.id}) by {user.role} {user.username}")
+
+    # ── Create company_admin user ─────────────────────────────────────────────
+    User.objects.create_user(
+        username=user_username,
+        email=user_email_field,
+        password=user_password,
+        role='company_admin',
+        company=company,
+        is_verified=True,
+    )
+    logger.info(f"Created company_admin user '{user_username}' for company: {company.company_name}")
 
     # ── Auto-create DealerCustomerMapping for dealer_admin ────────────────────
     if dealer:

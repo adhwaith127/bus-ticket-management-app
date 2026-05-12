@@ -32,6 +32,17 @@ class Company(models.Model):
     state = models.CharField(max_length=100)
     zip_code = models.CharField(max_length=20)
     
+    # Client Type
+    class ClientType(models.TextChoices):
+        COMPANY = 'company', 'Company'
+        DEALER_COMPANY = 'dealer_company', 'Dealer Company'
+
+    client_type = models.CharField(
+        max_length=20,
+        choices=ClientType.choices,
+        default=ClientType.COMPANY,
+    )
+
     # License Information
     number_of_licence = models.IntegerField(default=0)
     authentication_status = models.CharField(
@@ -148,12 +159,7 @@ class Dealer(models.Model):
     zip_code = models.CharField(max_length=20)
     gst_number = models.CharField(max_length=20, null=True, blank=True)
     is_active = models.BooleanField(default=True)
-
-    # License pool allocated by superadmin at dealer creation/edit
-    # number_of_licence = total (ETM + Android); device_count = ETM; mobile_device_count = Android
-    allocated_licence_count = models.IntegerField(default=0)         # total licences allocated
-    allocated_device_count = models.IntegerField(default=0)          # ETM licences allocated
-    allocated_mobile_device_count = models.IntegerField(default=0)   # Android licences allocated
+    number_of_licence = models.IntegerField(default=0)
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -216,38 +222,23 @@ class DealerCustomerMapping(models.Model):
 
 
 class ETMDevice(models.Model):
-    """
-    Registry of physical ETM (Electronic Ticket Machine) and Android app devices.
-    Each device must be registered and approved before it can push ticket data.
-
-    Lifecycle:
-      1. Device boots and POSTs to /etm-devices/register  → status = Pending
-      2. Superadmin/executive sees it in the pending queue and assigns it to a Company
-      3. Admin clicks Approve → calls license server DeviceRegistration API
-      4. License server returns device_registration_id → status = Active
-      5. Admin can later call Check Status to refresh expiry from license server
-    """
-
     class DeviceType(models.TextChoices):
         ETM = 'ETM', 'ETM (Electronic Ticket Machine)'
         ANDROID = 'ANDROID', 'Android App Device'
 
-    class LicenceStatus(models.TextChoices):
-        PENDING = 'Pending', 'Pending'
-        ACTIVE = 'Active', 'Active'
+    class AllocationStatus(models.TextChoices):
+        STOCK = 'Stock', 'Stock'
+        DEALER_POOL = 'DealerPool', 'Dealer Pool'
+        ALLOCATED = 'Allocated', 'Allocated'
         INACTIVE = 'Inactive', 'Inactive'
-        EXPIRED = 'Expired', 'Expired'
 
     serial_number = models.CharField(max_length=100, unique=True)
-    display_name = models.CharField(max_length=100, blank=True)
     device_type = models.CharField(
         max_length=20,
         choices=DeviceType.choices,
         default=DeviceType.ETM,
     )
-    mac_address = models.CharField(max_length=100, blank=True)
 
-    # Ownership — all nullable so a freshly-registered device has no owner yet
     company = models.ForeignKey(
         Company,
         on_delete=models.SET_NULL,
@@ -255,14 +246,6 @@ class ETMDevice(models.Model):
         blank=True,
         related_name='etm_devices',
     )
-    depot = models.ForeignKey(
-        Depot,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='etm_devices',
-    )
-    # Which dealer supplied this device (set automatically from company's dealer mapping)
     dealer = models.ForeignKey(
         Dealer,
         on_delete=models.SET_NULL,
@@ -271,27 +254,19 @@ class ETMDevice(models.Model):
         related_name='etm_devices',
     )
 
-    # License server binding
-    device_registration_id = models.CharField(max_length=255, blank=True)
-
-    licence_status = models.CharField(
+    allocation_status = models.CharField(
         max_length=20,
-        choices=LicenceStatus.choices,
-        default=LicenceStatus.PENDING,
+        choices=AllocationStatus.choices,
+        default=AllocationStatus.STOCK,
     )
-    licence_active_to = models.DateField(null=True, blank=True)
-    is_active = models.BooleanField(default=False)
 
-    # Approval audit
-    approved_by = models.ForeignKey(
+    created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='approved_etm_devices',
+        related_name='etm_devices_created',
     )
-    approved_at = models.DateTimeField(null=True, blank=True)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -299,28 +274,14 @@ class ETMDevice(models.Model):
         db_table = 'etm_device'
         indexes = [
             models.Index(fields=['serial_number']),
-            models.Index(fields=['company', 'licence_status']),
+            models.Index(fields=['company', 'allocation_status']),
             models.Index(fields=['dealer']),
-            models.Index(fields=['licence_status']),
+            models.Index(fields=['allocation_status']),
         ]
 
     def __str__(self):
         company_name = self.company.company_name if self.company else 'Unassigned'
         return f"{self.serial_number} ({self.device_type}) — {company_name}"
-
-    @property
-    def is_expired(self):
-        from datetime import date
-        if self.licence_active_to:
-            return date.today() > self.licence_active_to
-        return False
-
-    @property
-    def days_until_expiry(self):
-        from datetime import date
-        if self.licence_active_to:
-            return (self.licence_active_to - date.today()).days
-        return None
 
 
 class ExecutiveCompanyMapping(models.Model):

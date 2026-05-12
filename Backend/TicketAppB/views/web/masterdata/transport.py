@@ -7,11 +7,11 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 
-from ..models import BusType, Stage, Route, VehicleType, RouteStage, RouteBusType, RouteDepot, Fare, Depot
+from ....models import BusType, Stage, Route, VehicleType, RouteStage, RouteBusType, RouteDepot, Fare, Depot
 from django.db.models import Count
-from ..serializers import BusTypeSerializer, StageSerializer, RouteSerializer, RouteListSerializer, VehicleTypeSerializer
-from .utils import _get_authenticated_company_admin, _get_object_or_404
-from .auth_views import get_user_from_cookie
+from ....serializers.masterdata import BusTypeSerializer, StageSerializer, RouteSerializer, RouteListSerializer, VehicleTypeSerializer
+from ...utils import _get_authenticated_company_admin, _get_object_or_404
+from ..auth import get_user_from_cookie
 
 
 logger = logging.getLogger(__name__)
@@ -378,7 +378,7 @@ def get_vehicles_dropdown(request):
     if err:
         return err
 
-    from ..models import CrewAssignment
+    from ....models import CrewAssignment
     exclude_assigned = request.query_params.get('exclude_assigned', 'false').lower() == 'true'
     assignment_id = request.query_params.get('assignment_id')
 

@@ -41,7 +41,7 @@ def _get_company(company_id):
 
 
 def _get_authenticated_company_admin(request):
-    from .auth_views import get_user_from_cookie
+    from .web.auth import get_user_from_cookie
     user = get_user_from_cookie(request)
     if not user:
         return None, None, Response(

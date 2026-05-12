@@ -4,10 +4,11 @@ from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
 
-from ..models import Dealer, DealerCustomerMapping, Company, CustomUser, ETMDevice
-from ..serializers import DealerSerializer, DealerCustomerMappingSerializer, CompanySerializer
-from .auth_views import get_user_from_cookie
-from .utils import _is_superadmin, _is_dealer_admin
+from ...models import Dealer, DealerCustomerMapping, Company, CustomUser, ETMDevice
+from ...serializers.dealers import DealerSerializer, DealerCustomerMappingSerializer
+from ...serializers.company import CompanySerializer
+from .auth import get_user_from_cookie
+from ..utils import _is_superadmin, _is_dealer_admin
 
 
 User = get_user_model()
@@ -183,9 +184,9 @@ def dealer_dashboard(request):
         .values('company_id')
         .annotate(
             total=Count('id'),
-            active=Count('id', filter=Q(licence_status=ETMDevice.LicenceStatus.ACTIVE)),
-            pending=Count('id', filter=Q(licence_status=ETMDevice.LicenceStatus.PENDING)),
-            expired=Count('id', filter=Q(licence_status=ETMDevice.LicenceStatus.EXPIRED)),
+            active=Count('id', filter=Q(allocation_status=ETMDevice.AllocationStatus.ALLOCATED)),
+            pending=Count('id', filter=Q(allocation_status=ETMDevice.AllocationStatus.DEALER_POOL)),
+            expired=Count('id', filter=Q(allocation_status=ETMDevice.AllocationStatus.INACTIVE)),
         )
     )
     device_map = {row['company_id']: row for row in device_counts}

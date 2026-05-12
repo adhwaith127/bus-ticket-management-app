@@ -277,15 +277,16 @@ export default function Sidebar() {
         <nav className="flex-1 overflow-y-auto py-3 px-3 custom-scrollbar">
           <ul className="space-y-0.5">
 
-            <NavItem to="/dashboard" end icon={LayoutDashboard} label="Dashboard" isCollapsed={isCollapsed} onClose={close} />
+            {role !== "production" && (
+              <NavItem to="/dashboard" end icon={LayoutDashboard} label="Dashboard" isCollapsed={isCollapsed} onClose={close} />
+            )}
 
             {/* Superadmin */}
             {role === "superadmin" && (
               <>
                 <SectionLabel label="Administration" isCollapsed={isCollapsed} />
-                <NavItem to="/dashboard/companies"        icon={Building2}     label="Companies"        isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/clients"          icon={Handshake}     label="Clients"          isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/users"            icon={Users}         label="Users"            isCollapsed={isCollapsed} onClose={close} />
-                <NavItem to="/dashboard/dealers"          icon={Handshake}     label="Dealers"          isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/device-registry"  icon={Cpu}           label="Device Registry"  isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/device-approvals" icon={SmartphoneNfc} label="Device Approvals" isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/data-import"      icon={FileInput}     label="MDB Data Import"  isCollapsed={isCollapsed} onClose={close} />
@@ -309,6 +310,14 @@ export default function Sidebar() {
                 <NavItem to="/dashboard/companies"       icon={Building2} label="My Companies"    isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/users"           icon={Users}     label="Users"           isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/device-registry" icon={Cpu}       label="Device Registry" isCollapsed={isCollapsed} onClose={close} />
+              </>
+            )}
+
+            {/* Production User */}
+            {role === "production" && (
+              <>
+                <SectionLabel label="Production" isCollapsed={isCollapsed} />
+                <NavItem to="/dashboard/device-registry" icon={Cpu} label="Device Upload" isCollapsed={isCollapsed} onClose={close} />
               </>
             )}
 
@@ -342,7 +351,7 @@ export default function Sidebar() {
                   <SubLink to="/dashboard/trip-close-report" icon={TrendingDown} label="Trip Close"    onClose={close} />
                 </DropdownSection>
 
-                <NavItem to="/dashboard/settlements/transactions" icon={Receipt} label="Settlements" isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/settlements" icon={Receipt} label="Settlements" isCollapsed={isCollapsed} onClose={close} />
               </>
             )}
 

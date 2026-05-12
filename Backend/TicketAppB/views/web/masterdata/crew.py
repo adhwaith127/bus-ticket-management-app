@@ -3,9 +3,9 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from ..models import Employee, EmployeeType, CrewAssignment, VehicleType
-from ..serializers import EmployeeSerializer, EmployeeTypeSerializer, CrewAssignmentSerializer
-from .utils import _get_authenticated_company_admin, _get_object_or_404
+from ....models import Employee, EmployeeType, CrewAssignment, VehicleType
+from ....serializers.masterdata import EmployeeSerializer, EmployeeTypeSerializer, CrewAssignmentSerializer
+from ...utils import _get_authenticated_company_admin, _get_object_or_404
 
 
 logger = logging.getLogger(__name__)

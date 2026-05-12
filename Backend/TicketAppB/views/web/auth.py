@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
-from ..models import Company, UserDeviceMapping
+from ...models import Company, UserDeviceMapping
 from django.conf import settings
 
 # Slots not refreshed within this window are treated as expired (handles app crashes / force-kills)

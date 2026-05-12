@@ -1,11 +1,23 @@
 from django.urls import path
-from .views import ticket_data_views, transport_views, crew_views, settings_views
-from .views import auth_views, company_views, user_views, mdb_views
-from .views import palmtec_data_views
-from .views import depot_views, mosambee_views, dealer_views, executive_views, device_approval_views
-from .views import device_registry_views
-from .views import route_import_views
-from .views import apk_views
+from .views.web import auth as auth_views
+from .views.web import users as user_views
+from .views.web import company as company_views
+from .views.web import dealers as dealer_views
+from .views.web import depots as depot_views
+from .views.web import executives as executive_views
+from .views.web import device_approvals as device_approval_views
+from .views.web import device_registry as device_registry_views
+from .views.web import ticket_reports
+from .views.web import settlements as settlement_views
+from .views.web.masterdata import transport as transport_views
+from .views.web.masterdata import crew as crew_views
+from .views.web.masterdata import settings as settings_views
+from .views.web.imports import mdb as mdb_views
+from .views.web.imports import routes as route_import_views
+from .views.palmtec import master_send as palmtec_views
+from .views.palmtec import data_post as palmtec_ingest
+from .views.webhooks import mosambee as mosambee_webhooks
+from .views.apk import reports as apk_views
 
 urlpatterns = [
     # authentication
@@ -41,19 +53,21 @@ urlpatterns = [
     path('create-depot', depot_views.create_depot, name='create_depot'),
     path('update-depot-details/<int:pk>', depot_views.update_depot_details, name='update_depot_details'),
 
-    # ticket data
-    path('getTicket', ticket_data_views.getTransactionDataFromDevice, name='get_transaction_data'),
-    path('get_all_transaction_data', ticket_data_views.get_all_transaction_data, name='get_all_transaction_data'),
-    path('getTripClose', ticket_data_views.getTripCloseDataFromDevice, name='get_trip_close_data'),
-    path('get_all_trip_close_data', ticket_data_views.get_all_trip_close_data, name='get_all_trip_close_data'),
+    # ticket data — device push (ETM → server)
+    path('getTicket', palmtec_ingest.getTransactionDataFromDevice, name='get_transaction_data'),
+    path('getTripClose', palmtec_ingest.getTripCloseDataFromDevice, name='get_trip_close_data'),
+    # ticket data — web fetch
+    path('get_all_transaction_data', ticket_reports.get_all_transaction_data, name='get_all_transaction_data'),
+    path('get_all_trip_close_data', ticket_reports.get_all_trip_close_data, name='get_all_trip_close_data'),
 
-    # mosambee data
-    path('postTransactionDetails', mosambee_views.mosambee_settlement_data, name='postTransactionDetails'),
-    path('postPayoutDetails', mosambee_views.mosambee_payout_callback, name='postPayoutDetails'),
-    path('get_settlement_data', mosambee_views.get_settlement_data, name='get_settlement_data'),
-    path('get_payout_data', mosambee_views.get_payout_data, name='get_payout_data'),
-    path('verify_settlement', mosambee_views.verify_settlement, name='verify_settlement'),
-    path('get_settlement_summary', mosambee_views.get_settlement_summary, name='get_settlement_summary'),
+    # mosambee webhooks (Mosambee server → us)
+    path('postTransactionDetails', mosambee_webhooks.mosambee_settlement_data, name='postTransactionDetails'),
+    path('postPayoutDetails', mosambee_webhooks.mosambee_payout_callback, name='postPayoutDetails'),
+    # mosambee web fetch
+    path('get_settlement_data', settlement_views.get_settlement_data, name='get_settlement_data'),
+    path('get_payout_data', settlement_views.get_payout_data, name='get_payout_data'),
+    path('verify_settlement', settlement_views.verify_settlement, name='verify_settlement'),
+    path('get_settlement_summary', settlement_views.get_settlement_summary, name='get_settlement_summary'),
 
     # dealer data
     path('dealers', dealer_views.get_all_dealers, name='get_all_dealers'),
@@ -120,35 +134,33 @@ urlpatterns = [
     path('masterdata/currencies/update/<int:pk>', settings_views.update_currency),
     path('masterdata/settings', settings_views.get_settings),
     path('masterdata/device-settings/devices', settings_views.list_company_devices),
-    path('masterdata/device-settings/<int:device_id>', settings_views.get_device_settings),
     path('masterdata/settings-profiles', settings_views.list_profiles),
     path('masterdata/settings-profiles/create', settings_views.create_profile),
     path('masterdata/settings-profiles/<int:profile_id>', settings_views.profile_detail),
-    path('masterdata/settings-profiles/<int:profile_id>/apply/<int:device_id>', settings_views.apply_profile_to_device),
+
 
     # ETM Device Registry
-    path('etm-devices/register',                  device_registry_views.register_device,     name='etm_register'),
-    path('etm-devices',                           device_registry_views.list_devices,        name='etm_list'),
-    path('etm-devices/pending',                   device_registry_views.pending_devices,     name='etm_pending'),
-    path('etm-devices/summary',                   device_registry_views.device_summary,      name='etm_summary'),
-    path('etm-devices/<int:device_id>/assign',    device_registry_views.assign_device,       name='etm_assign'),
-    path('etm-devices/<int:device_id>/approve',   device_registry_views.approve_device,      name='etm_approve'),
-    path('etm-devices/<int:device_id>/revoke',    device_registry_views.revoke_device,       name='etm_revoke'),
-    path('etm-devices/<int:device_id>/check-status', device_registry_views.check_device_status, name='etm_check_status'),
+    path('etm-devices/upload',                         device_registry_views.DeviceUploadView.as_view(), name='etm_upload'),
+    path('etm-devices',                                device_registry_views.list_devices,               name='etm_list'),
+    path('etm-devices/summary',                        device_registry_views.device_summary,             name='etm_summary'),
+    path('etm-devices/bulk-assign-dealer',             device_registry_views.bulk_assign_dealer,         name='etm_bulk_dealer'),
+    path('etm-devices/bulk-assign-company',            device_registry_views.bulk_assign_company,        name='etm_bulk_company'),
+    path('etm-devices/<int:device_id>/allocate',       device_registry_views.allocate_to_company,        name='etm_allocate'),
+    path('etm-devices/<int:device_id>/deactivate',     device_registry_views.deactivate_device,          name='etm_deactivate'),
 
     # Palmtec device data APIs (server → APK → USB → device)
-    path('device/routes',      palmtec_data_views.get_routes_list),
-    path('device/settings',    palmtec_data_views.get_settings_file),
-    path('device/crew',        palmtec_data_views.get_crew_file),
-    path('device/vehicles',    palmtec_data_views.get_vehicles_file),
-    path('device/expenses',    palmtec_data_views.get_expenses_file),
+    path('device/routes',      palmtec_views.get_routes_list),
+    path('device/settings',    palmtec_views.get_settings_file),
+    path('device/crew',        palmtec_views.get_crew_file),
+    path('device/vehicles',    palmtec_views.get_vehicles_file),
+    path('device/expenses',    palmtec_views.get_expenses_file),
     # Route group
-    path('device/routelst',    palmtec_data_views.get_routelst_file),
-    path('device/stagelst',    palmtec_data_views.get_stagelst_file),
-    path('device/languagedat', palmtec_data_views.get_languagedat_file),
-    path('device/rtedat',      palmtec_data_views.get_rtedat_file),
+    path('device/routelst',    palmtec_views.get_routelst_file),
+    path('device/stagelst',    palmtec_views.get_stagelst_file),
+    path('device/languagedat', palmtec_views.get_languagedat_file),
+    path('device/rtedat',      palmtec_views.get_rtedat_file),
     # Settings group
-    path('device/currency',    palmtec_data_views.get_currency_file),
+    path('device/currency',    palmtec_views.get_currency_file),
 
     # android apk data apis
     path('reports/duty', apk_views.duty_report, name='duty_report'),

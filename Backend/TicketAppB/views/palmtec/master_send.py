@@ -1,8 +1,8 @@
 import struct
 import logging
 from django.http import HttpResponse, JsonResponse
-from ..models import Settings, Route, Employee, VehicleType, ExpenseMaster, Stage, Fare, Currency, RouteStage
-from .auth_views import get_user_from_cookie
+from ...models import Settings, Route, Employee, VehicleType, ExpenseMaster, Stage, Fare, Currency, RouteStage
+from ..web.auth import get_user_from_cookie
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def _pack_busdat(s):
     data += _s(s.footer1, 32)
     data += _s(s.footer2, 32)
     data += b'\x00'                          # PaperFeed
-    data += _s(s.palmtec_id, 6)
+    data += _s('', 6)                          # palmtec_id moved to SettingsProfile
     data += b'\x00'                          # DefaultFull
     data += _b(s.half_per)
     data += _b(s.con_per)

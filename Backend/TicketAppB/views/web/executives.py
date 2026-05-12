@@ -3,10 +3,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.contrib.auth import get_user_model
 
-from ..models import ExecutiveCompanyMapping
-from ..serializers import ExecutiveCompanyMappingSerializer, CompanySerializer
-from .auth_views import get_user_from_cookie
-from .utils import _is_superadmin
+from ...models import ExecutiveCompanyMapping
+from ...serializers.executives import ExecutiveCompanyMappingSerializer
+from ...serializers.company import CompanySerializer
+from .auth import get_user_from_cookie
+from ..utils import _is_superadmin
 
 
 User = get_user_model()

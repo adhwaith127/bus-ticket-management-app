@@ -8,8 +8,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ..models import BusType, Stage, Route, RouteStage, RouteBusType, Fare
-from .auth_views import get_user_from_cookie
+from ....models import BusType, Stage, Route, RouteStage, RouteBusType, Fare
+from ..auth import get_user_from_cookie
 
 
 # ── Constants ─────────────────────────────────────────────────────────────────

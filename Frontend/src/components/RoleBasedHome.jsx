@@ -1,3 +1,4 @@
+import { Navigate } from 'react-router-dom';
 import AdminHome from '../pages/dashboards/AdminHome';
 import CompanyDashboard from '../pages/dashboards/CompanyDashboard';
 import UserHome from '../pages/dashboards/UserHome';
@@ -14,6 +15,7 @@ export default function RoleBasedHome() {
   if (role === 'user') return <UserHome />;
   if (role === 'dealer_admin') return <DealerDashboard />;
   if (role === 'executive') return <ExecutiveDashboard />;
+  if (role === 'production') return <Navigate to="/dashboard/device-registry" replace />;
 
   return (
     <div className="p-6">

@@ -12,6 +12,7 @@ import RoleBasedHome from './components/RoleBasedHome'
 import ProtectedRoute from './components/ProtectedRoute'
 
 import CompanyListing from './pages/listings/CompanyListing'
+import Clients from './pages/listings/Clients'
 import UserListing from './pages/listings/UserListing'
 import DepotListing from './pages/listings/DepotListing'
 import VehicleCombined from './pages/listings/VehicleCombined'
@@ -67,6 +68,10 @@ const router = createBrowserRouter([
           {
             index: true,
             element: <RoleBasedHome />
+          },
+          {
+            path: 'clients',
+            element: <Clients />
           },
           {
             path: 'companies',

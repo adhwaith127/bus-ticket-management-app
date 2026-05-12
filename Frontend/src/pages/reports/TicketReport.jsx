@@ -845,6 +845,7 @@ export default function TicketReport() {
       {/* Transaction Detail Dialog */}
       <Dialog open={showModal} onOpenChange={(open) => { if (!open) closeModal(); }}>
         <DialogContent className="sm:max-w-3xl rounded-2xl max-h-[85vh] overflow-y-auto">
+          <span tabIndex={0} className="sr-only" />
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-slate-800">
               <Ticket size={16} className="text-slate-600" /> Transaction Details

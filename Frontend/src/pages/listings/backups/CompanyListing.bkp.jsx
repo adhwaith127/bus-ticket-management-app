@@ -620,10 +620,10 @@ export default function CompanyListing() {
         )}
 
         {/* ── New Company ── */}
-        {modalMode === 'create' && FormFields()}
+        {modalMode === 'create' && <FormFields />}
 
         {/* ── View / Edit ── */}
-        {(modalMode === 'view' || modalMode === 'edit') && FormFields()}
+        {(modalMode === 'view' || modalMode === 'edit') && <FormFields />}
 
         {/* ── Add Existing: Step 1 — Search ── */}
         {modalMode === 'import' && importStep === 'search' && (
@@ -690,7 +690,7 @@ export default function CompanyListing() {
               </button>
             </div>
 
-            {FormFields()}
+            <FormFields />
           </div>
         )}
 

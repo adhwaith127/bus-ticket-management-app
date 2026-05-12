@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import api, { BASE_URL, refreshApi } from '../assets/js/axiosConfig';  // imported refreshApi
+import api, { BASE_URL } from '../assets/js/axiosConfig';
 import { PropagateLoader } from "react-spinners";
 
 export default function ProtectedRoute() {
@@ -28,11 +28,8 @@ export default function ProtectedRoute() {
 
   const verifyAuthFromBackend = async () => {
     try {
-      // Step 1: Refresh token first using refreshApi (no interceptor loops)
-      // If this fails, the user's session is truly expired → go to login
-      await refreshApi.post(`${BASE_URL}/token/refresh`);
-
-      // Step 2: Now verify auth with a guaranteed fresh token
+      // Interceptor handles 401 → refresh → retry transparently.
+      // Interceptor handles 403 → clear storage + hard redirect.
       const response = await api.get(`${BASE_URL}/verify-auth`);
       if (response.data.authenticated) {
         setIsAuthenticated(true);
@@ -43,9 +40,27 @@ export default function ProtectedRoute() {
         localStorage.removeItem('user');
       }
     } catch (error) {
-      console.error('Auth verification failed:', error);
-      setIsAuthenticated(false);
-      localStorage.removeItem('user');
+      const status = error.response?.status;
+      if (status === 401 || status === 403) {
+        // Interceptor already handled redirect; mark not authenticated
+        setIsAuthenticated(false);
+        localStorage.removeItem('user');
+      } else {
+        // Network/server error — keep cached session optimistically
+        const cached = localStorage.getItem('user');
+        if (cached) {
+          try {
+            const cachedUser = JSON.parse(cached);
+            setIsAuthenticated(true);
+            setUserRole(cachedUser.role);
+          } catch {
+            setIsAuthenticated(false);
+            localStorage.removeItem('user');
+          }
+        } else {
+          setIsAuthenticated(false);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -71,7 +86,8 @@ export default function ProtectedRoute() {
       
       // Company admin restrictions: cannot access superadmin pages
       if (userRole === 'company_admin') {
-        if (path.includes('/companies') || 
+        if (path.includes('/companies') ||
+            path.includes('/clients') ||
             path.includes('/users') ||
             path.includes('/device-approvals') ||
             path.includes('/dealers') ||
@@ -83,11 +99,12 @@ export default function ProtectedRoute() {
       }
       
       if (userRole === 'user') {
-        if (path.includes('/companies') || 
+        if (path.includes('/companies') ||
+            path.includes('/clients') ||
             path.includes('/users') ||
             path.includes('/device-approvals') ||
-            path.includes('/depots') || 
-            path.includes('/ticket-report') || 
+            path.includes('/depots') ||
+            path.includes('/ticket-report') ||
             path.includes('/trip-close-report') ||
             isMasterDataPath ||
             path.includes('/dealers') ||
@@ -99,11 +116,12 @@ export default function ProtectedRoute() {
       }
 
       if (userRole === 'executive') {
-        if (path.includes('/companies') || 
+        if (path.includes('/companies') ||
+            path.includes('/clients') ||
             path.includes('/users') ||
             path.includes('/device-approvals') ||
-            path.includes('/depots') || 
-            path.includes('/ticket-report') || 
+            path.includes('/depots') ||
+            path.includes('/ticket-report') ||
             path.includes('/trip-close-report') ||
             isMasterDataPath ||
             path.includes('/dealers') ||
@@ -114,8 +132,9 @@ export default function ProtectedRoute() {
       }
 
       if (userRole === 'dealer_admin') {
-        // dealer_admin CAN access /companies (their mapped companies) and /users (create company_admins)
-        if (path.includes('/device-approvals') ||
+        // dealer_admin CAN access /companies (their mapped companies) and /users
+        if (path.includes('/clients') ||
+            path.includes('/device-approvals') ||
             path.includes('/depots') ||
             path.includes('/ticket-report') ||
             path.includes('/trip-close-report') ||
@@ -125,6 +144,13 @@ export default function ProtectedRoute() {
             path.includes('/executive-dashboard')) {
           window.alert('Access Denied: This page is not available for Dealer Admins');
           navigate('/dashboard', { replace: true });
+        }
+      }
+
+      if (userRole === 'production') {
+        // Production users can only access device-registry
+        if (!path.includes('/device-registry')) {
+          navigate('/dashboard/device-registry', { replace: true });
         }
       }
     }

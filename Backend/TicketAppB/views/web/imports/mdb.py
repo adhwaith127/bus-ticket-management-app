@@ -24,14 +24,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from ..models.master_data import (
+from ....models.master_data import (
     BusType, EmployeeType, Employee, Currency,
     Stage, Route, RouteStage, Fare, RouteBusType,
     VehicleType, Settings
 )
-from ..models.operations import ExpenseMaster, Expense, CrewAssignment, InspectorDetails
-from ..models.company import Company
-from .auth_views import get_user_from_cookie
+from ....models.operations import ExpenseMaster, Expense, CrewAssignment, InspectorDetails
+from ....models.company import Company
+from ..auth import get_user_from_cookie
 
 
 # ================================================================

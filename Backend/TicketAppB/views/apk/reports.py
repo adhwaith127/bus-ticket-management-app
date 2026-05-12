@@ -1,8 +1,8 @@
 from django.http import JsonResponse
 from django.db.models import Sum, Count
 from rest_framework.decorators import api_view
-from ..models import TransactionData, TripCloseData, Stage, CrewAssignment
-from .auth_views import get_user_from_cookie
+from ...models import TransactionData, TripCloseData, Stage, CrewAssignment
+from ..web.auth import get_user_from_cookie
 
 PAYMENT_LABELS = {0: 'Cash', 1: 'UPI'}
 

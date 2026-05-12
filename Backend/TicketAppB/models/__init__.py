@@ -24,7 +24,6 @@ from .master_data import (
     RouteDepot,
     VehicleType,
     Settings,
-    DeviceSettings,
     SettingsProfile,
 )
 
@@ -41,7 +40,6 @@ MASTER_DATA_MODELS = [
     'RouteDepot',
     'VehicleType',
     'Settings',
-    'DeviceSettings',
     'SettingsProfile',
 ]
 
