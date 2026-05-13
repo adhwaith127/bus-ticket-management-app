@@ -17,6 +17,18 @@ DEVICE_SESSION_TTL_HOURS = getattr(settings, "DEVICE_SESSION_TTL_HOURS", 24)
 User = get_user_model()
 
 
+# Source - https://stackoverflow.com/a/5976065
+# Posted by Sævar
+# Retrieved 2026-05-13, License - CC BY-SA 3.0
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[-1].strip()
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+
 # Device Type Detection
 # Purpose: Classify device from user agent string.
 # NOTE: This is now used only for STORING device info,
@@ -371,6 +383,15 @@ def login_view(request):
 @api_view(["POST"])
 def logout_view(request):
     device_uid = request.data.get("device_uid")
+
+    print('#'*50)
+    print(_get_client_ip(request))
+    print('#'*50)
+
+    # gets request IP address
+    # issue is its not always correct.
+    # if server is behind load balancer it will show it's ip address
+    # print(request.META.get("REMOTE_ADDR"))
 
     # Mobile logout — deactivate the device mapping (do NOT delete)
     if device_uid:
