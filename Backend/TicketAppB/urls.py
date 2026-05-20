@@ -71,7 +71,8 @@ urlpatterns = [
 
     # ticket data — web fetch
     path('get_all_transaction_data', ticket_reports.get_all_transaction_data, name='get_all_transaction_data'),
-    path('get_all_trip_close_data', ticket_reports.get_all_trip_close_data, name='get_all_trip_close_data'),
+    path('get_all_trip_data',        ticket_reports.get_all_trip_data,        name='get_all_trip_data'),
+    path('get_all_schedule_data',    ticket_reports.get_all_schedule_data,    name='get_all_schedule_data'),
 
     # mosambee webhooks (Mosambee server → us)
     path('postTransactionDetails', mosambee_webhooks.mosambee_settlement_data, name='postTransactionDetails'),

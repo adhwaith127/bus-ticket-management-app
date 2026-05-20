@@ -100,7 +100,7 @@ def _resolve_vehicle(bus_reg_num, company_id):
 #   [27]=bus_no  [28]=schedule_no  [29]=driver  [30]=conductor
 #   [31]=up_down_trip
 #   [32]=trip_start_date  [33]=trip_start_time
-#   [34]=battery  [35]=total_record
+#   [34]=battery  [35]=passenger_count
 #   [36]=full_total  [37]=half_total  [38]=phy_total  [39]=ladies_total
 #   [40]=senior_total  [41]=lugg_total  [42]=st_total
 #   [43]=transaction_id  [44]=ticket_status  [45]=bqr_merchant_id
