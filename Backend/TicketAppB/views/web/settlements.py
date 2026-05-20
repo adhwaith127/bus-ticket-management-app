@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from ...serializers.payments import MosambeeTransactionSerializer, SettlementVerificationSerializer
 import json
 from rest_framework.decorators import api_view
-from django.db.models import Count
+from django.db.models import Count, Sum, Q
 import hashlib
 from django.conf import settings
 
@@ -38,21 +38,35 @@ def get_payout_data(request):
         from_dt = datetime.strptime(from_date, '%Y-%m-%d').replace(tzinfo=IST)
         to_dt = datetime.strptime(to_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=IST)
 
-        payouts = MosambeePayoutCallback.objects.filter(
+        payouts = list(MosambeePayoutCallback.objects.filter(
             payoutDate__gte=from_dt,
             payoutDate__lte=to_dt,
-        ).order_by('-payoutDate')[:200]
+        ).order_by('-payoutDate')[:200])
+
+        # Collect all txn_ids across all payouts, then hit DB once
+        payout_txn_map = {}
+        all_txn_ids = set()
+        for p in payouts:
+            ids = set()
+            for t in p.transactions:
+                raw = t.get('transactionId') or t.get('transactionID')
+                try:
+                    ids.add(int(raw))
+                except (TypeError, ValueError):
+                    pass
+            payout_txn_map[p.id] = ids
+            all_txn_ids.update(ids)
+
+        verified_ids = set(
+            MosambeeTransaction.objects.filter(
+                transactionID__in=all_txn_ids,
+                verification_status='VERIFIED',
+            ).values_list('transactionID', flat=True)
+        ) if all_txn_ids else set()
 
         result = []
         for p in payouts:
-            # Gather linked transaction IDs from this payout
-            txn_ids = [str(t.get('transactionId') or t.get('transactionID', '')) for t in p.transactions]
-
-            # Count how many of those are verified in our system
-            verified_count = MosambeeTransaction.objects.filter(
-                transactionID__in=txn_ids,
-                verification_status='VERIFIED'
-            ).count()
+            verified_count = len(payout_txn_map[p.id] & verified_ids)
 
             result.append({
                 'id': p.id,
@@ -247,83 +261,63 @@ def get_settlement_summary(request):
             transaction_date__lte=to_date
         )
         
-        # Count by verification status
-        total_transactions = queryset.count()
-        unverified = queryset.filter(
-            verification_status=MosambeeTransaction.VerificationStatus.UNVERIFIED
-        ).count()
-        verified = queryset.filter(
-            verification_status=MosambeeTransaction.VerificationStatus.VERIFIED
-        ).count()
-        rejected = queryset.filter(
-            verification_status=MosambeeTransaction.VerificationStatus.REJECTED
-        ).count()
-        flagged = queryset.filter(
-            verification_status=MosambeeTransaction.VerificationStatus.FLAGGED
-        ).count()
-        
-        # Count by reconciliation status
-        auto_matched = queryset.filter(
-            reconciliation_status=MosambeeTransaction.ReconciliationStatus.AUTO_MATCHED
-        ).count()
-        amount_mismatch = queryset.filter(
-            reconciliation_status=MosambeeTransaction.ReconciliationStatus.AMOUNT_MISMATCH
-        ).count()
-        not_found = queryset.filter(
-            reconciliation_status=MosambeeTransaction.ReconciliationStatus.NOT_FOUND
-        ).count()
-        duplicate = queryset.filter(
-            reconciliation_status=MosambeeTransaction.ReconciliationStatus.DUPLICATE
-        ).count()
-        
-        # Payment status
-        approved = queryset.filter(responseCode__in=['0', '00', '000']).count()
-        declined = queryset.exclude(responseCode__in=['0', '00', '000']).count()
-        
-        # Total amounts
-        from django.db.models import Sum
-        total_amount = queryset.filter(
-            responseCode__in=['0', '00', '000']
-        ).aggregate(total=Sum('transactionAmount'))['total'] or 0
-        
-        verified_amount = queryset.filter(
-            verification_status=MosambeeTransaction.VerificationStatus.VERIFIED,
-            responseCode__in=['0', '00', '000']
-        ).aggregate(total=Sum('transactionAmount'))['total'] or 0
-        
-        # Checksum validation
-        checksum_valid = queryset.filter(is_checksum_valid=True).count()
-        checksum_invalid = queryset.filter(is_checksum_valid=False).count()
-        
+        APPROVED_CODES = ['0', '00', '000']
+        VS = MosambeeTransaction.VerificationStatus
+        RS = MosambeeTransaction.ReconciliationStatus
+
+        stats = queryset.aggregate(
+            total=Count('id'),
+            unverified=Count('id', filter=Q(verification_status=VS.UNVERIFIED)),
+            verified=Count('id', filter=Q(verification_status=VS.VERIFIED)),
+            rejected=Count('id', filter=Q(verification_status=VS.REJECTED)),
+            flagged=Count('id', filter=Q(verification_status=VS.FLAGGED)),
+            auto_matched=Count('id', filter=Q(reconciliation_status=RS.AUTO_MATCHED)),
+            amount_mismatch=Count('id', filter=Q(reconciliation_status=RS.AMOUNT_MISMATCH)),
+            not_found=Count('id', filter=Q(reconciliation_status=RS.NOT_FOUND)),
+            duplicate=Count('id', filter=Q(reconciliation_status=RS.DUPLICATE)),
+            approved=Count('id', filter=Q(responseCode__in=APPROVED_CODES)),
+            declined=Count('id', filter=~Q(responseCode__in=APPROVED_CODES)),
+            total_amount=Sum('transactionAmount', filter=Q(responseCode__in=APPROVED_CODES)),
+            verified_amount=Sum(
+                'transactionAmount',
+                filter=Q(verification_status=VS.VERIFIED, responseCode__in=APPROVED_CODES),
+            ),
+            checksum_valid=Count('id', filter=Q(is_checksum_valid=True)),
+            checksum_invalid=Count('id', filter=Q(is_checksum_valid=False)),
+        )
+
+        total_amount = stats['total_amount'] or 0
+        verified_amount = stats['verified_amount'] or 0
+
         return Response({
             'message': 'success',
             'data': {
                 'verification_summary': {
-                    'total': total_transactions,
-                    'unverified': unverified,
-                    'verified': verified,
-                    'rejected': rejected,
-                    'flagged': flagged
+                    'total': stats['total'],
+                    'unverified': stats['unverified'],
+                    'verified': stats['verified'],
+                    'rejected': stats['rejected'],
+                    'flagged': stats['flagged'],
                 },
                 'reconciliation_summary': {
-                    'auto_matched': auto_matched,
-                    'amount_mismatch': amount_mismatch,
-                    'not_found': not_found,
-                    'duplicate': duplicate
+                    'auto_matched': stats['auto_matched'],
+                    'amount_mismatch': stats['amount_mismatch'],
+                    'not_found': stats['not_found'],
+                    'duplicate': stats['duplicate'],
                 },
                 'payment_summary': {
-                    'approved': approved,
-                    'declined': declined
+                    'approved': stats['approved'],
+                    'declined': stats['declined'],
                 },
                 'amount_summary': {
                     'total_amount': float(total_amount),
                     'verified_amount': float(verified_amount),
-                    'pending_amount': float(total_amount - verified_amount)
+                    'pending_amount': float(total_amount - verified_amount),
                 },
                 'security_summary': {
-                    'checksum_valid': checksum_valid,
-                    'checksum_invalid': checksum_invalid
-                }
+                    'checksum_valid': stats['checksum_valid'],
+                    'checksum_invalid': stats['checksum_invalid'],
+                },
             }
         }, status=status.HTTP_200_OK)
         

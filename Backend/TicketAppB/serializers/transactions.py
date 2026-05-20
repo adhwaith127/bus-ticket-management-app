@@ -11,7 +11,6 @@ class TicketDataSerializer(serializers.ModelSerializer):
         16: 'Student',
     }
 
-    payment_mode_display = serializers.SerializerMethodField()
     ticket_type_display = serializers.SerializerMethodField()
     formatted_ticket_date = serializers.SerializerMethodField()
 
@@ -19,7 +18,6 @@ class TicketDataSerializer(serializers.ModelSerializer):
         model = TransactionData
         fields = [
             'id',
-            'request_type',
             'palmtec_id',
             'trip_number',
             'ticket_number',
@@ -47,18 +45,9 @@ class TicketDataSerializer(serializers.ModelSerializer):
             'senior_count',
             'transaction_id',
             'ticket_status',
-            'payment_mode_display',
             'reference_number',
-            'depot_code',
             'created_at',
         ]
-
-    def get_payment_mode_display(self, obj):
-        if obj.ticket_status == 0:
-            return "Cash"
-        elif obj.ticket_status == 1:
-            return "UPI"
-        return "Unknown"
 
     def get_ticket_type_display(self, obj):
         try:
@@ -85,10 +74,9 @@ class TripCloseDataSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "palmtec_id",
-            "depot_code",
             "schedule",
             "trip_no",
-            "route_code",
+            "route_id",
             "up_down_trip",
             "start_date",
             "start_time",

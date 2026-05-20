@@ -230,6 +230,9 @@ if not os.path.exists(LOGS_DIR):
 
 STATIC_URL = 'static/'
 
+MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
+MEDIA_URL  = '/uploads/'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -291,9 +294,9 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Kolkata'  # Set to your local time
 
 # Optimization for high-concurrency (Reliability)
-CELERY_TASK_ACKS_LATE = True  # Task isn't "gone" until it's finished
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # Prevents one worker from hogging 100 tasks
-CELERY_TASK_REJECT_ON_WORKER_LOST = True # Re-queue if worker crashes
+CELERY_TASK_ACKS_LATE = True # Task isn't "gone" until it's finished
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1 # Prevents one worker from hogging 100 tasks
+CELERY_TASK_REJECT_ON_WORKER_LOST = True  # Re-queue if worker crashes
 
 # Django Cache (Redis DB 1 — separate from Celery broker on DB 0)
 CACHES = {

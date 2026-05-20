@@ -606,3 +606,7 @@ def get_currency_file(request):
     response = HttpResponse(binary, content_type='application/octet-stream')
     response['Content-Disposition'] = 'attachment; filename="CURRENCY.DAT"'
     return response
+
+
+def get_etm_device_version(request):
+    return "PVT_GEN_12"

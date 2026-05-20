@@ -18,6 +18,7 @@ from .views.palmtec import master_send as palmtec_views
 from .views.palmtec import data_post as palmtec_ingest
 from .views.webhooks import mosambee as mosambee_webhooks
 from .views.apk import reports as apk_views
+from .views.apk import apk_upload as apk_upload_views
 
 urlpatterns = [
     # authentication
@@ -54,8 +55,20 @@ urlpatterns = [
     path('update-depot-details/<int:pk>', depot_views.update_depot_details, name='update_depot_details'),
 
     # ticket data — device push (ETM → server)
-    path('getTicket', palmtec_ingest.getTransactionDataFromDevice, name='get_transaction_data'),
+    path('getScheduleOpen', palmtec_ingest.getScheduleOpenDataFromDevice, name='get_schedule_open_data'),
+    path('getScheduleClose', palmtec_ingest.getScheduleCloseDataFromDevice, name='get_schedule_close_data'),
+
+    path('getTripOpen', palmtec_ingest.getTripOpenDataFromDevice, name='get_trip_open_data'),
     path('getTripClose', palmtec_ingest.getTripCloseDataFromDevice, name='get_trip_close_data'),
+
+    path('getTicket', palmtec_ingest.getTicketDataFromDevice, name='get_ticket_data'),
+
+    path('getTripCloseSummary', palmtec_ingest.getTripCloseSummaryFromDevice, name='get_trip_close_summary'),
+    path('getScheduleCloseSummary', palmtec_ingest.getScheduleCloseSummaryFromDevice, name='get_schedule_close_summary'),
+
+    path('getOdometerDetails', palmtec_ingest.getOdometerDataFromDevice, name='get_odometer_data'),
+    path('getExpenseDetails', palmtec_ingest.getExpenseDataFromDevice, name='get_expense_data'),
+
     # ticket data — web fetch
     path('get_all_transaction_data', ticket_reports.get_all_transaction_data, name='get_all_transaction_data'),
     path('get_all_trip_close_data', ticket_reports.get_all_trip_close_data, name='get_all_trip_close_data'),
@@ -149,6 +162,7 @@ urlpatterns = [
     path('etm-devices/<int:device_id>/deactivate',     device_registry_views.deactivate_device,          name='etm_deactivate'),
 
     # Palmtec device data APIs (server → APK → USB → device)
+    path('device/getEtmVersion', palmtec_views.get_etm_device_version),
     path('device/routes',      palmtec_views.get_routes_list),
     path('device/settings',    palmtec_views.get_settings_file),
     path('device/crew',        palmtec_views.get_crew_file),
@@ -170,4 +184,9 @@ urlpatterns = [
     path('reports/passenger-info', apk_views.passenger_info, name='passenger_info'),
     path('reports/trip-details', apk_views.trip_details, name='trip_details'),
     path('reports/ticket-details', apk_views.ticket_details, name='ticket_details'),
+
+
+    # APK file uploads
+    path('apk/upload/odometer-dat', apk_upload_views.uploadOdometerDat, name='upload_odometer_dat'),
+    path('apk/upload/expense-dat', apk_upload_views.uploadExpenseDat, name='upload_expense_dat'),
 ]

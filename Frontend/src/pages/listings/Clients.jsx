@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Modal from '../../components/Modal';
 import TableSkeleton from '../../components/TableSkeleton';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
+import statesDistricts from '../../assets/json/indiaStatesDistricts.json';
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const CACHE_KEY_COMPANIES = 'clients_companies_cache';
@@ -35,6 +36,7 @@ const EMPTY_FORM = {
   address_2: '',
   city: '',
   state: '',
+  district: '',
   zip_code: '',
   dealer_code: '',
   is_active: true,
@@ -138,7 +140,11 @@ export default function Clients() {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    if (name === 'state') {
+      setFormData(prev => ({ ...prev, state: value, district: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    }
   };
 
   const resetForm = () => setFormData(EMPTY_FORM);
@@ -155,6 +161,7 @@ export default function Clients() {
       address_2:      company.address_2       || '',
       city:           company.city            || '',
       state:          company.state           || '',
+      district:       company.district        || '',
       zip_code:       company.zip_code        || '',
     });
   };
@@ -170,6 +177,7 @@ export default function Clients() {
       address:        dealer.address        || '',
       city:           dealer.city           || '',
       state:          dealer.state          || '',
+      district:       dealer.district       || '',
       zip_code:       dealer.zip_code       || '',
       dealer_code:    dealer.dealer_code    || '',
       is_active:      dealer.is_active      ?? true,
@@ -272,6 +280,7 @@ export default function Clients() {
     address_2:         formData.address_2,
     city:              formData.city,
     state:             formData.state,
+    district:          formData.district,
     zip_code:          formData.zip_code,
     user_username:     formData.user_username,
     user_email:        formData.user_email,
@@ -288,6 +297,7 @@ export default function Clients() {
     address:        formData.address,
     city:           formData.city,
     state:          formData.state,
+    district:       formData.district,
     zip_code:       formData.zip_code,
     is_active:      formData.is_active,
     user_username:  formData.user_username,
@@ -305,6 +315,7 @@ export default function Clients() {
     address:        formData.address,
     city:           formData.city,
     state:          formData.state,
+    district:       formData.district,
     zip_code:       formData.zip_code,
     is_active:      formData.is_active,
   });
@@ -327,6 +338,7 @@ export default function Clients() {
             address_2:      formData.address_2,
             city:           formData.city,
             state:          formData.state,
+            district:       formData.district,
             zip_code:       formData.zip_code,
           });
         } else {
@@ -347,6 +359,7 @@ export default function Clients() {
             address_2:      formData.address_2,
             city:           formData.city,
             state:          formData.state,
+            district:       formData.district,
             zip_code:       formData.zip_code,
             user_username:  formData.user_username,
             user_email:     formData.user_email,
@@ -514,16 +527,43 @@ export default function Clients() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-slate-700">State <span className="text-red-500">*</span></label>
+          {isReadOnly ? (
+            <input type="text" value={formData.state} readOnly
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50" />
+          ) : (
+            <select name="state" value={formData.state} onChange={handleInputChange} required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all bg-white">
+              <option value="">Select State</option>
+              {Object.keys(statesDistricts).sort().map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-slate-700">District <span className="text-red-500">*</span></label>
+          {isReadOnly ? (
+            <input type="text" value={formData.district} readOnly
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50" />
+          ) : (
+            <select name="district" value={formData.district} onChange={handleInputChange} required
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all bg-white"
+              disabled={!formData.state}>
+              <option value="">Select District</option>
+              {(statesDistricts[formData.state] || []).map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1">
           <label className="text-sm font-medium text-slate-700">City <span className="text-red-500">*</span></label>
           <input type="text" name="city" value={formData.city} onChange={handleInputChange}
-            required readOnly={isReadOnly}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium text-slate-700">State <span className="text-red-500">*</span></label>
-          <input type="text" name="state" value={formData.state} onChange={handleInputChange}
             required readOnly={isReadOnly}
             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all read-only:bg-slate-50" />
         </div>

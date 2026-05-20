@@ -12,13 +12,14 @@ progress via axios onDownloadProgress:
 
 import os
 import json
-import tempfile
 import subprocess
 import csv
 import io
 
+from django.conf import settings as django_settings
 from django.db import transaction
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -86,14 +87,19 @@ class MdbImportView(APIView):
         except Company.DoesNotExist:
             return Response({'message': 'Company not found.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Write upload to disk before streaming starts —
-        # chunked file reads can't happen inside a generator
+        # Save to permanent backup before streaming — chunked reads can't happen inside a generator.
+        # Path: uploads/{company_code}/mdb/{YYYY-MM-DD}/{HH-MM-SS}.mdb
         tmp_path = None
         try:
-            with tempfile.NamedTemporaryFile(suffix='.mdb', delete=False) as tmp:
+            now        = timezone.now()
+            backup_dir = os.path.join(
+                django_settings.MEDIA_ROOT, company.company_id, 'mdb', now.strftime('%Y-%m-%d')
+            )
+            os.makedirs(backup_dir, exist_ok=True)
+            tmp_path = os.path.join(backup_dir, f"{now.strftime('%H-%M-%S')}.mdb")
+            with open(tmp_path, 'wb') as f:
                 for chunk in mdb_file.chunks():
-                    tmp.write(chunk)
-                tmp_path = tmp.name
+                    f.write(chunk)
         except Exception as e:
             return Response({'message': f'Failed to save upload: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -140,6 +146,29 @@ class MdbImportService:
         Re-importing the same file is safe: get_or_create prevents duplicates
         and the existing counter shows what was already there.
         """
+        from django.db import connection
+
+        lock_name = f"mdb_import_{company.id}"
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT GET_LOCK(%s, 0)", [lock_name])
+            row = cursor.fetchone()
+            lock_acquired = bool(row and row[0] == 1)
+
+        if not lock_acquired:
+            yield {
+                'type': 'error',
+                'message': 'Another import is already in progress for this company. Please wait and try again.',
+            }
+            return
+
+        try:
+            yield from MdbImportService._run_stream_inner(mdb_path, company, user, password)
+        finally:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT RELEASE_LOCK(%s)", [lock_name])
+
+    @staticmethod
+    def _run_stream_inner(mdb_path, company, user, password=None):
         raw_tables, read_errors = MdbReader.read_all_tables(mdb_path, password)
         bus_type_source_map = MdbImportService._build_bus_type_source_map(raw_tables.get('bustype', []))
 

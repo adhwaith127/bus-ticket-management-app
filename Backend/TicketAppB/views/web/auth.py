@@ -384,9 +384,10 @@ def login_view(request):
 def logout_view(request):
     device_uid = request.data.get("device_uid")
 
-    print('#'*50)
-    print(_get_client_ip(request))
-    print('#'*50)
+    # print('#'*50)
+    # print(_get_client_ip(request))
+    # print(request.META)
+    # print('#'*50)
 
     # gets request IP address
     # issue is its not always correct.
