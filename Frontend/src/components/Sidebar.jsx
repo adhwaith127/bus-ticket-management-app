@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Building2, Users, Handshake,
@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronLeft, ChevronRight,
   Coins, Users2,
   Route, Truck, CalendarCog, Settings,
-  Ticket, TrendingDown, IndianRupee, Cpu, MonitorDown,
+  Ticket, CalendarRange, IndianRupee, Cpu, MonitorDown, BusFront,
 } from "lucide-react";
 import api, { BASE_URL } from "../assets/js/axiosConfig";
 import cacheManager from "../assets/js/reportCache";
@@ -118,8 +118,8 @@ function SectionLabel({ label, isCollapsed }) {
     );
   }
   return (
-    <li className="px-3 pt-4 pb-1">
-      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold select-none">
+    <li className="px-3 pt-2 pb-1">
+      <span className="text-[10px] text-gray-600 uppercase tracking-widest font-semibold select-none">
         {label}
       </span>
     </li>
@@ -134,6 +134,19 @@ export default function Sidebar() {
   const [isCollapsed,    setIsCollapsed]    = useState(false);
   const [reportsOpen,    setReportsOpen]    = useState(false);
   const [masterDataOpen, setMasterDataOpen] = useState(false);
+  const [userMenuOpen,   setUserMenuOpen]   = useState(false);
+  const userMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handler = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [userMenuOpen]);
   const navigate = useNavigate();
 
   const user     = JSON.parse(localStorage.getItem("user") || "{}");
@@ -285,11 +298,16 @@ export default function Sidebar() {
             {role === "superadmin" && (
               <>
                 <SectionLabel label="Administration" isCollapsed={isCollapsed} />
-                <NavItem to="/dashboard/clients"          icon={Handshake}     label="Clients"          isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/companies"        icon={Building2}     label="Companies"        isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/dealers"          icon={Handshake}     label="Dealers"          isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/users"            icon={Users}         label="Users"            isCollapsed={isCollapsed} onClose={close} />
+                <SectionLabel label="Device Management" isCollapsed={isCollapsed} />
                 <NavItem to="/dashboard/device-registry"  icon={Cpu}           label="Device Registry"  isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/device-approvals" icon={SmartphoneNfc} label="Device Approvals" isCollapsed={isCollapsed} onClose={close} />
+                <SectionLabel label="Data" isCollapsed={isCollapsed} />
                 <NavItem to="/dashboard/data-import"      icon={FileInput}     label="MDB Data Import"  isCollapsed={isCollapsed} onClose={close} />
+                <SectionLabel label="Diagnostics" isCollapsed={isCollapsed} />
+                <NavItem to="/dashboard/failed-payloads"   icon={AlertTriangle} label="Failed Payloads"  isCollapsed={isCollapsed} onClose={close} />
               </>
             )}
 
@@ -297,9 +315,8 @@ export default function Sidebar() {
             {role === "executive" && (
               <>
                 <SectionLabel label="Administration" isCollapsed={isCollapsed} />
-                <NavItem to="/dashboard/companies"       icon={Building2}     label="Companies"       isCollapsed={isCollapsed} onClose={close} />
-                <NavItem to="/dashboard/users"           icon={Users}         label="Users"           isCollapsed={isCollapsed} onClose={close} />
-                <NavItem to="/dashboard/device-registry" icon={Cpu}           label="Device Registry" isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/companies"       icon={Building2} label="Companies"       isCollapsed={isCollapsed} onClose={close} />
+                <NavItem to="/dashboard/device-registry" icon={Cpu}       label="Device Registry" isCollapsed={isCollapsed} onClose={close} />
               </>
             )}
 
@@ -308,7 +325,6 @@ export default function Sidebar() {
               <>
                 <SectionLabel label="My Portfolio" isCollapsed={isCollapsed} />
                 <NavItem to="/dashboard/companies"       icon={Building2} label="My Companies"    isCollapsed={isCollapsed} onClose={close} />
-                <NavItem to="/dashboard/users"           icon={Users}     label="Users"           isCollapsed={isCollapsed} onClose={close} />
                 <NavItem to="/dashboard/device-registry" icon={Cpu}       label="Device Registry" isCollapsed={isCollapsed} onClose={close} />
               </>
             )}
@@ -347,11 +363,27 @@ export default function Sidebar() {
                   isCollapsed={isCollapsed} isOpen={reportsOpen}
                   onToggle={() => setReportsOpen(p => !p)}
                 >
-                  <SubLink to="/dashboard/ticket-report"     icon={Ticket}       label="Ticket Report" onClose={close} />
-                  <SubLink to="/dashboard/trip-close-report" icon={TrendingDown} label="Trip Close"    onClose={close} />
+                  <SubLink to="/dashboard/schedule-data" icon={CalendarRange}  label="Schedule Data" onClose={close} />
+                  <SubLink to="/dashboard/trip-data"     icon={BusFront}       label="Trip Data"     onClose={close} />
+                  <SubLink to="/dashboard/ticket-data"   icon={Ticket}         label="Ticket Data"   onClose={close} />
                 </DropdownSection>
 
                 <NavItem to="/dashboard/settlements" icon={Receipt} label="Settlements" isCollapsed={isCollapsed} onClose={close} />
+              </>
+            )}
+
+            {/* Company User */}
+            {role === "company_user" && (
+              <>
+                <DropdownSection
+                  icon={BarChart2} label="Reports"
+                  isCollapsed={isCollapsed} isOpen={reportsOpen}
+                  onToggle={() => setReportsOpen(p => !p)}
+                >
+                  <SubLink to="/dashboard/schedule-data" icon={CalendarRange}  label="Schedule Data" onClose={close} />
+                  <SubLink to="/dashboard/trip-data"     icon={BusFront}       label="Trip Data"     onClose={close} />
+                  <SubLink to="/dashboard/ticket-data"   icon={Ticket}         label="Ticket Data"   onClose={close} />
+                </DropdownSection>
               </>
             )}
 
@@ -359,40 +391,46 @@ export default function Sidebar() {
         </nav>
 
         {/* ── FOOTER ──────────────────────────────────────────────────────── */}
-        <div className="border-t border-slate-100 px-3 pt-3 pb-4 bg-slate-50/80 flex-shrink-0 space-y-1">
+        <div ref={userMenuRef} className="border-t border-slate-100 px-3 pt-3 pb-4 bg-slate-50/80 flex-shrink-0 space-y-1">
 
-          {/* User chip */}
-          <div className="flex items-center rounded-xl px-2 py-2">
+          {/* Logout — slides up when user menu open */}
+          <div className={`overflow-hidden transition-all duration-300 ${userMenuOpen && !isCollapsed ? "max-h-12 opacity-100" : "max-h-0 opacity-0"}`}>
+            <button
+              onClick={handleLogout}
+              style={{ cursor: "pointer" }}
+              className="w-full flex items-center px-3 py-2 rounded-xl text-sm font-medium
+                text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors duration-150"
+            >
+              <LogOut size={16} className="shrink-0" />
+              <span className="ml-3 whitespace-nowrap">Logout</span>
+            </button>
+          </div>
+
+          {/* User chip — clickable toggle */}
+          <button
+            onClick={() => setUserMenuOpen(p => !p)}
+            style={{ cursor: "pointer" }}
+            className="w-full flex items-center rounded-xl px-2 py-2 hover:bg-slate-100 transition-colors duration-150"
+          >
             <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0">
               {username.charAt(0).toUpperCase()}
             </div>
             <div
               className={`ml-3 overflow-hidden transition-all duration-300 ${
-                isCollapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100"
+                isCollapsed ? "max-w-0 opacity-0" : "max-w-[140px] opacity-100"
               }`}
             >
-              <p className="text-[13px] font-semibold text-slate-800 truncate whitespace-nowrap leading-tight">{username}</p>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wide whitespace-nowrap">
+              <p className="text-[13px] font-semibold text-slate-800 truncate whitespace-nowrap leading-tight text-left">{username}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide whitespace-nowrap text-left">
                 {role?.replace(/_/g, " ")}
               </p>
             </div>
-          </div>
-
-          {/* Logout */}
-          <button
-            onClick={handleLogout}
-            style={{ cursor: "pointer" }}
-            className="w-full flex items-center px-3 py-2 rounded-xl text-sm font-medium
-              text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors duration-150"
-          >
-            <LogOut size={16} className="shrink-0" />
-            <span
-              className={`ml-3 whitespace-nowrap overflow-hidden transition-all duration-300 ${
-                isCollapsed ? "max-w-0 opacity-0" : "max-w-[160px] opacity-100"
-              }`}
-            >
-              Logout
-            </span>
+            <ChevronDown
+              size={13}
+              className={`ml-auto shrink-0 text-slate-400 transition-all duration-300 ${
+                isCollapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[20px]"
+              } ${userMenuOpen ? "rotate-180" : ""}`}
+            />
           </button>
 
           {/* Copyright */}

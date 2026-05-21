@@ -782,6 +782,10 @@ class OdometerData(models.Model):
     end_time       = models.TimeField(null=True, blank=True)
     end_datetime   = models.DateTimeField(null=True, blank=True, db_index=True)
 
+    # ── Trip / Schedule FKs ───────────────────────────────────────────────────
+    trip_id     = models.ForeignKey('TripData',     on_delete=models.SET_NULL, null=True, blank=True, related_name='odometer_records')
+    schedule_id = models.ForeignKey('ScheduleData', on_delete=models.SET_NULL, null=True, blank=True, related_name='odometer_records')
+
     # ── Vehicle / Crew (raw strings + nullable FKs) ───────────────────────────
     driver       = models.CharField(max_length=50, null=True, blank=True)
     driver_id    = models.ForeignKey('Employee', on_delete=models.SET_NULL, null=True, blank=True, related_name='odometer_records')
@@ -853,6 +857,10 @@ class ExpenseData(models.Model):
     expense_date     = models.DateField(null=True, blank=True)
     expense_time     = models.TimeField(null=True, blank=True)
     expense_datetime = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    # ── Trip / Schedule FKs ───────────────────────────────────────────────────
+    trip_id     = models.ForeignKey('TripData',     on_delete=models.SET_NULL, null=True, blank=True, related_name='expense_records')
+    schedule_id = models.ForeignKey('ScheduleData', on_delete=models.SET_NULL, null=True, blank=True, related_name='expense_records')
 
     # ── Vehicle / Crew ────────────────────────────────────────────────────────
     driver    = models.CharField(max_length=50, null=True, blank=True)

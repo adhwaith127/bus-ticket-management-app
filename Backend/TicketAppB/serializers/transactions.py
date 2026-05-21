@@ -12,32 +12,43 @@ class TicketDataSerializer(serializers.ModelSerializer):
         16: 'Student',
     }
 
-    ticket_type_display = serializers.SerializerMethodField()
+    ticket_type_display   = serializers.SerializerMethodField()
     formatted_ticket_date = serializers.SerializerMethodField()
-    route_code = serializers.SerializerMethodField()
+    route_code            = serializers.SerializerMethodField()
+    depot_code            = serializers.SerializerMethodField()
+    company_name          = serializers.SerializerMethodField()
 
     class Meta:
         model = TransactionData
         fields = [
             'id',
+            'unique_code',
             'palmtec_id',
-            'trip_number',
+            'trip_id',
+            'schedule_id',
             'ticket_number',
             'ticket_date',
             'formatted_ticket_date',
             'ticket_time',
+            'trip_start_date',
+            'trip_start_time',
             'from_stage',
             'to_stage',
             'ticket_type',
             'ticket_type_display',
             'route_code',
+            'depot_code',
+            'company_name',
             'full_count',
             'half_count',
             'st_count',
             'phy_count',
             'lugg_count',
             'total_tickets',
+            'passenger_count',
             'ticket_amount',
+            'full_total_amount',
+            'st_total_amount',
             'lugg_amount',
             'adjust_amount',
             'pass_id',
@@ -49,7 +60,10 @@ class TicketDataSerializer(serializers.ModelSerializer):
             'transaction_id',
             'ticket_status',
             'reference_number',
+            'bqr_merchant_id',
             'up_down_trip',
+            'battery_percentage',
+            'checksum',
             'created_at',
         ]
 
@@ -71,27 +85,48 @@ class TicketDataSerializer(serializers.ModelSerializer):
             return obj.route_id.route_code
         return None
 
+    def get_depot_code(self, obj):
+        if not obj.route_id:
+            return None
+        rd = obj.route_id.route_depots.first()
+        return rd.depot.depot_code if rd else None
+
+    def get_company_name(self, obj):
+        return obj.company_code.company_name if obj.company_code else None
+
 
 class TripDataSerializer(serializers.ModelSerializer):
-    status = serializers.SerializerMethodField()
-    route_code = serializers.SerializerMethodField()
-    depot_code = serializers.SerializerMethodField()
+    status            = serializers.SerializerMethodField()
+    route_code        = serializers.SerializerMethodField()
+    depot_code        = serializers.SerializerMethodField()
     total_cash_amount = serializers.SerializerMethodField()
+    company_name      = serializers.SerializerMethodField()
 
     class Meta:
         model = TripData
         fields = [
             'id',
+            'open_unique_code',
+            'close_unique_code',
             'palmtec_id',
             'trip_no',
             'schedule_no',
+            'schedule_start_date',
+            'schedule_start_time',
             'up_down_trip',
             'route_code',
             'depot_code',
+            'company_name',
             'status',
-            'start_datetime',
-            'end_datetime',
+            'auto_opened',
+            'ghost_note',
             'start_date',
+            'start_time',
+            'start_datetime',
+            'end_date',
+            'end_time',
+            'end_datetime',
+            'battery_percentage',
             'start_ticket_no',
             'end_ticket_no',
             'total_tickets',
@@ -145,27 +180,39 @@ class TripDataSerializer(serializers.ModelSerializer):
         upi = obj.upi_ticket_amount or Decimal('0.00')
         return max(Decimal('0.00'), total - upi)
 
+    def get_company_name(self, obj):
+        return obj.company_code.company_name if obj.company_code else None
+
 
 class ScheduleDataSerializer(serializers.ModelSerializer):
-    status = serializers.SerializerMethodField()
-    route_code = serializers.SerializerMethodField()
-    depot_code = serializers.SerializerMethodField()
+    status        = serializers.SerializerMethodField()
+    route_code    = serializers.SerializerMethodField()
+    depot_code    = serializers.SerializerMethodField()
     battery_start = serializers.SerializerMethodField()
-    battery_end = serializers.SerializerMethodField()
-    trips_count = serializers.SerializerMethodField()
+    battery_end   = serializers.SerializerMethodField()
+    trips_count   = serializers.SerializerMethodField()
+    company_name  = serializers.SerializerMethodField()
 
     class Meta:
         model = ScheduleData
         fields = [
             'id',
+            'open_unique_code',
+            'close_unique_code',
             'palmtec_id',
             'schedule_no',
             'route_code',
             'depot_code',
+            'company_name',
             'status',
-            'start_datetime',
-            'end_datetime',
+            'auto_opened',
+            'ghost_note',
             'start_date',
+            'start_time',
+            'start_datetime',
+            'end_date',
+            'end_time',
+            'end_datetime',
             'battery_start',
             'battery_end',
             'trips_count',
@@ -183,6 +230,13 @@ class ScheduleDataSerializer(serializers.ModelSerializer):
             'senior_count',
             'luggage_count',
             'adjust_count',
+            'upi_full_count',
+            'upi_half_count',
+            'upi_physical_count',
+            'upi_ladies_count',
+            'upi_senior_count',
+            'upi_luggage_count',
+            'upi_st_count',
             'full_collection',
             'half_collection',
             'st_collection',
@@ -223,7 +277,9 @@ class ScheduleDataSerializer(serializers.ModelSerializer):
         return obj.battery_close
 
     def get_trips_count(self, obj):
-        # Use annotated value if present (set by view), else count via FK
         if hasattr(obj, '_trips_count'):
             return obj._trips_count
         return obj.trips.count()
+
+    def get_company_name(self, obj):
+        return obj.company_code.company_name if obj.company_code else None
