@@ -14,6 +14,10 @@ class TicketDataSerializer(serializers.ModelSerializer):
 
     ticket_type_display   = serializers.SerializerMethodField()
     formatted_ticket_date = serializers.SerializerMethodField()
+    from_stage_name       = serializers.SerializerMethodField()
+    to_stage_name         = serializers.SerializerMethodField()
+    trip_no               = serializers.SerializerMethodField()
+    schedule_no           = serializers.SerializerMethodField()
     route_code            = serializers.SerializerMethodField()
     depot_code            = serializers.SerializerMethodField()
     company_name          = serializers.SerializerMethodField()
@@ -34,6 +38,10 @@ class TicketDataSerializer(serializers.ModelSerializer):
             'trip_start_time',
             'from_stage',
             'to_stage',
+            'from_stage_name',
+            'to_stage_name',
+            'trip_no',
+            'schedule_no',
             'ticket_type',
             'ticket_type_display',
             'route_code',
@@ -79,6 +87,22 @@ class TicketDataSerializer(serializers.ModelSerializer):
         if obj.ticket_date:
             return obj.ticket_date.strftime('%d-%m-%Y')
         return None
+
+    def get_from_stage_name(self, obj):
+        if obj.from_stage_id_id and obj.from_stage_id:
+            return obj.from_stage_id.stage.stage_name
+        return obj.from_stage
+
+    def get_to_stage_name(self, obj):
+        if obj.to_stage_id_id and obj.to_stage_id:
+            return obj.to_stage_id.stage.stage_name
+        return obj.to_stage
+
+    def get_trip_no(self, obj):
+        return obj.trip_id.trip_no if obj.trip_id else None
+
+    def get_schedule_no(self, obj):
+        return obj.schedule_id.schedule_no if obj.schedule_id else None
 
     def get_route_code(self, obj):
         if obj.route_id:

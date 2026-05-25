@@ -138,16 +138,16 @@ function TicketRow({ ticket: t, onView, isNew }) {
       {/* Device + trip */}
       <td className="px-4 py-3.5">
         <div className="text-sm font-medium text-slate-700 font-mono">{t.palmtec_id}</div>
-        <div className="text-[11px] text-slate-500">Trip #{t.trip_id}</div>
+        <div className="text-[11px] text-slate-500">Trip #{t.trip_no ?? t.trip_id}</div>
       </td>
 
       {/* Route segment */}
       <td className="px-4 py-3.5">
-        {t.from_stage || t.to_stage ? (
+        {t.from_stage_name || t.to_stage_name ? (
           <div className="flex items-center gap-1.5 text-sm">
-            <span className="text-slate-800 truncate max-w-[90px]" title={t.from_stage}>{t.from_stage}</span>
+            <span className="text-slate-800 truncate max-w-[90px]" title={t.from_stage_name}>{t.from_stage_name}</span>
             <Bus size={12} className="text-slate-300 shrink-0" />
-            <span className="text-slate-800 truncate max-w-[90px]" title={t.to_stage}>{t.to_stage}</span>
+            <span className="text-slate-800 truncate max-w-[90px]" title={t.to_stage_name}>{t.to_stage_name}</span>
           </div>
         ) : <span className="text-slate-400 text-xs">—</span>}
         {t.route_code && <div className="text-[11px] text-slate-500 mt-0.5">{t.route_code}</div>}
@@ -222,11 +222,11 @@ function TicketDetailModal({ ticket: t, onClose }) {
             </div>
 
             {/* Route visualization */}
-            {(t.from_stage || t.to_stage) && (
+            {(t.from_stage_name || t.to_stage_name) && (
               <div className="flex items-center gap-3 pt-4 border-t border-dashed border-slate-300">
                 <div className="flex-1">
                   <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">From</p>
-                  <p className="text-sm font-semibold text-slate-800">{t.from_stage || '—'}</p>
+                  <p className="text-sm font-semibold text-slate-800">{t.from_stage_name || '—'}</p>
                 </div>
                 <div className="flex flex-col items-center text-slate-400">
                   <div className="flex items-center gap-1">
@@ -240,7 +240,7 @@ function TicketDetailModal({ ticket: t, onClose }) {
                 </div>
                 <div className="flex-1 text-right">
                   <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">To</p>
-                  <p className="text-sm font-semibold text-slate-800">{t.to_stage || '—'}</p>
+                  <p className="text-sm font-semibold text-slate-800">{t.to_stage_name || '—'}</p>
                 </div>
               </div>
             )}
@@ -256,8 +256,8 @@ function TicketDetailModal({ ticket: t, onClose }) {
           {/* Trip context */}
           <FieldGroup title="Trip Context" columns={3}>
             <FieldBlock label="Palmtec ID"       value={t.palmtec_id} />
-            <FieldBlock label="Trip ID"          value={t.trip_id} />
-            <FieldBlock label="Schedule ID"      value={t.schedule_id || '—'} />
+            <FieldBlock label="Trip No"          value={t.trip_no ?? '—'} />
+            <FieldBlock label="Schedule No"      value={t.schedule_no ?? '—'} />
             <FieldBlock label="Route Code"       value={t.route_code} />
             <FieldBlock label="Trip Start Date"  value={t.trip_start_date || '—'} />
             <FieldBlock label="Trip Start Time"  value={t.trip_start_time || '—'} />
@@ -584,8 +584,8 @@ export default function TicketDataPage() {
     ws.columns = [
       { header: 'Company',         key: 'company_name',          width: 20 },
       { header: 'Palmtec ID',      key: 'palmtec_id',            width: 14 },
-      { header: 'Trip ID',         key: 'trip_id',               width: 14 },
-      { header: 'Schedule ID',     key: 'schedule_id',           width: 14 },
+      { header: 'Trip No',         key: 'trip_no',               width: 14 },
+      { header: 'Schedule No',     key: 'schedule_no',           width: 14 },
       { header: 'Ticket Number',   key: 'ticket_number',         width: 16 },
       { header: 'Unique Code',     key: 'unique_code',           width: 30 },
       { header: 'Date',            key: 'formatted_ticket_date', width: 14 },
@@ -593,8 +593,8 @@ export default function TicketDataPage() {
       { header: 'Trip Start Date', key: 'trip_start_date',       width: 16 },
       { header: 'Trip Start Time', key: 'trip_start_time',       width: 16 },
       { header: 'Route Code',      key: 'route_code',            width: 14 },
-      { header: 'From Stage',      key: 'from_stage',            width: 18 },
-      { header: 'To Stage',        key: 'to_stage',              width: 18 },
+      { header: 'From Stage',      key: 'from_stage_name',       width: 18 },
+      { header: 'To Stage',        key: 'to_stage_name',         width: 18 },
       { header: 'Total Tickets',   key: 'total_tickets',         width: 14 },
       { header: 'Passenger Count', key: 'passenger_count',       width: 14 },
       { header: 'Amount',          key: 'ticket_amount',         width: 14 },

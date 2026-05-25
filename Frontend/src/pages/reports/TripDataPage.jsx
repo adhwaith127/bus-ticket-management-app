@@ -104,7 +104,7 @@ function FieldGroup({ title, children, columns = 2 }) {
 // ─── Trip lifecycle row ────────────────────────────────────────────────────────
 function TripRow({ trip, onView, isNew }) {
   const isOpen = trip.status === 'open';
-  const upiShare = trip.total_collection ? (Number(trip.upi_ticket_amount) / Number(trip.total_collection)) * 100 : 0;
+  const upiShare = trip.total_collection ? ((Number(trip.upi_ticket_amount) || 0) / Number(trip.total_collection)) * 100 : 0;
 
   return (
     <div className={`border border-slate-200 shadow-sm rounded-2xl bg-white overflow-hidden transition-shadow hover:shadow-md ${isNew ? 'ring-2 ring-slate-300' : ''}`}>
@@ -208,6 +208,7 @@ function TripRow({ trip, onView, isNew }) {
             <p className="text-base font-bold text-slate-900">{fmt.inr(trip.total_collection)}</p>
             <div className="flex items-center gap-1 justify-end mt-0.5">
               <div className="h-1 w-12 rounded-full bg-emerald-100 overflow-hidden">
+                {/* UPI SHARE AS NAN IN UI. REQUIRES UI FIX */}
                 <div className="h-full bg-blue-500" style={{ width: `${Math.round(upiShare)}%` }} />
               </div>
               <span className="text-[10px] text-slate-500 tabular-nums">{Math.round(upiShare)}%</span>

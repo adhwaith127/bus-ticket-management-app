@@ -210,17 +210,17 @@ def farewise_report(request):
         for i, r in enumerate(fare_rows)
     ]
 
-    trip_rows = qs.values('trip_number').annotate(
+    trip_rows = qs.values('trip_id__trip_no').annotate(
         full=Sum('full_count'),
         half=Sum('half_count'),
         st=Sum('st_count'),
         phy=Sum('phy_count'),
         lugg=Sum('lugg_count'),
-    ).order_by('trip_number')
+    ).order_by('trip_id__trip_no')
 
     passenger_counts = [
         {
-            'trip': r['trip_number'],
+            'trip': r['trip_id__trip_no'],
             'full': r['full'] or 0,
             'half': r['half'] or 0,
             'st': r['st'] or 0,
@@ -341,7 +341,7 @@ def trip_details(request):
     qs = TransactionData.objects.filter(
         company_code=user.company,
         palmtec_id=device_id,
-        trip_number=trip_no,
+        trip_id__trip_no=int(trip_no),
         ticket_date=date,
     )
 
@@ -410,7 +410,7 @@ def ticket_details(request):
     tickets = TransactionData.objects.filter(
         company_code=user.company,
         palmtec_id=device_id,
-        trip_number=trip_no,
+        trip_id__trip_no=int(trip_no),
         ticket_date=date,
     ).order_by('ticket_time').values(
         'ticket_number',
@@ -677,3 +677,9 @@ def apk_dashboard(request):
         'bus_list': bus_list,
         'weekly_chart': weekly_chart,
     })
+
+
+
+@api_view(["GET"])
+def get_etm_device_version_for_apk(request):
+    return "PVT_GEN_12"

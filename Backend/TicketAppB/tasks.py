@@ -98,9 +98,9 @@ def _resolve_vehicle(bus_reg_num, company_id):
 #   [21]=pass_id  [22]=warrant  [23]=refund_status  [24]=refund_amount
 #   [25]=ladies  [26]=senior
 #   [27]=bus_no  [28]=schedule_no  [29]=driver  [30]=conductor
-#   [31]=up_down_trip
-#   [32]=trip_start_date  [33]=trip_start_time
-#   [34]=battery  [35]=passenger_count
+#   [31]=up_down_trip (char as %d, e.g. 85='U', 68='D')
+#   [32]=trip_start_date  [33]=trip_start_time  [34]=battery
+#   [35]=passenger_count
 #   [36]=full_total  [37]=half_total  [38]=phy_total  [39]=ladies_total
 #   [40]=senior_total  [41]=lugg_total  [42]=st_total
 #   [43]=transaction_id  [44]=ticket_status  [45]=bqr_merchant_id
@@ -126,11 +126,15 @@ def process_transaction_data(self, log_id):
                 return parts[i] if len(parts) > i and parts[i].strip() else default
 
             required = {
-                'route_code': _p(3),
-                'trip_no':    _p(4),
-                'from_stage': _p(10),
-                'to_stage':   _p(11),
-                'schedule_no': _p(28),
+                'palmtec_id':    _p(2),
+                'route_code':    _p(3),
+                'trip_no':       _p(4),
+                'ticket_number': _p(5),
+                'ticket_date':   _p(8),
+                'ticket_time':   _p(9),
+                'from_stage':    _p(10),
+                'to_stage':      _p(11),
+                'schedule_no':   _p(28),
             }
             missing = [k for k, v in required.items() if not v]
             if missing:
@@ -157,7 +161,11 @@ def process_transaction_data(self, log_id):
                 else TransactionData.PaymentMode.CASH
             )
 
-            raw_dir = _p(31, '')
+            raw_dir_val = _p(31, '')
+            try:
+                raw_dir = chr(int(raw_dir_val)) if raw_dir_val else ''
+            except (ValueError, TypeError):
+                raw_dir = raw_dir_val
             up_down_trip = (
                 Direction.UP   if raw_dir == 'U' else
                 Direction.DOWN if raw_dir == 'D' else None
@@ -168,14 +176,16 @@ def process_transaction_data(self, log_id):
             to_raw   = int(_p(11))
             from_stage_obj = to_stage_obj = None
             if stages:
-                try:
-                    from_stage_obj = stages[from_raw - 1]
-                except IndexError:
-                    pass
-                try:
-                    to_stage_obj = stages[to_raw - 1]
-                except IndexError:
-                    pass
+                if from_raw > 0:
+                    try:
+                        from_stage_obj = stages[from_raw - 1]
+                    except IndexError:
+                        pass
+                if to_raw > 0:
+                    try:
+                        to_stage_obj = stages[to_raw - 1]
+                    except IndexError:
+                        pass
 
             trip_no         = int(_p(4))
             trip_start_date = _parse_date(_p(32))
@@ -222,7 +232,7 @@ def process_transaction_data(self, log_id):
                         conductor            = _p(30),
                         up_down_trip         = up_down_trip,
                         trip_start_date      = trip_start_date,
-                        trip_start_time      = _parse_time(_p(33), "%H:%M"),
+                        trip_start_time      = _parse_time(_p(33)),
                         battery_percentage   = int(_p(34)) if _p(34) else None,
                         passenger_count      = int(_p(35)) if _p(35) else None,
                         full_total_amount    = Decimal(_p(36, '0')),
@@ -1167,8 +1177,8 @@ def scan_pending_raw_logs():
 
     requeue_records = RawDataLog.objects.filter(
         status=RawDataLog.statusChoices.PENDING,
-        received_at__range=(requeue_cutoff, stale_cutoff),
-    )
+        received_at__range=(stale_cutoff, requeue_cutoff),
+    ).order_by('received_at')[:200]
 
     TASK_MAP = {
         RawDataLog.typeChoices.TRANSACTION:            process_transaction_data,
