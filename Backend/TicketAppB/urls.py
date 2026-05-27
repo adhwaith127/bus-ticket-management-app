@@ -190,7 +190,6 @@ urlpatterns = [
 
     # android apk data apis
     path('apk/dashboard', apk_views.apk_dashboard, name='apk_dashboard'),
-    path('apk/get_etm_device_version_for_apk', apk_views.get_etm_device_version_for_apk, name='etm_version_for_apk'),
     path('reports/duty', apk_views.duty_report, name='duty_report'),
     path('reports/bus-summary', apk_views.bus_summary_report, name='bus_summary_report'),
     path('reports/payment-type', apk_views.payment_type_report, name='payment_type_report'),
