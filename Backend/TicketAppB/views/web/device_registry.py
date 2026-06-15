@@ -11,7 +11,8 @@ Dealer assigns from their pool to a client company (Allocated).
   POST  /etm-devices/bulk-assign-dealer  — Assign serial numbers to dealer pool (superadmin)
   POST  /etm-devices/bulk-assign-company — Assign serial numbers directly to company (superadmin)
   POST  /etm-devices/<id>/allocate       — Dealer allocates one pool device to a client company
-  POST  /etm-devices/<id>/deactivate     — Mark device Inactive (superadmin)
+  POST  /etm-devices/<id>/deactivate     — Suspend device (sets is_active=False)
+  POST  /etm-devices/<id>/reactivate    — Re-enable a suspended device
 """
 
 import io
@@ -20,14 +21,15 @@ import openpyxl
 
 from django.db.models import Count
 from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ...models import ETMDevice, Company, Dealer, DealerCustomerMapping
+from ...models import ETMDevice, Company, Dealer, AuditLog, UserRole
 from ...serializers.devices import ETMDeviceSerializer
-from .auth import get_user_from_cookie
+from ...permissions import LicensePermission
 from ..utils import (
     _is_superadmin,
     _is_executive,
@@ -35,6 +37,7 @@ from ..utils import (
     _is_company_admin,
     _is_superadmin_or_executive,
 )
+from .audit_logs import log_action
 
 logger = logging.getLogger(__name__)
 
@@ -47,15 +50,16 @@ def _device_qs_for_user(user):
     if _is_superadmin(user):
         return qs
 
-    if user.role == 'production':
+    if user.role == UserRole.PRODUCTION:
         # Production users see only the devices they uploaded
         return qs.filter(created_by=user)
 
     if _is_executive(user):
-        from ...models import ExecutiveCompanyMapping
-        company_ids = ExecutiveCompanyMapping.objects.filter(
-            executive_user_id=user.id, is_active=True
-        ).values_list('company_id', flat=True)
+        # Executive sees devices for companies they created.
+        # TODO Phase 4: also restrict by executive's state (CustomUser.state).
+        company_ids = Company.objects.filter(
+            created_by=user, is_active=True
+        ).values_list('id', flat=True)
         return qs.filter(company_id__in=company_ids)
 
     if _is_dealer_admin(user):
@@ -85,10 +89,8 @@ class DeviceUploadView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
-        user = get_user_from_cookie(request)
-        if not user:
-            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
-        if not (_is_superadmin(user) or user.role == 'production'):
+        user = self.request.user
+        if not (_is_superadmin(user) or user.role == UserRole.PRODUCTION):
             return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
 
         excel_file = request.FILES.get('file')
@@ -139,6 +141,13 @@ class DeviceUploadView(APIView):
             for s in new_serials
         ])
 
+        log_action(
+            actor=user, action=AuditLog.ActionType.SERIAL_UPLOAD,
+            target_model='ETMDevice',
+            details={'created': len(new_serials), 'skipped': len(existing)},
+            ip_address=request.META.get('REMOTE_ADDR'),
+        )
+
         logger.info(f"Device upload by {user}: {len(new_serials)} created, {len(existing)} skipped")
         return Response({
             'message': f'{len(new_serials)} device(s) added to stock.',
@@ -149,14 +158,13 @@ class DeviceUploadView(APIView):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def list_devices(request):
     """
     List devices scoped to the requesting user's role.
     Query params: ?status=Stock|DealerPool|Allocated|Inactive  ?dealer=<id>  ?company=<id>
     """
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
 
     qs = _device_qs_for_user(user)
 
@@ -177,11 +185,10 @@ def list_devices(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def device_summary(request):
     """Count breakdown by allocation_status, scoped to the user."""
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
 
     qs = _device_qs_for_user(user)
     by_status = {s: 0 for s in ETMDevice.AllocationStatus.values}
@@ -209,15 +216,14 @@ def device_summary(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def bulk_assign_dealer(request):
     """
     Assign Stock serial numbers to a dealer pool.
     Body: { serial_numbers: [...], dealer_id: <int> }
     Superadmin only.
     """
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
     if not _is_superadmin(user):
         return Response({'error': 'Superadmin only'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -229,15 +235,37 @@ def bulk_assign_dealer(request):
     if not dealer_id:
         return Response({'error': 'dealer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        dealer = Dealer.objects.get(pk=dealer_id, is_active=True)
-    except Dealer.DoesNotExist:
-        return Response({'error': 'Dealer not found'}, status=status.HTTP_404_NOT_FOUND)
+    from django.db import transaction as db_transaction
+    with db_transaction.atomic():
+        try:
+            dealer = Dealer.objects.select_for_update().get(pk=dealer_id, is_active=True)
+        except Dealer.DoesNotExist:
+            return Response({'error': 'Dealer not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    updated = ETMDevice.objects.filter(
-        serial_number__in=serial_numbers,
-        allocation_status=ETMDevice.AllocationStatus.STOCK,
-    ).update(dealer=dealer, allocation_status=ETMDevice.AllocationStatus.DEALER_POOL)
+        capacity_remaining = dealer.devices_capacity_remaining
+        if len(serial_numbers) > capacity_remaining:
+            return Response({
+                'error': (
+                    f'Dealer device capacity exceeded. '
+                    f'Dealer limit: {dealer.palmtec_count}, '
+                    f'currently holds: {dealer.devices_total}, '
+                    f'can receive: {capacity_remaining}, '
+                    f'requested: {len(serial_numbers)}.'
+                )
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = ETMDevice.objects.filter(
+            serial_number__in=serial_numbers,
+            allocation_status=ETMDevice.AllocationStatus.STOCK,
+        ).update(dealer=dealer, allocation_status=ETMDevice.AllocationStatus.DEALER_POOL)
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.DEVICE_ALLOCATE,
+        target_model='ETMDevice',
+        target_display=dealer.dealer_name,
+        details={'dealer_id': dealer.id, 'count': updated},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
 
     return Response({
         'message': f'{updated} device(s) moved to dealer pool.',
@@ -247,15 +275,14 @@ def bulk_assign_dealer(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def bulk_assign_company(request):
     """
     Directly assign Stock serial numbers to a company.
     Body: { serial_numbers: [...], company_id: <int> }
     Superadmin only.
     """
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
     if not _is_superadmin(user):
         return Response({'error': 'Superadmin only'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -272,8 +299,25 @@ def bulk_assign_company(request):
     except Company.DoesNotExist:
         return Response({'error': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    dealer_mapping = DealerCustomerMapping.objects.filter(company=company, is_active=True).first()
-    dealer = dealer_mapping.dealer if dealer_mapping else None
+    already_allocated = ETMDevice.objects.filter(
+        company=company,
+        allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+    ).count()
+    allowed = company.palmtec_count or 0
+    requesting = len(serial_numbers)
+    if allowed > 0 and (already_allocated + requesting) > allowed:
+        return Response({
+            'error': (
+                f'Company device limit exceeded. '
+                f'Limit: {allowed}, '
+                f'currently allocated: {already_allocated}, '
+                f'available slots: {max(0, allowed - already_allocated)}, '
+                f'requested: {requesting}.'
+            )
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Company.dealer FK now directly encodes the dealer relationship (no join table).
+    dealer = company.dealer
 
     updated = ETMDevice.objects.filter(
         serial_number__in=serial_numbers,
@@ -284,6 +328,14 @@ def bulk_assign_company(request):
         allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
     )
 
+    log_action(
+        actor=user, action=AuditLog.ActionType.DEVICE_ALLOCATE,
+        target_model='ETMDevice',
+        target_display=company.company_name,
+        details={'company_id': company.id, 'count': updated},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
+
     return Response({
         'message': f'{updated} device(s) allocated to company.',
         'assigned': updated,
@@ -292,15 +344,14 @@ def bulk_assign_company(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def allocate_to_company(request, device_id):
     """
     Dealer assigns one of their DealerPool devices to a client company.
     Body: { company_id: <int> }
     Dealer admin only — company must be under their dealer.
     """
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
     if not _is_dealer_admin(user):
         return Response({'error': 'Dealer admin only'}, status=status.HTTP_403_FORBIDDEN)
     if not user.dealer_id:
@@ -319,24 +370,149 @@ def allocate_to_company(request, device_id):
     except ETMDevice.DoesNotExist:
         return Response({'error': 'Device not found in your pool'}, status=status.HTTP_404_NOT_FOUND)
 
-    if not DealerCustomerMapping.objects.filter(
-        dealer_id=user.dealer_id, company_id=company_id, is_active=True
-    ).exists():
+    # Verify the target company belongs to this dealer (Company.dealer FK).
+    if not Company.objects.filter(id=company_id, dealer_id=user.dealer_id, is_active=True).exists():
         return Response({'error': 'Company is not under your dealer'}, status=status.HTTP_403_FORBIDDEN)
 
-    device.company_id = company_id
+    # Cap check: company must not exceed its device limit
+    already_at_company = ETMDevice.objects.filter(
+        company_id=company_id,
+        allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+    ).count()
+    company_obj = Company.objects.get(pk=company_id)
+    allowed = company_obj.palmtec_count or 0
+    if allowed > 0 and already_at_company >= allowed:
+        return Response({
+            'error': (
+                f'Company has reached its device limit '
+                f'({already_at_company}/{allowed} devices allocated).'
+            )
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    device.company_id        = company_id
     device.allocation_status = ETMDevice.AllocationStatus.ALLOCATED
-    device.save(update_fields=['company_id', 'allocation_status', 'updated_at'])
+    device.source_dealer     = device.dealer
+    device.save(update_fields=['company_id', 'allocation_status', 'source_dealer', 'updated_at'])
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.DEVICE_ALLOCATE,
+        target_model='ETMDevice', target_id=device.pk,
+        target_display=device.serial_number,
+        details={'company_id': company_id},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
 
     return Response({'message': 'Device allocated to company', 'data': ETMDeviceSerializer(device).data}, status=status.HTTP_200_OK)
 
 
+# ── Permission helpers ────────────────────────────────────────────────────────
+
+def _can_deactivate(user, device):
+    """Returns (True, None) or (False, reason_string)."""
+    if _is_superadmin(user):
+        return True, None
+    if _is_executive(user):
+        if device.company and device.company.created_by_id == user.id:
+            return True, None
+        return False, 'Executives can only deactivate devices under companies they created.'
+    if _is_dealer_admin(user):
+        if not user.dealer_id:
+            return False, 'No dealer linked to your account.'
+        if device.company and device.company.dealer_id == user.dealer_id:
+            return True, None
+        if device.dealer_id == user.dealer_id and device.allocation_status == ETMDevice.AllocationStatus.DEALER_POOL:
+            return True, None
+        return False, 'You can only deactivate devices under your dealer.'
+    if _is_company_admin(user):
+        if device.company_id == user.company_id:
+            return True, None
+        return False, "You can only deactivate your own company's devices."
+    return False, 'Insufficient permissions.'
+
+
+def _can_unmap(user, device):
+    """Returns (True, None) or (False, reason_string)."""
+    if _is_superadmin(user):
+        return True, None
+    if _is_executive(user):
+        if device.company and device.company.created_by_id == user.id:
+            return True, None
+        return False, 'Executives can only unmap devices under companies they created.'
+    if _is_dealer_admin(user):
+        if not user.dealer_id:
+            return False, 'No dealer linked to your account.'
+        if device.company and device.company.dealer_id == user.dealer_id:
+            return True, None
+        if device.dealer_id == user.dealer_id and device.allocation_status == ETMDevice.AllocationStatus.DEALER_POOL:
+            return True, None
+        return False, 'You can only unmap devices under your dealer.'
+    return False, 'Company admins cannot unmap devices. Contact your dealer or superadmin.'
+
+
+def _can_return_to_stock(user, device):
+    """Returns (True, None) or (False, reason_string)."""
+    if _is_superadmin(user):
+        return True, None
+    if _is_dealer_admin(user):
+        if not user.dealer_id:
+            return False, 'No dealer linked to your account.'
+        if device.dealer_id == user.dealer_id:
+            return True, None
+        return False, 'This device is not in your pool.'
+    return False, 'Only dealer admin or superadmin can return devices to stock.'
+
+
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def deactivate_device(request, device_id):
-    """Mark a device Inactive. Superadmin only."""
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    """
+    Deactivate an allocated or DealerPool device.
+    Sets is_active=False. Device stays mapped. Inbound data will be rejected.
+    """
+    from django.utils import timezone as tz
+    user = request.user
+
+    try:
+        device = ETMDevice.objects.select_related('company', 'dealer').get(pk=device_id)
+    except ETMDevice.DoesNotExist:
+        return Response({'error': 'Device not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    allowed, reason = _can_deactivate(user, device)
+    if not allowed:
+        return Response({'error': reason}, status=status.HTTP_403_FORBIDDEN)
+
+    if not device.is_active:
+        return Response({'error': 'Device is already inactive.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    device.is_active      = False
+    device.deactivated_at = tz.now()
+    device.deactivated_by = user
+    device.save(update_fields=['is_active', 'deactivated_at', 'deactivated_by', 'updated_at'])
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.DEACTIVATE,
+        target_model='ETMDevice', target_id=device.pk,
+        target_display=device.serial_number,
+        details={'allocation_status': device.allocation_status},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
+
+    return Response({
+        'message': 'Device deactivated. It remains mapped but inbound data will be rejected.',
+        'data': ETMDeviceSerializer(device).data,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
+def reactivate_device(request, device_id):
+    """
+    Re-enable a deactivated (is_active=False) device in-place.
+    Clears is_active=False, deactivated_at, deactivated_by.
+    Device stays at its current allocation_status and company/dealer assignment.
+    Superadmin only.
+    """
+    user = request.user
     if not _is_superadmin(user):
         return Response({'error': 'Superadmin only'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -345,7 +521,280 @@ def deactivate_device(request, device_id):
     except ETMDevice.DoesNotExist:
         return Response({'error': 'Device not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    device.allocation_status = ETMDevice.AllocationStatus.INACTIVE
-    device.save(update_fields=['allocation_status', 'updated_at'])
+    if device.is_active:
+        return Response(
+            {'error': 'Device is already active.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    return Response({'message': 'Device deactivated', 'data': ETMDeviceSerializer(device).data}, status=status.HTTP_200_OK)
+    device.is_active      = True
+    device.deactivated_at = None
+    device.deactivated_by = None
+    device.save(update_fields=['is_active', 'deactivated_at', 'deactivated_by', 'updated_at'])
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.ACTIVATE,
+        target_model='ETMDevice', target_id=device.pk,
+        target_display=device.serial_number,
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
+
+    return Response({'message': 'Device reactivated.', 'data': ETMDeviceSerializer(device).data}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
+def unmap_device(request, device_id):
+    """
+    Remove a device from its company mapping.
+    Returns device to DealerPool (if source_dealer is set) or Stock (if superadmin-allocated).
+    Prerequisites: device.is_active must be False; device.allocation_status must be ALLOCATED.
+    """
+    from django.utils import timezone as tz
+    from django.db import transaction as db_transaction
+    user = request.user
+
+    try:
+        device = ETMDevice.objects.select_related('company', 'dealer', 'source_dealer').get(pk=device_id)
+    except ETMDevice.DoesNotExist:
+        return Response({'error': 'Device not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if device.allocation_status != ETMDevice.AllocationStatus.ALLOCATED:
+        return Response(
+            {'error': 'Only ALLOCATED devices can be unmapped from a company.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if device.is_active:
+        return Response(
+            {'error': 'Device must be deactivated before it can be unmapped.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    allowed, reason = _can_unmap(user, device)
+    if not allowed:
+        return Response({'error': reason}, status=status.HTTP_403_FORBIDDEN)
+
+    prev_company = device.company.company_name if device.company else None
+    prev_palmtec = device.palmtec_id
+    returning_to_dealer = device.source_dealer is not None
+
+    with db_transaction.atomic():
+        if returning_to_dealer:
+            destination_label = f'DealerPool ({device.source_dealer.dealer_name})'
+            device.dealer            = device.source_dealer
+            device.allocation_status = ETMDevice.AllocationStatus.DEALER_POOL
+        else:
+            destination_label = 'Stock'
+            device.dealer            = None
+            device.allocation_status = ETMDevice.AllocationStatus.STOCK
+
+        device.company           = None
+        device.palmtec_id        = None
+        device.source_dealer     = None
+        device.is_active         = True
+        device.deactivated_at    = None
+        device.deactivated_by    = None
+        device.has_fetched_setup = False
+        device.setup_fetched_at  = None
+        device.last_seen_at      = None
+
+        device.save(update_fields=[
+            'company', 'dealer', 'palmtec_id', 'source_dealer',
+            'allocation_status', 'is_active', 'deactivated_at', 'deactivated_by',
+            'has_fetched_setup', 'setup_fetched_at', 'last_seen_at',
+            'updated_at',
+        ])
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.DEVICE_DEALLOCATE,
+        target_model='ETMDevice', target_id=device.pk,
+        target_display=device.serial_number,
+        details={'previous_company': prev_company, 'previous_palmtec': prev_palmtec, 'returned_to': destination_label},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
+
+    return Response({
+        'message': f'Device unmapped and returned to {destination_label}.',
+        'data': ETMDeviceSerializer(device).data,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
+def return_device_to_stock(request, device_id):
+    """
+    Return an inactive DealerPool device back to Stock.
+    Prerequisites: device.allocation_status must be DEALER_POOL; device.is_active must be False.
+    """
+    user = request.user
+
+    try:
+        device = ETMDevice.objects.select_related('dealer').get(pk=device_id)
+    except ETMDevice.DoesNotExist:
+        return Response({'error': 'Device not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if device.allocation_status != ETMDevice.AllocationStatus.DEALER_POOL:
+        return Response(
+            {'error': 'Only DealerPool devices can be returned to Stock. Unmap from company first if needed.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if device.is_active:
+        return Response(
+            {'error': 'Device must be deactivated before it can be returned to Stock.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    allowed, reason = _can_return_to_stock(user, device)
+    if not allowed:
+        return Response({'error': reason}, status=status.HTTP_403_FORBIDDEN)
+
+    prev_dealer = device.dealer.dealer_name if device.dealer else None
+
+    device.dealer            = None
+    device.source_dealer     = None
+    device.allocation_status = ETMDevice.AllocationStatus.STOCK
+    device.is_active         = True
+    device.deactivated_at    = None
+    device.deactivated_by    = None
+
+    device.save(update_fields=[
+        'dealer', 'source_dealer', 'allocation_status',
+        'is_active', 'deactivated_at', 'deactivated_by',
+        'updated_at',
+    ])
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.DEVICE_DEALLOCATE,
+        target_model='ETMDevice', target_id=device.pk,
+        target_display=device.serial_number,
+        details={'previous_dealer': prev_dealer, 'returned_to': 'Stock'},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
+
+    return Response({
+        'message': f'Device returned to Stock from {prev_dealer}.',
+        'data': ETMDeviceSerializer(device).data,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
+def set_palmtec_id(request, device_id):
+    """
+    Company admin assigns the physical Palmtec ID to an allocated device.
+
+    The Palmtec ID is the integer identifier the ETM device broadcasts in
+    ticket / trip payloads (TransactionData.palmtec_id, TripData.palmtec_id, etc.).
+    Setting it here links the physical box to all its operational data.
+
+    Body: { palmtec_id: <positive integer> }
+    Company admin only — device must be ALLOCATED to their company.
+    """
+    user = request.user
+    if not _is_company_admin(user):
+        return Response({'error': 'Company admin only'}, status=status.HTTP_403_FORBIDDEN)
+    if not user.company_id:
+        return Response({'error': 'No company linked to your account'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        device = ETMDevice.objects.get(
+            pk=device_id,
+            company_id=user.company_id,
+            allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+        )
+    except ETMDevice.DoesNotExist:
+        return Response({'error': 'Device not found in your company'}, status=status.HTTP_404_NOT_FOUND)
+
+    raw_id = request.data.get('palmtec_id')
+    if raw_id is None:
+        return Response({'error': 'palmtec_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        palmtec_id = int(raw_id)
+        if palmtec_id <= 0:
+            raise ValueError()
+    except (TypeError, ValueError):
+        return Response({'error': 'palmtec_id must be a positive integer'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check for conflicts within the company
+    conflict = ETMDevice.objects.filter(
+        company_id=user.company_id,
+        palmtec_id=palmtec_id,
+    ).exclude(pk=device_id).first()
+    if conflict:
+        return Response({
+            'error': f'Palmtec ID {palmtec_id} is already assigned to device {conflict.serial_number}.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    device.palmtec_id = palmtec_id
+    device.save(update_fields=['palmtec_id', 'updated_at'])
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.UPDATE,
+        target_model='ETMDevice', target_id=device.pk,
+        target_display=device.serial_number,
+        details={'palmtec_id': palmtec_id},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
+
+    return Response({
+        'message': f'Palmtec ID {palmtec_id} assigned to device {device.serial_number}.',
+        'data': ETMDeviceSerializer(device).data,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
+def set_mosambee_tid(request, device_id):
+    """
+    Company admin manually assigns the Mosambee Terminal ID to an allocated device.
+
+    The TID is globally unique (assigned by Mosambee per device). It can also
+    arrive automatically via getEtmSetupDetails when the device boots, but this
+    endpoint allows an admin to set it when the device cannot send it.
+
+    Body: { mosambee_tid: <string> }
+    Company admin only — device must be ALLOCATED to their company.
+    """
+    user = request.user
+    if not _is_company_admin(user):
+        return Response({'error': 'Company admin only'}, status=status.HTTP_403_FORBIDDEN)
+    if not user.company_id:
+        return Response({'error': 'No company linked to your account'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        device = ETMDevice.objects.get(
+            pk=device_id,
+            company_id=user.company_id,
+            allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+        )
+    except ETMDevice.DoesNotExist:
+        return Response({'error': 'Device not found in your company'}, status=status.HTTP_404_NOT_FOUND)
+
+    tid = request.data.get('mosambee_tid', '').strip()
+    if not tid:
+        return Response({'error': 'mosambee_tid is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    conflict = ETMDevice.objects.filter(mosambee_tid=tid).exclude(pk=device_id).first()
+    if conflict:
+        return Response({
+            'error': f'Mosambee TID {tid} is already assigned to device {conflict.serial_number}.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    device.mosambee_tid = tid
+    device.save(update_fields=['mosambee_tid', 'updated_at'])
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.UPDATE,
+        target_model='ETMDevice', target_id=device.pk,
+        target_display=device.serial_number,
+        details={'mosambee_tid': tid},
+        ip_address=request.META.get('REMOTE_ADDR'),
+    )
+
+    return Response({
+        'message': f'Mosambee TID {tid} assigned to device {device.serial_number}.',
+        'data': ETMDeviceSerializer(device).data,
+    }, status=status.HTTP_200_OK)

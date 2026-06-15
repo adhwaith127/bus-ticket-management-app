@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import Modal from '../../components/Modal';
 import TableSkeleton from '../../components/TableSkeleton';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 import statesDistricts from '../../assets/json/indiaStatesDistricts.json';
@@ -7,7 +6,7 @@ import {
   Building2, CheckCircle2, CircleDot, Search,
   Phone, MapPin, IdCard, ArrowLeft, AlertCircle,
   Download, Plus, Mail, KeyRound, User, Sparkles,
-  Eye, Edit, X,
+  Eye, Edit, X, RefreshCw, Info,
 } from 'lucide-react';
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
@@ -89,7 +88,7 @@ function CompanyPreview({ form, isImport }) {
           <div className="flex items-start gap-2 text-slate-500">
             <MapPin size={11} className="mt-0.5 shrink-0" />
             <span className="line-clamp-2">
-              {[form.address, form.city, form.district, form.state, form.zip_code].filter(Boolean).join(', ') || '—'}
+              {[form.address, form.district, form.state].filter(Boolean).join(', ') || '—'}
             </span>
           </div>
         </div>
@@ -177,9 +176,11 @@ function ModalWrapper({ open, onClose, title, icon: Icon, width = 'max-w-2xl', c
 const EMPTY = {
   company_name: '', company_email: '', gst_number: '',
   contact_person: '', contact_number: '',
-  address: '', address_2: '', city: '', state: '', district: '', zip_code: '',
+  address: '', state: '', district: '',
   is_active: true,
   user_username: '', user_email: '', user_password: '',
+  // dealer path — pool allocation (only sent when role === dealer_admin)
+  palmtec_count: '', total_user_count: '', premium_user_count: '', intermediate_user_count: '',
 };
 
 // ── Helper ─────────────────────────────────────────────────────────────────────
@@ -193,30 +194,59 @@ function getStatusStyle(s) {
   }
 }
 
+function DiffRow({ label, current, incoming, inUse }) {
+  const changed = current !== incoming;
+  return (
+    <div className={`rounded-lg px-3 py-2.5 border text-sm ${changed ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100'}`}>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">{label}</p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-slate-600">Was: <strong>{current ?? '—'}</strong></span>
+        {changed && <span className="text-blue-700">→ New: <strong>{incoming}</strong></span>}
+        {!changed && <span className="text-slate-400 text-xs">(no change)</span>}
+        {inUse !== undefined && <span className="text-slate-500 text-xs ml-auto">In use: {inUse}</span>}
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 export default function CompanyListing() {
+  const currentUser   = JSON.parse(localStorage.getItem('user') || '{}');
+  const isDealerAdmin = currentUser?.role === 'dealer_admin';
+  const isExecutive   = currentUser?.role === 'executive';
+  const executiveState = currentUser?.state || '';
+
   // ── List state ───────────────────────────────────────────────────────────
   const [companies, setCompanies]     = useState([]);
   const [loading, setLoading]         = useState(true);
   const [registeringLicense, setRegisteringLicense] = useState({});
   const [validatingLicense,  setValidatingLicense]  = useState({});
+  const [syncingLicense,     setSyncingLicense]      = useState({});
   const [search, setSearch]           = useState('');
+
+  // ── Sync modal state ─────────────────────────────────────────────────────
+  const [syncModal,     setSyncModal]     = useState(null);   // null | { companyId, data }
+  const [syncConfirming, setSyncConfirming] = useState(false);
 
   // ── Page view: 'list' | 'create' ────────────────────────────────────────
   const [pageView, setPageView] = useState('list');
 
   // ── Create form state ────────────────────────────────────────────────────
-  const [createMode,    setCreateMode]    = useState('new');  // 'new' | 'import'
+  const [createMode,    setCreateMode]    = useState('new');
   const [importStep,    setImportStep]    = useState('search');
   const [importId,      setImportId]      = useState('');
   const [importFetching,setImportFetching]= useState(false);
   const [importError,   setImportError]   = useState('');
   const [importLicense, setImportLicense] = useState(null);
-  const [form,          setForm]          = useState(EMPTY);
+  const [form,          setForm]          = useState(() =>
+    currentUser?.role === 'executive' && currentUser?.state
+      ? { ...EMPTY, state: currentUser.state }
+      : EMPTY
+  );
   const [submitting,    setSubmitting]    = useState(false);
 
   // ── Modal state (view / edit) ────────────────────────────────────────────
-  const [modal,         setModal]         = useState(null);  // null | 'view' | 'edit'
+  const [modal,         setModal]         = useState(null);
   const [editingItem,   setEditingItem]   = useState(null);
   const [modalForm,     setModalForm]     = useState(EMPTY);
   const [modalSubmitting, setModalSubmitting] = useState(false);
@@ -244,7 +274,7 @@ export default function CompanyListing() {
   const set = (k, v) => setForm(f => k === 'state' ? { ...f, state: v, district: '' } : { ...f, [k]: v });
 
   const resetCreate = () => {
-    setForm(EMPTY);
+    setForm(isExecutive ? { ...EMPTY, state: executiveState } : EMPTY);
     setCreateMode('new');
     setImportStep('search');
     setImportId('');
@@ -254,9 +284,10 @@ export default function CompanyListing() {
 
   // ── Create form completeness ──────────────────────────────────────────────
   const sec1 = !!(form.company_name && form.company_email && form.contact_person && form.contact_number);
-  const sec2 = !!(form.address && form.state && form.district && form.city && form.zip_code);
+  const sec2 = !!(form.address && form.state && form.district);
   const sec3 = !!(form.user_username && form.user_email && form.user_password);
-  const canSubmit = sec1 && sec2 && sec3;
+  const sec4 = !isDealerAdmin || !!(parseInt(form.total_user_count) > 0);
+  const canSubmit = sec1 && sec2 && sec3 && sec4;
 
   // ── Import fetch ─────────────────────────────────────────────────────────
   const handleFetchImport = async () => {
@@ -287,11 +318,23 @@ export default function CompanyListing() {
     if (!canSubmit) return;
     setSubmitting(true);
     const payload = {
-      company_name: form.company_name, company_email: form.company_email,
-      contact_person: form.contact_person, contact_number: form.contact_number,
-      gst_number: form.gst_number, address: form.address, address_2: form.address_2,
-      city: form.city, state: form.state, district: form.district, zip_code: form.zip_code,
-      user_username: form.user_username, user_email: form.user_email, user_password: form.user_password,
+      company_name:   form.company_name,
+      company_email:  form.company_email,
+      contact_person: form.contact_person,
+      contact_number: form.contact_number,
+      gst_number:     form.gst_number,
+      address:        form.address,
+      state:          form.state,
+      district:       form.district,
+      user_username:  form.user_username,
+      user_email:     form.user_email,
+      user_password:  form.user_password,
+      ...(isDealerAdmin && {
+        palmtec_count:           parseInt(form.palmtec_count)           || 0,
+        total_user_count:        parseInt(form.total_user_count)        || 0,
+        premium_user_count:      parseInt(form.premium_user_count)      || 0,
+        intermediate_user_count: parseInt(form.intermediate_user_count) || 0,
+      }),
     };
     try {
       let res;
@@ -337,15 +380,45 @@ export default function CompanyListing() {
     } finally { setValidatingLicense(p => ({ ...p, [companyId]: false })); }
   };
 
+  const handleSyncLicense = async (company) => {
+    setSyncingLicense(p => ({ ...p, [company.id]: true }));
+    try {
+      const res = await api.post(`${BASE_URL}/sync-company-license/${company.id}`);
+      if (res.status === 200) {
+        setSyncModal({ companyId: company.id, companyName: company.company_name, data: res.data.data });
+      }
+    } catch (err) {
+      window.alert(err.response?.data?.error || 'Failed to fetch sync data from license server.');
+    } finally { setSyncingLicense(p => ({ ...p, [company.id]: false })); }
+  };
+
+  const handleSyncConfirm = async () => {
+    if (!syncModal) return;
+    setSyncConfirming(true);
+    try {
+      const res = await api.post(`${BASE_URL}/sync-company-license/${syncModal.companyId}/confirm`);
+      if (res.status === 200) {
+        window.alert('License data updated successfully.');
+        setSyncModal(null);
+        fetchCompanies();
+      }
+    } catch (err) {
+      window.alert(err.response?.data?.error || 'Sync failed. Please try again.');
+    } finally { setSyncConfirming(false); }
+  };
+
   // ── Edit / View modal ────────────────────────────────────────────────────
   const openView = (company) => {
     setModalForm({
-      company_name: company.company_name || '', company_email: company.company_email || '',
-      gst_number: company.gst_number || '', contact_person: company.contact_person || '',
-      contact_number: company.contact_number || '', address: company.address || '',
-      address_2: company.address_2 || '', city: company.city || '',
-      state: company.state || '', district: company.district || '',
-      zip_code: company.zip_code || '', is_active: company.is_active ?? true,
+      company_name:   company.company_name   || '',
+      company_email:  company.company_email  || '',
+      gst_number:     company.gst_number     || '',
+      contact_person: company.contact_person || '',
+      contact_number: company.contact_number || '',
+      address:        company.address        || '',
+      state:          company.state          || '',
+      district:       company.district       || '',
+      is_active:      company.is_active      ?? true,
     });
     setEditingItem(company);
     setModal('view');
@@ -366,11 +439,15 @@ export default function CompanyListing() {
     setModalSubmitting(true);
     try {
       const res = await api.put(`${BASE_URL}/update-company-details/${editingItem.id}`, {
-        company_name: modalForm.company_name, company_email: modalForm.company_email,
-        contact_person: modalForm.contact_person, contact_number: modalForm.contact_number,
-        gst_number: modalForm.gst_number, address: modalForm.address, address_2: modalForm.address_2,
-        city: modalForm.city, state: modalForm.state, district: modalForm.district, zip_code: modalForm.zip_code,
-        is_active: modalForm.is_active,
+        company_name:   modalForm.company_name,
+        company_email:  modalForm.company_email,
+        contact_person: modalForm.contact_person,
+        contact_number: modalForm.contact_number,
+        gst_number:     modalForm.gst_number,
+        address:        modalForm.address,
+        state:          modalForm.state,
+        district:       modalForm.district,
+        is_active:      modalForm.is_active,
       });
       if (res?.status === 200 || res?.status === 201) {
         window.alert(res.data.message || 'Company updated!');
@@ -447,23 +524,24 @@ export default function CompanyListing() {
         {/* Table */}
         <div className="border border-slate-200 rounded-2xl bg-white shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80">
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Company</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Licenses</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">License Action</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                <tr className="border-b-2 border-slate-200 bg-slate-50">
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Company ID</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Company</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">License Units</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Status</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Validity</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">License Action</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <TableSkeleton columns={['w-40', 'w-28', 'w-16', 'w-20', 'w-24', 'w-16']} />
+                  <TableSkeleton columns={['w-40', 'w-20', 'w-16', 'w-20', 'w-24', 'w-24', 'w-16']} />
                 ) : filteredCompanies.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-4 py-10 text-center">
+                    <td colSpan="7" className="px-4 py-10 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Building2 size={20} className="text-slate-300" />
                         <p className="text-sm text-slate-400">{search ? 'No companies match your search' : 'No companies found'}</p>
@@ -471,17 +549,31 @@ export default function CompanyListing() {
                     </td>
                   </tr>
                 ) : filteredCompanies.map(company => {
-                  const isPending    = company.authentication_status === 'Pending';
-                  const isValidating = company.authentication_status === 'Validating';
+                  const authStatus   = company.authentication_status;
+                  const isApproved   = authStatus === 'Approve';
+                  const isValidating = authStatus === 'Validating';
+                  const hasConfigErr = !!company.error_message;
                   const hasCompanyId = company.company_id != null;
                   const registering  = registeringLicense[company.id];
                   const validating   = validatingLicense[company.id];
+                  const syncing      = syncingLicense[company.id];
                   const expired      = isExpired(company);
                   const initials     = (company.company_name || '??').slice(0, 2).toUpperCase();
 
+                  // Button state machine
+                  const showRegister    = !hasCompanyId;
+                  const showAuthenticate = hasCompanyId && !isApproved && !isValidating;
+                  const showSync         = hasCompanyId && isApproved && !expired && !hasConfigErr && company.client_type === 'direct';
+                  const showValidating   = isValidating;
+
                   return (
-                    <tr key={company.id} className="group hover:bg-slate-50/60 transition-colors">
-                      <td className="px-4 py-3">
+                    <tr key={company.id} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+                      <td className="px-5 py-4">
+                        <span className="text-base font-mono font-semibold text-slate-800 pl-2">
+                          {company.company_id ?? <span className="text-slate-400 font-sans font-normal text-sm">—</span>}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-2.5">
                           <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                             <span className="text-[11px] font-bold text-slate-600">{initials}</span>
@@ -492,20 +584,15 @@ export default function CompanyListing() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <IdCard size={12} className="text-slate-400 shrink-0" />
-                          <span className="text-sm text-slate-600 truncate">{company.contact_person}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          {company.number_of_licence || 0} {company.number_of_licence === 1 ? 'seat' : 'seats'}
+                      <td className="px-5 py-4">
+                        <span className="text-sm font-medium text-slate-700">
+                          {company.number_of_licences || 0}
+                          <span className="text-xs text-slate-400 font-normal ml-1">units</span>
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-4">
                         <div className="flex flex-col gap-1">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border w-fit ${
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border w-fit ${
                             company.is_active
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-slate-50 text-slate-500 border-slate-200'
@@ -513,40 +600,75 @@ export default function CompanyListing() {
                             <span className={`w-1.5 h-1.5 rounded-full ${company.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                             {company.is_active ? 'Active' : 'Inactive'}
                           </span>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border w-fit ${getStatusStyle(company.authentication_status)}`}>
-                            {company.authentication_status || 'Pending'}
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border w-fit ${getStatusStyle(authStatus)}`}>
+                            {authStatus || 'Pending'}
                           </span>
-                          {company.authentication_status === 'Approve' && company.product_to_date && (
-                            <p className={`text-[10px] ${expired ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>
-                              {expired ? 'Expired ' : 'Valid till '}
-                              {new Date(company.product_to_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                            </p>
+                          {hasConfigErr && (
+                            <p className="text-xs text-amber-700 font-medium">⚠ Config error</p>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        {!hasCompanyId ? (
-                          <button onClick={() => handleRegisterLicense(company.id)} disabled={registering}
-                            className="text-[11px] font-medium bg-slate-900 text-white px-2.5 py-1 rounded-md hover:bg-slate-700 transition disabled:opacity-50 cursor-pointer">
-                            {registering ? 'Registering…' : 'Register'}
-                          </button>
-                        ) : isPending || expired ? (
-                          <button onClick={() => handleValidateLicense(company.id)} disabled={validating}
-                            className={`text-[11px] font-medium px-2.5 py-1 rounded-md transition disabled:opacity-50 cursor-pointer ${
-                              expired ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-slate-900 hover:bg-slate-700 text-white'
-                            }`}>
-                            {validating ? 'Starting…' : expired ? 'Revalidate' : 'Validate'}
-                          </button>
-                        ) : isValidating ? (
-                          <span className="text-[11px] text-slate-400 animate-pulse">Validating…</span>
+                      <td className="px-5 py-4">
+                        {company.product_from_date && company.product_to_date ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-slate-500">
+                              {new Date(company.product_from_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                            <span className={`text-sm font-medium ${expired ? 'text-red-600' : 'text-slate-700'}`}>
+                              {new Date(company.product_to_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
                         ) : (
-                          <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
-                            <CheckCircle2 size={12} /> Active
-                          </span>
+                          <span className="text-sm text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col gap-1">
+                          {showRegister && (
+                            <button onClick={() => handleRegisterLicense(company.id)} disabled={registering}
+                              className="text-xs font-medium bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition disabled:opacity-50 cursor-pointer">
+                              {registering ? 'Registering…' : 'Register'}
+                            </button>
+                          )}
+                          {showAuthenticate && (
+                            <button onClick={() => handleValidateLicense(company.id)} disabled={validating}
+                              className={`text-xs font-medium px-4 py-2 rounded-lg transition disabled:opacity-50 cursor-pointer ${
+                                expired ? 'bg-red-600 hover:bg-red-700 text-white' :
+                                hasConfigErr ? 'bg-amber-600 hover:bg-amber-700 text-white' :
+                                'bg-slate-900 hover:bg-slate-700 text-white'
+                              }`}>
+                              {validating ? 'Starting…' : expired ? 'Re-authenticate' : hasConfigErr ? 'Retry Auth' : 'Authenticate'}
+                            </button>
+                          )}
+                          {showSync && (
+                            <button onClick={() => handleSyncLicense(company)} disabled={syncing}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition disabled:opacity-50 cursor-pointer">
+                              {syncing ? <><svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Fetching…</> : <><RefreshCw size={13} /> Sync License</>}
+                            </button>
+                          )}
+                          {showValidating && (
+                            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold animate-pulse">
+                              <svg className="h-3 w-3 shrink-0 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                              </svg>
+                              Validating…
+                            </span>
+                          )}
+                          {isApproved && !showSync && !isValidating && !expired && company.client_type !== 'direct' && (
+                            <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                              <CheckCircle2 size={12} /> Active
+                            </span>
+                          )}
+                          {isApproved && !expired && company.client_type === 'direct' && !showSync && (
+                            <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium">
+                              <CheckCircle2 size={12} /> Active
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-end gap-0.5">
                           <button onClick={() => openView(company)} title="View"
                             className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors">
                             <Eye size={14} />
@@ -597,15 +719,23 @@ export default function CompanyListing() {
                   </div>
                 </div>
 
+                {/* Config error banner */}
+                {c.error_message && (
+                  <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800">
+                    <AlertCircle size={13} className="mt-0.5 shrink-0 text-amber-600" />
+                    {c.error_message}
+                  </div>
+                )}
+
                 {/* Info grid */}
                 <div className="grid grid-cols-2 gap-3">
                   {[
                     { label: 'Contact Person', value: c.contact_person },
                     { label: 'Contact Number', value: c.contact_number ? `+91 ${c.contact_number}` : '—' },
                     { label: 'GST Number',      value: c.gst_number || '—' },
-                    { label: 'Licenses',         value: `${c.number_of_licence || 0} seats` },
+                    { label: 'Company ID',       value: c.company_id ? `#${c.company_id}` : 'Not registered' },
+                    { label: 'Valid From',        value: c.product_from_date ? new Date(c.product_from_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
                     { label: 'Valid Till',        value: c.product_to_date ? new Date(c.product_to_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
-                    { label: 'Company ID',        value: c.company_id ? `#${c.company_id}` : 'Not registered' },
                   ].map(({ label, value }) => (
                     <div key={label} className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
@@ -614,13 +744,34 @@ export default function CompanyListing() {
                   ))}
                 </div>
 
+                {/* License capacity breakdown */}
+                {(c.number_of_licences > 0 || c.palmtec_count > 0 || c.total_user_count > 0) && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-2">License Allocation</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: 'Total Licensed Units', value: c.number_of_licences || 0 },
+                        { label: 'Palmtec Devices',       value: c.palmtec_count || 0 },
+                        { label: 'Total User Slots',      value: c.total_user_count || 0 },
+                        { label: 'Premium Slots',         value: c.premium_user_count || 0 },
+                        { label: 'Intermediate Slots',    value: c.intermediate_user_count || 0 },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">{label}</p>
+                          <p className="text-lg font-bold text-blue-800">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Address */}
-                {(c.address || c.city || c.state) && (
+                {(c.address || c.state) && (
                   <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Address</p>
                     <div className="flex items-start gap-1.5 text-sm text-slate-700">
                       <MapPin size={13} className="text-slate-400 mt-0.5 shrink-0" />
-                      <span>{[c.address, c.address_2, c.city, c.district, c.state, c.zip_code].filter(Boolean).join(', ')}</span>
+                      <span>{[c.address, c.district, c.state].filter(Boolean).join(', ')}</span>
                     </div>
                   </div>
                 )}
@@ -669,17 +820,12 @@ export default function CompanyListing() {
               ))}
             </div>
 
-            {[{ label: 'Address Line 1', name: 'address', required: true }, { label: 'Address Line 2', name: 'address_2', hint: 'Optional' }].map(f => (
-              <div key={f.name} className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-700">
-                  {f.label}{f.required && <span className="text-red-500 ml-0.5">*</span>}
-                  {f.hint && <span className="ml-1 text-xs text-slate-400 font-normal">— {f.hint}</span>}
-                </label>
-                <textarea name={f.name} value={modalForm[f.name] || ''} onChange={handleModalInputChange}
-                  rows={2} required={f.required}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
-              </div>
-            ))}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-700">Address <span className="text-red-500">*</span></label>
+              <textarea name="address" value={modalForm.address || ''} onChange={handleModalInputChange}
+                rows={2} required
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -699,13 +845,6 @@ export default function CompanyListing() {
                   {(statesDistricts[modalForm.state] || []).map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
-              {[{ label: 'City', name: 'city', required: true }, { label: 'Zip Code', name: 'zip_code', required: true }].map(f => (
-                <div key={f.name} className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">{f.label}<span className="text-red-500 ml-0.5">*</span></label>
-                  <input type="text" name={f.name} value={modalForm[f.name] || ''} onChange={handleModalInputChange} required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
-                </div>
-              ))}
             </div>
 
             <label className="flex items-center gap-3 cursor-pointer">
@@ -732,6 +871,53 @@ export default function CompanyListing() {
               </button>
             </div>
           </form>
+        </ModalWrapper>
+
+        {/* Sync License Modal */}
+        <ModalWrapper open={!!syncModal} onClose={() => !syncConfirming && setSyncModal(null)} title="Sync License Data" icon={RefreshCw} width="max-w-xl">
+          {syncModal && (() => {
+            const d = syncModal.data;
+            const hasError = !!d?.error;
+            return (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Showing latest data from the license server for <strong>{syncModal.companyName}</strong>.
+                  Review the changes before applying.
+                </p>
+
+                {hasError && (
+                  <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-800">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-500" />
+                    <span>{d.error}</span>
+                  </div>
+                )}
+
+                {!hasError && d && (
+                  <div className="space-y-2">
+                    <DiffRow label="Total Licensed Units" current={d.current?.number_of_licences} incoming={d.incoming?.number_of_licences} />
+                    <DiffRow label="Palmtec Devices" current={d.current?.palmtec_count} incoming={d.incoming?.palmtec_count} inUse={d.in_use?.palmtec_devices_allocated} />
+                    <DiffRow label="Total User Slots" current={d.current?.total_user_count} incoming={d.incoming?.total_user_count} inUse={d.in_use?.active_sessions_total} />
+                    <DiffRow label="Premium User Slots" current={d.current?.premium_user_count} incoming={d.incoming?.premium_user_count} inUse={d.in_use?.active_sessions_premium} />
+                    <DiffRow label="Intermediate User Slots" current={d.current?.intermediate_user_count} incoming={d.incoming?.intermediate_user_count} inUse={d.in_use?.active_sessions_intermediate} />
+                    <DiffRow label="Valid Till" current={d.current?.product_to_date} incoming={d.incoming?.product_to_date} />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  <button onClick={() => setSyncModal(null)} disabled={syncConfirming}
+                    className="flex-1 inline-flex items-center justify-center h-9 px-4 text-sm rounded-lg font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button onClick={handleSyncConfirm} disabled={syncConfirming || hasError}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-4 text-sm rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white cursor-pointer transition-colors disabled:opacity-50">
+                    {syncConfirming
+                      ? <><svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Applying…</>
+                      : <><RefreshCw size={13} /> Apply Sync</>}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </ModalWrapper>
       </div>
     );
@@ -847,7 +1033,7 @@ export default function CompanyListing() {
             </div>
           )}
 
-          {/* Form steps — shown for 'new' mode OR after import confirm */}
+          {/* Form steps */}
           {(createMode === 'new' || (createMode === 'import' && importStep === 'confirm')) && (
             <form onSubmit={handleCreateSubmit}>
               {/* Step 1: Company Identity */}
@@ -875,24 +1061,25 @@ export default function CompanyListing() {
                 </div>
               </SectionCard>
 
-              {/* Step 2: Registered Address */}
-              <SectionCard step={2} active={sec1} complete={sec2} title="Registered Address" subtitle="Primary location — used for license certificate and invoices.">
+              {/* Step 2: Address */}
+              <SectionCard step={2} active={sec1} complete={sec2} title="Registered Address" subtitle="Primary location details.">
                 <div className="space-y-4">
-                  <Field label="Address Line 1" required>
+                  <Field label="Address" required>
                     <textarea value={form.address} onChange={e => set('address', e.target.value)} rows={2} placeholder="Street, area, landmark…"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
-                  </Field>
-                  <Field label="Address Line 2" hint="Optional">
-                    <textarea value={form.address_2} onChange={e => set('address_2', e.target.value)} rows={2}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
                   </Field>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Field label="State" required>
-                      <select value={form.state} onChange={e => set('state', e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white">
-                        <option value="">Select state…</option>
-                        {Object.keys(statesDistricts).sort().map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                      {isExecutive ? (
+                        <input value={executiveState} readOnly
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-600 cursor-not-allowed" />
+                      ) : (
+                        <select value={form.state} onChange={e => set('state', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white">
+                          <option value="">Select state…</option>
+                          {Object.keys(statesDistricts).sort().map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      )}
                     </Field>
                     <Field label="District" required>
                       <select value={form.district} onChange={e => set('district', e.target.value)} disabled={!form.state}
@@ -901,46 +1088,63 @@ export default function CompanyListing() {
                         {(statesDistricts[form.state] || []).map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </Field>
-                    <Field label="City" required>
-                      <input value={form.city} onChange={e => set('city', e.target.value)} placeholder="City" className={inputCls} />
-                    </Field>
-                    <Field label="Zip Code" required>
-                      <input value={form.zip_code} onChange={e => set('zip_code', e.target.value)} placeholder="515001" className={inputCls} />
-                    </Field>
                   </div>
                 </div>
               </SectionCard>
 
               {/* Step 3: User Account */}
               <SectionCard step={3} active={sec2} complete={sec3} title="Admin User Account" subtitle="Login credentials for the company admin.">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:items-end">
                   <Field label="Username" required>
                     <div className="flex gap-0">
                       <span className="inline-flex items-center px-3 text-sm text-slate-500 bg-slate-50 border border-r-0 border-slate-300 rounded-l-lg"><User size={13} /></span>
                       <input value={form.user_username} onChange={e => set('user_username', e.target.value.toLowerCase())} placeholder="acme-admin"
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
                     </div>
                   </Field>
                   <Field label="Login Email" required>
                     <div className="flex gap-0">
                       <span className="inline-flex items-center px-3 text-sm text-slate-500 bg-slate-50 border border-r-0 border-slate-300 rounded-l-lg"><Mail size={13} /></span>
                       <input type="email" value={form.user_email} onChange={e => set('user_email', e.target.value)} placeholder="admin@acme.in"
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
                     </div>
                   </Field>
                   <Field label="Temporary Password" required hint="Min 8 chars">
                     <div className="flex gap-0">
                       <span className="inline-flex items-center px-3 text-sm text-slate-500 bg-slate-50 border border-r-0 border-slate-300 rounded-l-lg"><KeyRound size={13} /></span>
                       <input type="text" value={form.user_password} onChange={e => set('user_password', e.target.value)} placeholder="—"
-                        className="flex-1 px-3 py-2 border border-slate-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
+                        className="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-r-lg text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white" />
                     </div>
                   </Field>
                 </div>
-                <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2.5 text-xs text-blue-700">
-                  <AlertCircle size={13} className="mt-0.5 shrink-0 text-blue-500" />
-                  <span>An invite email will be sent to <strong>{form.user_email || 'the admin'}</strong> on save.</span>
+                <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2.5 text-xs text-amber-700">
+                  <Info size={13} className="mt-0.5 shrink-0 text-amber-500" />
+                  <span>This admin account is <strong>not counted against the allocated licensed user slots</strong>. It provides management access to the company dashboard and is excluded from all login slot caps.</span>
                 </div>
               </SectionCard>
+
+              {/* Step 4: Pool Allocation — dealer_admin only */}
+              {isDealerAdmin && createMode === 'new' && (
+                <SectionCard step={4} active={sec3} complete={sec4} title="Pool Allocation" subtitle="Deduct from your license pool — cannot exceed your remaining balance.">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="ETM Devices" required hint="palmtec_count">
+                      <input type="number" min="0" value={form.palmtec_count} onChange={e => set('palmtec_count', e.target.value)} placeholder="0" className={inputCls} />
+                    </Field>
+                    <Field label="Total Users" required hint="max concurrent logins">
+                      <input type="number" min="1" value={form.total_user_count} onChange={e => set('total_user_count', e.target.value)} placeholder="0" className={inputCls} />
+                    </Field>
+                    <Field label="Premium User Slots" hint="optional">
+                      <input type="number" min="0" value={form.premium_user_count} onChange={e => set('premium_user_count', e.target.value)} placeholder="0" className={inputCls} />
+                    </Field>
+                    <Field label="Intermediate User Slots" hint="optional">
+                      <input type="number" min="0" value={form.intermediate_user_count} onChange={e => set('intermediate_user_count', e.target.value)} placeholder="0" className={inputCls} />
+                    </Field>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">
+                    These counts are deducted from your pool immediately on save and restored if the company is deleted.
+                  </p>
+                </SectionCard>
+              )}
 
               {/* Bottom actions */}
               <div className="flex items-center justify-between mt-2">
@@ -965,6 +1169,7 @@ export default function CompanyListing() {
               { label: 'Company identity', done: sec1 },
               { label: 'Registered address', done: sec2 },
               { label: 'Admin user account', done: sec3 },
+              ...(isDealerAdmin && createMode === 'new' ? [{ label: 'Pool allocation', done: sec4 }] : []),
             ]} />
             <TipCard />
           </div>

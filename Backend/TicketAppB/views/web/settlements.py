@@ -4,27 +4,26 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from django.utils import timezone as tz
 from rest_framework import status
-from ...models import TransactionData, Company, MosambeeTransaction, MosambeePayoutCallback
+from ...models import TransactionData, Company, MosambeeTransaction, MosambeePayoutCallback, UserRole
 from django.http import HttpResponse, JsonResponse
-from .auth import get_user_from_cookie
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from ...serializers.payments import MosambeeTransactionSerializer, SettlementVerificationSerializer
 import json
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from ...permissions import LicensePermission
 from django.db.models import Count, Sum, Q
-import hashlib
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def get_payout_data(request):
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
 
-    if user.role not in ['company_admin', 'depot_admin', 'admin', 'super_admin']:
+    if user.role != UserRole.COMPANY_ADMIN:
         return Response({'error': 'Insufficient permissions'}, status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -39,6 +38,7 @@ def get_payout_data(request):
         to_dt = datetime.strptime(to_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=IST)
 
         payouts = list(MosambeePayoutCallback.objects.filter(
+            company=user.company,
             payoutDate__gte=from_dt,
             payoutDate__lte=to_dt,
         ).order_by('-payoutDate')[:200])
@@ -92,10 +92,11 @@ def get_payout_data(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def get_settlement_data(request):
     """
     Fetch Mosambee payment transactions for settlement verification.
-    
+
     Query Parameters:
     - from_date: Start date (YYYY-MM-DD) - required
     - to_date: End date (YYYY-MM-DD) - required
@@ -103,12 +104,9 @@ def get_settlement_data(request):
     - reconciliation_status: Filter by reconciliation status (optional)
     - payment_status: 'approved' or 'declined' (optional)
     """
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
     
-    # Check if user has permission (manager/admin only)
-    if user.role not in ['company_admin','depot_admin', 'admin', 'super_admin']:
+    if user.role != UserRole.COMPANY_ADMIN:
         return Response({'error': 'Insufficient permissions'}, status=status.HTTP_403_FORBIDDEN)
     
     try:
@@ -121,10 +119,11 @@ def get_settlement_data(request):
         
         # Base queryset
         queryset = MosambeeTransaction.objects.filter(
+            company=user.company,
             transaction_date__gte=from_date,
-            transaction_date__lte=to_date
+            transaction_date__lte=to_date,
         )
-        
+
         # Filter by verification status
         verification_status = request.GET.get('verification_status')
         if verification_status and verification_status != 'ALL':
@@ -165,10 +164,11 @@ def get_settlement_data(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def verify_settlement(request):
     """
     Manager verifies/rejects a settlement transaction.
-    
+
     Request body:
     {
         "transaction_id": 123,
@@ -176,14 +176,9 @@ def verify_settlement(request):
         "verification_notes": "Optional notes"
     }
     """
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({
-            'error': 'Authentication required'
-        }, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
     
-    # Check permissions
-    if user.role not in ['company_admin', 'depot_admin','admin', 'super_admin']:
+    if user.role != UserRole.COMPANY_ADMIN:
         return Response({'error': 'Insufficient permissions'}, status=status.HTTP_403_FORBIDDEN)
     
     try:
@@ -233,19 +228,18 @@ def verify_settlement(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def get_settlement_summary(request):
     """
     Get summary statistics for settlement verification dashboard.
-    
+
     Query Parameters:
     - from_date: Start date (YYYY-MM-DD) - required
     - to_date: End date (YYYY-MM-DD) - required
     """
-    user = get_user_from_cookie(request)
-    if not user:
-        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
     
-    if user.role not in ['company_admin','depot_admin', 'admin', 'super_admin']:
+    if user.role != UserRole.COMPANY_ADMIN:
         return Response({'error': 'Insufficient permissions'}, status=status.HTTP_403_FORBIDDEN)
     
     try:
@@ -257,10 +251,11 @@ def get_settlement_summary(request):
 
         # Base queryset
         queryset = MosambeeTransaction.objects.filter(
+            company=user.company,
             transaction_date__gte=from_date,
-            transaction_date__lte=to_date
+            transaction_date__lte=to_date,
         )
-        
+
         APPROVED_CODES = ['0', '00', '000']
         VS = MosambeeTransaction.VerificationStatus
         RS = MosambeeTransaction.ReconciliationStatus

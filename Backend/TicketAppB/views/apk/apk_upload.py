@@ -8,9 +8,10 @@ from django.conf import settings
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.utils import timezone
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
-from ..web.auth import get_user_from_cookie
+from ...permissions import LicensePermission
 
 logger = logging.getLogger('ticket.palmtec')
 
@@ -49,7 +50,7 @@ def _parse_expense_dat(file_path, company_instance, palmtec_id=None):
         try:
             exp_date     = date(year + 2000, month, day)
             exp_time     = dt_time(hour, minutes)
-            exp_datetime = datetime.combine(exp_date, exp_time)
+            exp_datetime = timezone.make_aware(datetime.combine(exp_date, exp_time))
         except ValueError:
             continue
 
@@ -134,10 +135,10 @@ def _parse_odometer_dat(file_path, company_instance, palmtec_id=None):
         try:
             start_date     = date(syear + 2000, smonth, sday)
             start_time     = dt_time(shour, smin)
-            start_datetime = datetime.combine(start_date, start_time)
+            start_datetime = timezone.make_aware(datetime.combine(start_date, start_time))
             end_date       = date(eyear + 2000, emonth, eday) if eyear else None
             end_time       = dt_time(ehour, emin) if eyear else None
-            end_datetime   = datetime.combine(end_date, end_time) if end_date and end_time else None
+            end_datetime   = timezone.make_aware(datetime.combine(end_date, end_time)) if end_date and end_time else None
         except ValueError:
             continue
 
@@ -192,10 +193,9 @@ def _parse_odometer_dat(file_path, company_instance, palmtec_id=None):
 
 # POST /ticket-app/apk/upload/odometer-dat
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def uploadOdometerDat(request):
-    user = get_user_from_cookie(request)
-    if not user:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user = request.user
 
     company = getattr(user, 'company', None)
     if not company:
@@ -231,10 +231,9 @@ def uploadOdometerDat(request):
 
 # POST /ticket-app/apk/upload/expense-dat
 @api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
 def uploadExpenseDat(request):
-    user = get_user_from_cookie(request)
-    if not user:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    user = request.user
 
     company = getattr(user, 'company', None)
     if not company:

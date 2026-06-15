@@ -6,7 +6,6 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import './index.css'
 
 import Login from './pages/auth/Login'
-import Signup from './pages/auth/Signup'
 import Dashboard from './layouts/Dashboard'
 import RoleBasedHome from './components/RoleBasedHome'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -21,7 +20,6 @@ import RouteListing from './pages/listings/RouteListing'
 import EmployeeCombined from './pages/listings/EmployeeCombined'
 
 import CrewAssignmentListing from './pages/operations/CrewAssignmentListing'
-import DeviceApprovals from './pages/operations/DeviceApprovals'
 import DeviceRegistry from './pages/operations/DeviceRegistry'
 import FareEditor from './pages/operations/FareEditor'
 import StageEditor from './pages/operations/StageEditor'
@@ -39,19 +37,31 @@ import MdbImport from './pages/tools/MdbImport'
 import SettingsPage from './pages/tools/SettingsPage'
 import DeviceDownload from './pages/tools/DeviceDownload'
 import FailedPayloadsPage from './pages/tools/FailedPayloadsPage'
+import GhostRecordsPage from './pages/tools/GhostRecordsPage'
+import AuditLogPage from './pages/tools/AuditLogPage'
+import AboutPage from './pages/tools/AboutPage'
+import GlobalSettingsPage from './pages/tools/GlobalSettingsPage'
+
+import SessionsPage from './pages/tools/SessionsPage'
+import PalmtecDevicesPage from './pages/operations/PalmtecDevicesPage'
+import AdminSessionsPage from './pages/tools/AdminSessionsPage'
+
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPassword from './pages/auth/ResetPassword'
 
 // Catch-all: hard-redirect based on auth state
 function SmartRedirect() {
+  const base = import.meta.env.BASE_URL;
   const userStr = localStorage.getItem('user');
   if (userStr) {
     try {
       const role = JSON.parse(userStr)?.role;
-      window.location.replace(role === 'production' ? '/dashboard/device-registry' : '/dashboard');
+      window.location.replace(role === 'production' ? `${base}dashboard/device-registry` : `${base}dashboard`);
     } catch {
-      window.location.replace('/login');
+      window.location.replace(`${base}login`);
     }
   } else {
-    window.location.replace('/login');
+    window.location.replace(`${base}login`);
   }
   return null;
 }
@@ -66,12 +76,16 @@ const router = createBrowserRouter([
     element: <Navigate to="/login" replace />
   },
   {
-    path: '/signup',
-    element: <Signup />
-  },
-  {
     path: '/login',
     element: <Login />
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPassword />
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPassword />
   },
   {
     element: <ProtectedRoute />,
@@ -122,10 +136,6 @@ const router = createBrowserRouter([
             element: <DealerListing />
           },
           {
-            path: 'device-approvals',
-            element: <DeviceApprovals />
-          },
-          {
             path: 'device-registry',
             element: <DeviceRegistry />
           },
@@ -170,12 +180,40 @@ const router = createBrowserRouter([
             element: <SettingsPage />
           },
           {
+            path: 'palmtec-devices',
+            element: <PalmtecDevicesPage />
+          },
+          {
             path: 'device-download',
             element: <DeviceDownload />
           },
           {
             path: 'failed-payloads',
             element: <FailedPayloadsPage />
+          },
+          {
+            path: 'ghost-records',
+            element: <GhostRecordsPage />
+          },
+          {
+            path: 'audit-logs',
+            element: <AuditLogPage />
+          },
+          {
+            path: 'about',
+            element: <AboutPage />
+          },
+          {
+            path: 'global-settings',
+            element: <GlobalSettingsPage />
+          },
+          {
+            path: 'sessions',
+            element: <SessionsPage />
+          },
+          {
+            path: 'admin-sessions',
+            element: <AdminSessionsPage />
           },
         ]
       }

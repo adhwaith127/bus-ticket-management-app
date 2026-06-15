@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from django.utils import timezone as tz
 from rest_framework import status
-from ...models import TransactionData, Company, MosambeeTransaction, MosambeePayoutCallback
+from ...models import TransactionData, Company, MosambeeTransaction, MosambeePayoutCallback, ETMDevice
 from django.http import HttpResponse, JsonResponse
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
@@ -19,6 +19,22 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 logger_txn = logging.getLogger('mosambee.transactions')
 logger_payout = logging.getLogger('mosambee.payouts')
+
+
+def _resolve_company_for_mosambee(terminal_id, narration):
+    if terminal_id:
+        device = ETMDevice.objects.filter(mosambee_tid=terminal_id).select_related('company').first()
+        if device and device.company_id:
+            return device.company
+    if narration and len(narration) >= 5:
+        try:
+            palmtec_int = int(narration[-5:])
+            device = ETMDevice.objects.filter(palmtec_id=palmtec_int).select_related('company').first()
+            if device and device.company_id:
+                return device.company
+        except ValueError:
+            pass
+    return None
 
 
 @csrf_exempt
@@ -58,17 +74,19 @@ def mosambee_settlement_data(request):
         address_line1 = data.get('addressLine1')
         address_line2 = data.get('addressLine2')
         
-        # Location fields
-        transaction_lat = data.get('transactionLat')
-        transaction_long = data.get('transactionLong')
+        # Location fields — convert empty string to None for DecimalField
+        transaction_lat = data.get('transactionLat') or None
+        transaction_long = data.get('transactionLong') or None
         
         # Other transaction details
         transaction_stan = data.get('transactionSTAN')
         transaction_auth_code = data.get('transactionAuthCode')
-        transaction_batch_number = data.get('transactionBatchNumber')
+        raw_batch = data.get('transactionBatchNumber')
+        transaction_batch_number = None if raw_batch == '' else raw_batch
         currency_id = data.get('currencyId', '1')
         narration = data.get('narration')
-        transaction_type_id = data.get('transactionTypeId', 0)
+        raw_type_id = data.get('transactionTypeId', 0)
+        transaction_type_id = 0 if raw_type_id == '' else raw_type_id
         transaction_type_name = data.get('transactionTypeName')
         
         # Bank/Gateway fields
@@ -151,11 +169,19 @@ def mosambee_settlement_data(request):
             # Parse time: "19:43:03" → time object
             transaction_time = datetime.strptime(transaction_time_str, '%H:%M:%S').time()
             # Combine into full datetime
-            transaction_datetime = datetime.combine(transaction_date, transaction_time)
+            transaction_datetime = tz.make_aware(datetime.combine(transaction_date, transaction_time))
             
         except ValueError as e:
             logger_txn.error("Invalid date/time format: %s | request: %s", e, data)
             return JsonResponse({'status': 400,'message': f'Invalid date/time format: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Resolve company via terminal ID or bqrMerchantId (last 5 = palmtec_id)
+        company = _resolve_company_for_mosambee(terminal_id, narration)
+        if company is None:
+            logger_txn.warning(
+                "Company unresolvable for transactionID=%s terminalId=%s narration=%s",
+                transaction_id, terminal_id, narration,
+            )
 
         # save data to db if all okay
         transaction = MosambeeTransaction.objects.create(
@@ -237,7 +263,9 @@ def mosambee_settlement_data(request):
             
             # Store raw data for auditing
             raw_request_data=data,
-            
+
+            company=company,
+
             # Set initial statuses
             processing_status=MosambeeTransaction.ProcessingStatus.VALIDATED,
             verification_status=MosambeeTransaction.VerificationStatus.UNVERIFIED,
@@ -255,6 +283,7 @@ def mosambee_settlement_data(request):
         return JsonResponse(response_data,status=status.HTTP_200_OK)
 
     except Exception as e:
+        logger.exception("Unhandled exception in mosambee_settlement_data: %s", e)
         logger_txn.exception("Unhandled exception in mosambee_settlement_data: %s", e)
         return JsonResponse({'status': 500,'message': 'Data Entry failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -309,6 +338,32 @@ def mosambee_payout_callback(request):
             logger.info(f"Payout callback repost received for statementId: {statement_id}")
             return JsonResponse({'statusCode': '100'}, status=status.HTTP_200_OK)
 
+        # Resolve company from linked MosambeeTransaction rows (transactions arrive day before payout)
+        txn_ids = []
+        for txn in transactions:
+            raw = txn.get('transactionId') or txn.get('transactionID')
+            try:
+                txn_ids.append(int(raw))
+            except (TypeError, ValueError):
+                pass
+
+        payout_company = None
+        if txn_ids:
+            related = (
+                MosambeeTransaction.objects
+                .filter(transactionID__in=txn_ids, company__isnull=False)
+                .select_related('company')
+                .first()
+            )
+            if related:
+                payout_company = related.company
+
+        if payout_company is None:
+            logger_payout.warning(
+                "Company unresolvable for payout statementId=%s txn_ids=%s",
+                statement_id, txn_ids,
+            )
+
         payout = MosambeePayoutCallback.objects.create(
             statementId=statement_id,
             payoutAmount=payout_amount,
@@ -320,6 +375,7 @@ def mosambee_payout_callback(request):
             transactions=transactions,
             deductions=deductions,
             raw_request_data=data,
+            company=payout_company,
         )
 
         # Link each transaction in the payout to MosambeeTransaction

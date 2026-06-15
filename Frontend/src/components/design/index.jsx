@@ -168,7 +168,7 @@ export function DesignModal({ open, onClose, title, icon: Icon, children, width 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${width} max-h-[85vh] overflow-y-auto`}>
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${width} max-h-[85vh] overflow-y-auto overflow-x-hidden`}>
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2 text-slate-800">
             {Icon && <Icon size={16} className="text-slate-600" />}
@@ -252,23 +252,7 @@ export function DesignInput({ value, onChange, type = 'text', placeholder, disab
   );
 }
 
-export function DesignSelect({ value, onChange, options, placeholder, disabled }) {
-  return (
-    <select
-      value={value ?? ''}
-      onChange={e => onChange(e.target.value)}
-      disabled={disabled}
-      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 disabled:bg-slate-50 disabled:cursor-not-allowed"
-    >
-      {placeholder && <option value="">{placeholder}</option>}
-      {options.map(o => (
-        typeof o === 'string'
-          ? <option key={o} value={o}>{o}</option>
-          : <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  );
-}
+
 
 export function DesignTextarea({ value, onChange, placeholder, rows = 3, readOnly, name }) {
   return (

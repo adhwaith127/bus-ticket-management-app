@@ -1,21 +1,55 @@
-import secrets
-from django.utils import timezone
+"""
+Auth views
+==========
+Cookie name: pqr_session (single HttpOnly cookie — no access_token,
+             refresh_token, or session_uid cookies).
+
+request.user and request.auth (session_uid) are set by
+TicketAppB.authentication.SessionAuthentication for all authenticated views.
+
+Login check order:
+  1.  Input validation
+  2.  Credentials + is_active
+  3.  Entity checks (company/dealer active, license valid)
+  4.  Platform restriction (superadmin/company_admin cannot use APK)
+  5.  Device approval check (APK + company_user only)
+  6.  Session conflict check — returns SESSION_CONFLICT or kills old session
+      if force_login=True, inside atomic block with select_for_update
+  7.  Tier / concurrent session cap (company_user only)
+  8.  Create UserSession (DB + Redis)
+  9.  Issue pqr_session cookie
+  10. Side effects (last_login, audit log, notifications)
+"""
+
+import uuid
+import logging
+
 from django.db import transaction
-from datetime import date, timedelta
+from django.utils import timezone
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.contrib.auth import get_user_model, authenticate
+from django.conf import settings
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from rest_framework_simplejwt.exceptions import TokenError
-from django.contrib.auth import get_user_model, authenticate
-from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
-from ...models import Company, UserDeviceMapping
-from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
-# Slots not refreshed within this window are treated as expired (handles app crashes / force-kills)
-DEVICE_SESSION_TTL_HOURS = getattr(settings, "DEVICE_SESSION_TTL_HOURS", 24)
+from ...models import Company, UserSession, AuditLog, UserApprovedDevice, DevicePendingApproval, UserTier
+from ...authentication import (
+    set_session_cache, delete_session_cache, set_session_revoked,
+    kill_session, session_key_exists, get_session_timeout, SessionInfo, COOKIE_NAME,
+)
+from .audit_logs import log_action
 
+logger = logging.getLogger(__name__)
+_token_generator = PasswordResetTokenGenerator()
 User = get_user_model()
 
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 # Source - https://stackoverflow.com/a/5976065
 # Posted by Sævar
@@ -23,494 +57,527 @@ User = get_user_model()
 def _get_client_ip(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[-1].strip()
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+        return x_forwarded_for.split(',')[-1].strip()
+    return request.META.get('REMOTE_ADDR')
 
 
-# Device Type Detection
-# Purpose: Classify device from user agent string.
-# NOTE: This is now used only for STORING device info,
-#       NOT for deciding which login flow to enter.
-def _classify_device_type(user_agent):
-    agent = (user_agent or "").lower()
-    if "android" in agent:
-        return UserDeviceMapping.DeviceType.ANDROID
-    if "iphone" in agent or "ipad" in agent or "ios" in agent:
-        return UserDeviceMapping.DeviceType.IOS
-    if any(token in agent for token in ["mobile", "opera mini", "blackberry", "iemobile"]):
-        return UserDeviceMapping.DeviceType.WEB_MOBILE
-    if agent:
-        return UserDeviceMapping.DeviceType.WEB_DESKTOP
-    return UserDeviceMapping.DeviceType.UNKNOWN
+def _is_apk_request(request):
+    if hasattr(request, 'data') and isinstance(request.data, dict):
+        hint = str(request.data.get('device_type', '')).lower()
+        return hint in ('android', 'ios')
+    return False
 
 
-# Device Mapping Helpers
-# Purpose: Create, update, and count device mappings.
-def _get_active_device_count_for_company(company, exclude_device_uid=None):
-    """
-    Count how many APPROVED + is_active mappings exist
-    across all users of a given company.
-    Slots where last_seen_at has passed DEVICE_SESSION_TTL_HOURS are
-    excluded — they are considered stale (app crashed / force-killed).
-    Optionally exclude a specific device_uid (for re-login checks).
-    """
-    cutoff = timezone.now() - timedelta(hours=DEVICE_SESSION_TTL_HOURS)
-    qs = UserDeviceMapping.objects.filter(
-        user__company=company,
-        status=UserDeviceMapping.DeviceStatus.APPROVED,
-        is_active=True,
-        last_seen_at__gte=cutoff,
-    )
-    if exclude_device_uid:
-        qs = qs.exclude(device_uid=exclude_device_uid)
-    return qs.count()
+def _detect_device_type(request):
+    if hasattr(request, 'data') and isinstance(request.data, dict):
+        hint = str(request.data.get('device_type', '')).lower()
+        mapping = {
+            'android':     UserSession.DeviceType.ANDROID,
+            'ios':         UserSession.DeviceType.IOS,
+            'web_desktop': UserSession.DeviceType.WEB_DESKTOP,
+            'web_mobile':  UserSession.DeviceType.WEB_MOBILE,
+        }
+        if hint in mapping:
+            return mapping[hint]
+    ua = request.META.get('HTTP_USER_AGENT', '').lower()
+    if 'android' in ua:
+        return UserSession.DeviceType.ANDROID
+    if 'iphone' in ua or 'ipad' in ua:
+        return UserSession.DeviceType.IOS
+    if 'mobile' in ua:
+        return UserSession.DeviceType.WEB_MOBILE
+    return UserSession.DeviceType.WEB_DESKTOP
 
 
-def _create_pending_mapping(user, device_type, user_agent, device_uid):
-    """
-    Create a new device mapping with PENDING status and is_active=False.
-    Called when a device_uid is seen for the first time.
-    """
-    mapping = UserDeviceMapping.objects.create(
-        user=user,
-        username_snapshot=user.username,
-        device_uid=device_uid,
-        device_type=device_type,
-        user_agent=user_agent,
-        status=UserDeviceMapping.DeviceStatus.PENDING,
-        is_active=False,
-        last_seen_at=timezone.now(),
-    )
-    return mapping
 
-
-def _update_mapping_meta(mapping, user, device_type, user_agent):
-    """
-    Refresh the snapshot fields on an existing mapping on each login attempt.
-    """
-    mapping.last_seen_at = timezone.now()
-    mapping.username_snapshot = user.username
-    mapping.device_type = device_type
-    mapping.user_agent = user_agent
-    mapping.save(update_fields=[
-        "last_seen_at",
-        "username_snapshot",
-        "device_type",
-        "user_agent",
-        "updated_at",
-    ])
-
-
-# Token + Cookie Helpers
-# Purpose: Build JWT token responses and logout responses.
-def _build_token_response(user, company):
-    """
-    Generate JWT tokens and return a Response with cookies set.
-    """
-    refresh = RefreshToken.for_user(user)
-    access_token = str(refresh.access_token)
-    refresh_token = str(refresh)
-
+def _user_payload(user, company):
     valid_till = None
     if company and company.product_to_date:
-        valid_till = company.product_to_date.strftime("%d-%m-%Y")
+        valid_till = company.product_to_date.strftime('%d-%m-%Y')
+    return {
+        'id':             user.id,
+        'username':       user.username,
+        'email':          user.email,
+        'role':           user.role,
+        'tier':           user.tier,
+        'state':          user.state,
+        'is_verified':    user.is_verified,
+        'company_name':   company.company_name   if company else None,
+        'company_id':     company.company_id     if company else None,
+        'valid_till':     valid_till,
+        'license_status': company.authentication_status if company else None,
+    }
 
-    response = Response({
-        "message": "Login Successful",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "is_verified": user.is_verified,
-            "company_name": company.company_name if company else None,
-            "company_id": company.company_id if company else None,
-            "valid_till": valid_till,
-            "license_status": company.authentication_status if company else None,
-        }
-    })
 
+def _set_session_cookie(response, session_uid: str, device_type: str = 'web_desktop') -> None:
+    timeout = get_session_timeout(device_type)
+    # Add a 300s buffer so the cookie outlasts the frontend idle timer even when
+    # the last keepalive was sent up to 5 minutes before the user went idle.
     response.set_cookie(
-        key="access_token",
-        value=access_token,
+        key=COOKIE_NAME,
+        value=str(session_uid),
+        max_age=timeout + 300,
         httponly=True,
-        secure=not settings.DEBUG,        # HTTPS in production
-        samesite="Lax",
-        max_age=1800,
-        path="/",
+        secure=not settings.DEBUG,
+        samesite='Lax',
+        path='/',
     )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=not settings.DEBUG,        # HTTPS in production
-        samesite="Lax",
-        max_age=604800,
-        path="/",
-    )
-    return response
 
 
-def _build_logout_response(message):
-    response = Response({"message": message})
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
-    return response
+def _clear_session_cookie(response) -> None:
+    response.delete_cookie(COOKIE_NAME, path='/')
 
 
-# Auth Utility
-# Purpose: Extract and validate a user from cookie.
-def get_user_from_cookie(request):
-    """
-    Extract and validate access token from cookies.
-    Returns user object or None.
-    """
-    access_token = request.COOKIES.get("access_token")
-    if not access_token:
-        return None
-    try:
-        token = AccessToken(access_token)
-        user_id = token["user_id"]
-        user = User.objects.get(id=user_id)
-        return user
-    except (TokenError, User.DoesNotExist):
-        return None
+# ── Login ─────────────────────────────────────────────────────────────────────
 
-
-
-# Signup
-@api_view(["POST"])
-def signup_view(request):
-    if not request.data:
-        return Response({"error": "Invalid Input"}, status=status.HTTP_400_BAD_REQUEST)
-
-    username = request.data.get("username")
-    email = request.data.get("mailid")
-    role = request.data.get("role", "user")
-    password = request.data.get("password")
-    cpassword = request.data.get("cpassword")
-
-    if not username or not email or not password or not cpassword:
-        return Response({"error": "Fill out all the fields"}, status=status.HTTP_400_BAD_REQUEST)
-
-    if password != cpassword:
-        return Response({"error": "Passwords do not match"}, status=status.HTTP_400_BAD_REQUEST)
-
-    if User.objects.filter(username=username).exists():
-        return Response({"error": "Username already exists"}, status=status.HTTP_400_BAD_REQUEST)
-
-    if User.objects.filter(email=email).exists():
-        return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        user = User.objects.create_user(
-            username=username, email=email,
-            password=password, role=role, is_verified=True
-        )
-        return Response({
-            "message": "Account created successfully.",
-            "user": {
-                "username": user.username,
-                "email": user.email,
-                "role": user.role,
-            }
-        }, status=status.HTTP_201_CREATED)
-
-    except Exception:
-        return Response({"error": "Failed to create user"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# Login
-#
-# NEW FLOW (replaces the old user-agent-based gate):
-#
-#   Step 1 — Authenticate credentials
-#   Step 2 — Company license checks
-#   Step 3 — Classify device type (for storage/info only)
-#   Step 4 — Superadmin bypass (always skip device flow)
-#   Step 5 — Check if device_uid is present in the request
-#               YES → enter device approval flow (Steps 6–8)
-#               NO  → treat as browser, issue tokens directly
-#   Step 6 — Validate the device_uid (ownership + mapping)
-#   Step 7 — Check mapping status (PENDING / INACTIVE / APPROVED)
-#   Step 8 — Check active session slot count, then issue tokens
-#
-# WHY THIS IS BETTER:
-#   The old gate used user-agent to decide if a request was mobile.
-#   User-agent is unreliable (e.g. Dart sends "Dart/3.10 (dart:io)").
-#   Now the presence of device_uid is the trigger — only your mobile
-#   app sends it, making it a trustworthy signal regardless of framework.
-@api_view(["POST"])
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def login_view(request):
-    if not request.data:
-        return Response({"error": "Invalid request. No credentials provided"}, status=status.HTTP_400_BAD_REQUEST)
+    """
+    Full login flow — see module docstring for check order.
 
-    username = request.data.get("username")
-    password = request.data.get("password")
+    On SESSION_CONFLICT the response includes device_type and active_since so
+    the frontend can display a meaningful prompt. If the user chooses to proceed,
+    the frontend re-submits with force_login=True to kill the old session.
+    """
+    if not request.data:
+        return Response(
+            {'error': 'Invalid request. No credentials provided.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    username = request.data.get('username')
+    password = request.data.get('password')
 
     if not username or not password:
-        return Response({"error": "Please provide username and password"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {'error': 'Please provide username and password.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    # ── Step 1: Authenticate credentials ──
+    force_login = bool(request.data.get('force_login', False))
+
+    # ── 1+2: Credentials + is_active ─────────────────────────────────────────
     user = authenticate(username=username, password=password)
 
     if not user:
         try:
-            existing_user = User.objects.get(username=username)
-            if not existing_user.is_active:
-                return Response({"error": "Account is inactive. Contact administrator."}, status=status.HTTP_403_FORBIDDEN)
+            existing = User.objects.get(username=username)
+            if not existing.is_active:
+                return Response(
+                    {'error': 'Account is inactive. Contact administrator.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
         except User.DoesNotExist:
             pass
-        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(
+            {'error': 'Invalid credentials.'},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
     if not user.is_active:
-        return Response({"error": "Account is inactive"}, status=status.HTTP_403_FORBIDDEN)
+        return Response(
+            {'error': 'Account is inactive. Contact administrator.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
-    # ── Step 2: Entity active + license checks ──
+    # ── 3: Entity checks ──────────────────────────────────────────────────────
     company = user.company
     if company:
         if not company.is_active:
-            return Response({"error": "Company account is deactivated. Contact Administrator."}, status=status.HTTP_403_FORBIDDEN)
-
-        if company.product_to_date and date.today() > company.product_to_date:
-            return Response({"error": f"License Expired (ID: {company.company_id}). Contact Administrator"}, status=status.HTTP_403_FORBIDDEN)
-
+            return Response(
+                {'error': 'Company account is deactivated. Contact administrator.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if company.product_to_date and timezone.now().date() > company.product_to_date:
+            return Response(
+                {'error': f'License expired (ID: {company.company_id}). Contact administrator.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if company.authentication_status and company.authentication_status != Company.AuthStatus.APPROVED:
-            return Response({"error": "Pending License Approval. Contact Administrator"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {'error': 'License not yet approved. Contact administrator.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
     dealer = user.dealer
     if dealer and not dealer.is_active:
-        return Response({"error": "Dealer account is deactivated. Contact Administrator."}, status=status.HTTP_403_FORBIDDEN)
-
-    # ── Step 3: Classify device type (for info/storage only, not for gating) ──
-    user_agent = request.headers.get("User-Agent", "")
-    device_type = _classify_device_type(user_agent)
-
-    # ── Step 4: Superadmin always bypasses device flow ──
-    if user.role == "superadmin":
-        user.last_login = timezone.now()
-        user.save(update_fields=["last_login"])
-        return _build_token_response(user, company)
-
-    # ── Step 5: Check if device_uid is present ──
-    # This is now the ONLY gate for the mobile device flow.
-    # If device_uid is absent, the request is treated as a browser login.
-    device_uid = request.data.get("device_uid")
-
-    if not device_uid:
-        # No device_uid → browser login → skip device flow entirely
-        user.last_login = timezone.now()
-        user.save(update_fields=["last_login"])
-        return _build_token_response(user, company)
-
-    # ── Step 6: device_uid is present → enter device approval flow ──
-
-    # Check if this device_uid is already mapped to a different user
-    mapping = UserDeviceMapping.objects.filter(device_uid=device_uid).select_related("user").first()
-
-    if mapping and mapping.user_id != user.id:
-        return Response({
-            "error_code": "DEVICE_UID_ALREADY_BOUND",
-            "error": "This device is already linked to another user.",
-        }, status=status.HTTP_403_FORBIDDEN)
-
-    # Device seen for the first time — create PENDING mapping
-    if not mapping:
-        new_mapping = _create_pending_mapping(
-            user=user,
-            device_type=device_type,
-            user_agent=user_agent,
-            device_uid=device_uid,
+        return Response(
+            {'error': 'Dealer account is deactivated. Contact administrator.'},
+            status=status.HTTP_403_FORBIDDEN,
         )
-        return Response({
-            "error_code": "DEVICE_PENDING_APPROVAL",
-            "error": "Device registered. Awaiting admin approval.",
-            "details": {
-                "device_uid": new_mapping.device_uid,
-                "device_type": new_mapping.device_type,
-                "status": new_mapping.status,
-            },
-        }, status=status.HTTP_403_FORBIDDEN)
 
-    # Device exists and belongs to this user — refresh its meta fields
-    _update_mapping_meta(mapping, user, device_type, user_agent)
+    is_apk = _is_apk_request(request)
 
-    # ── Step 7: Check mapping status ──
-    if mapping.status == UserDeviceMapping.DeviceStatus.PENDING:
-        return Response({
-            "error_code": "DEVICE_PENDING_APPROVAL",
-            "error": "Device is awaiting admin approval.",
-            "details": {
-                "device_uid": mapping.device_uid,
-                "status": mapping.status,
-            },
-        }, status=status.HTTP_403_FORBIDDEN)
+    # ── 4: Platform restriction ───────────────────────────────────────────────
+    if user.role in ('superadmin', 'company_admin') and is_apk:
+        return Response(
+            {'error': 'This account can only log in via the web dashboard.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
-    if mapping.status == UserDeviceMapping.DeviceStatus.INACTIVE:
-        return Response({
-            "error_code": "DEVICE_INACTIVE",
-            "error": "Device has been revoked. Contact administrator.",
-        }, status=status.HTTP_403_FORBIDDEN)
+    # ── 5: Device approval check (APK + company_user only) ───────────────────
+    device_uuid = None
+    if is_apk and user.role == 'company_user':
+        device_uuid = (
+            request.data.get('uuid') or request.data.get('device_uuid') or ''
+        ).strip() or None
 
-    # ── Step 8: Approved device — check active session slot count ──
-    # If device is already active (re-login), skip the slot count check.
-    # The company row is locked for the duration of the check + claim to
-    # prevent two simultaneous logins from both passing the count check.
-    if not mapping.is_active:
-        with transaction.atomic():
-            Company.objects.select_for_update().get(pk=company.pk)
-
-            active_count = _get_active_device_count_for_company(
-                company=company,
-                exclude_device_uid=device_uid,
+        if not device_uuid:
+            return Response(
+                {
+                    'error': 'Device identifier required for mobile login. Please update your app.',
+                    'error_code': 'DEVICE_UUID_MISSING',
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
-            allowed = company.mobile_device_count if company and company.mobile_device_count else 0
 
-            if active_count >= allowed:
-                return Response({
-                    "error_code": "DEVICE_LIMIT_REACHED",
-                    "error": f"Maximum active device limit ({allowed}) reached for your company.",
-                    "message": "Another active device must log out before this device can log in.",
-                }, status=status.HTTP_403_FORBIDDEN)
+        approved = UserApprovedDevice.objects.filter(
+            user=user, device_uuid=device_uuid, is_revoked=False,
+        ).exists()
 
-            # Slot available — mark this device as active
-            mapping.is_active = True
-            mapping.save(update_fields=["is_active", "updated_at"])
+        if not approved:
+            DevicePendingApproval.objects.get_or_create(
+                user=user,
+                device_uuid=device_uuid,
+                defaults={
+                    'device_type': str(_detect_device_type(request)),
+                    'status': DevicePendingApproval.Status.PENDING,
+                },
+            )
+            return Response(
+                {
+                    'error': 'Initial login on this device. Contact your company admin for approval.',
+                    'error_code': 'DEVICE_PENDING',
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
-    # ── Issue tokens ──
-    user.last_login = timezone.now()
-    user.save(update_fields=["last_login"])
-    return _build_token_response(user, company)
+    # ── 5b: Hard block — company_user with no tier cannot login ──────────────
+    if user.role == 'company_user' and (not user.tier or user.tier == UserTier.NONE):
+        return Response({
+            'error': 'Your account has no tier assigned. Contact your company administrator.',
+            'error_code': 'NO_TIER_ASSIGNED',
+        }, status=status.HTTP_403_FORBIDDEN)
 
+    # ── 6–8: Session conflict + tier check + session creation (atomic) ────────
+    with transaction.atomic():
+        # Row-level lock: serialises concurrent logins for the same user.
+        User.objects.select_for_update().get(pk=user.pk)
 
-# Logout
-# Purpose: Clear cookies, deactivate device slot if mobile, and blacklist the refresh token.
-@api_view(["POST"])
-def logout_view(request):
-    device_uid = request.data.get("device_uid")
+        existing_session = UserSession.objects.filter(
+            user=user, is_active=True,
+        ).select_related('user').first()
 
-    # print('#'*50)
-    # print(_get_client_ip(request))
-    # print(request.META)
-    # print('#'*50)
+        if existing_session:
+            # Ghost session detection: Redis key absent can mean two things —
+            # either the session genuinely expired (TTL elapsed naturally) or
+            # Redis evicted/restarted while the session was still active.
+            # We use last_seen_at age against the correct timeout to tell them apart.
+            # No extra DB read — existing_session is already in memory.
+            if not session_key_exists(str(existing_session.session_uid)):
+                idle_seconds = (
+                    timezone.now() - existing_session.last_seen_at
+                ).total_seconds()
+                session_timeout = get_session_timeout(str(existing_session.device_type))
 
-    # gets request IP address
-    # issue is its not always correct.
-    # if server is behind load balancer it will show it's ip address
-    # print(request.META.get("REMOTE_ADDR"))
+                if idle_seconds > session_timeout:
+                    # Genuinely expired: last activity is older than the idle
+                    # timeout. The Celery sweep hasn't cleaned this row yet.
+                    # Safe to treat as ghost — clear it and allow login.
+                    existing_session.is_active = False
+                    existing_session.save(update_fields=['is_active'])
+                    existing_session = None
+                else:
+                    # Redis key is absent but last_seen_at is recent — Redis was
+                    # evicted or restarted. The session is still legitimately active.
+                    # Repopulate the cache so subsequent requests work correctly,
+                    # then fall through to SESSION_CONFLICT below.
+                    set_session_cache(
+                        str(existing_session.session_uid),
+                        existing_session.user_id,
+                        str(existing_session.device_type),
+                    )
 
-    # Mobile logout — deactivate the device mapping (do NOT delete)
-    if device_uid:
-        mapping = UserDeviceMapping.objects.filter(device_uid=device_uid).first()
-        if mapping:
-            mapping.is_active = False
-            mapping.save(update_fields=["is_active", "updated_at"])
+        if existing_session:
+            if not force_login:
+                return Response(
+                    {
+                        'error': (
+                            'You are already logged in on another device. '
+                            'Log out from there first, or choose to log out remotely.'
+                        ),
+                        'error_code': 'SESSION_CONFLICT',
+                        'conflict': {
+                            'device_type': existing_session.device_type,
+                            'active_since': existing_session.created_at.isoformat(),
+                        },
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            else:
+                kill_session(existing_session)
 
-    # Blacklist the refresh token asynchronously so the response is not delayed.
-    # The cookie is deleted below — the client loses the token immediately regardless.
-    refresh_token_str = request.COOKIES.get("refresh_token")
-    if refresh_token_str:
-        from TicketAppB.tasks import blacklist_refresh_token
-        blacklist_refresh_token.delay(refresh_token_str)
+        # ── 7: Tier / concurrent session cap (company_user only) ──────────────
+        if user.role == 'company_user' and company:
+            if company.total_user_count > 0:
+                active_count = UserSession.objects.filter(
+                    user__company=company, is_active=True,
+                ).count()
+                if active_count >= company.total_user_count:
+                    return Response(
+                        {'error': 'All login slots are in use. Another user must log out first.'},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
-    return _build_logout_response("Logged out successfully")
+            if user.tier == UserTier.PREMIUM and company.premium_user_count > 0:
+                premium_active = UserSession.objects.filter(
+                    user__company=company, user__tier=UserTier.PREMIUM, is_active=True,
+                ).count()
+                if premium_active >= company.premium_user_count:
+                    return Response(
+                        {'error': 'All premium tier slots are in use.'},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
+            if user.tier == UserTier.INTERMEDIATE and company.intermediate_user_count > 0:
+                intermediate_active = UserSession.objects.filter(
+                    user__company=company, user__tier=UserTier.INTERMEDIATE, is_active=True,
+                ).count()
+                if intermediate_active >= company.intermediate_user_count:
+                    return Response(
+                        {'error': 'All intermediate tier slots are in use.'},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
-# Token Refresh
-# Purpose: Issue a new access token using the refresh token cookie.
-# Mobile apps should send device_uid in the POST body so last_seen_at stays
-# current, preventing the slot from expiring under the TTL while the app is active.
-@api_view(["POST"])
-def refresh_token_view(request):
-    refresh_token = request.COOKIES.get("refresh_token")
-
-    if not refresh_token:
-        return Response({"error": "No refresh token found"}, status=status.HTTP_401_UNAUTHORIZED)
-
-    try:
-        refresh = RefreshToken(refresh_token)
-        new_access_token = str(refresh.access_token)
-
-        # Keep the device slot alive as long as the app is actively refreshing tokens
-        device_uid = request.data.get("device_uid")
-        if device_uid:
-            UserDeviceMapping.objects.filter(
-                device_uid=device_uid,
-                is_active=True,
-            ).update(last_seen_at=timezone.now())
-
-        response = Response({"message": "Token refreshed successfully"})
-        response.set_cookie(
-            key="access_token",
-            value=new_access_token,
-            httponly=True,
-            secure=not settings.DEBUG,
-            samesite="Lax",
-            max_age=1800,
-            path="/",
+        # ── 8: Create session ──────────────────────────────────────────────────
+        session = UserSession.objects.create(
+            user=user,
+            session_uid=uuid.uuid4(),
+            device_type=_detect_device_type(request),
+            user_agent=(request.META.get('HTTP_USER_AGENT') or '')[:500],
+            is_active=True,
+            last_seen_at=timezone.now(),
+            device_uuid=device_uuid,
         )
-        return response
+        session_uid = str(session.session_uid)
+        device_type = str(session.device_type)
+        set_session_cache(session_uid, user.pk, device_type)
 
-    except TokenError:
-        return Response({"error": "Invalid or expired refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+    # ── 9: Issue cookie ───────────────────────────────────────────────────────
+    user.last_login = timezone.now()
+    user.save(update_fields=['last_login'])
+
+    response = Response({
+        'message': 'Login successful.',
+        'user': _user_payload(user, company),
+        'session_timeout_seconds': get_session_timeout(device_type),
+    })
+    _set_session_cookie(response, session_uid, device_type)
+
+    # ── 10: Side effects ──────────────────────────────────────────────────────
+    try:
+        from .notifications import get_login_notifications
+        notifications = get_login_notifications(user, company)
+        if notifications:
+            response.data['notifications'] = notifications
+    except Exception as exc:
+        logger.warning(f'Failed to compute login notifications: {exc}')
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.LOGIN,
+        target_model='CustomUser', target_id=user.pk,
+        target_display=user.username,
+        details={'device_type': str(_detect_device_type(request))},
+        ip_address=_get_client_ip(request),
+    )
+
+    return response
 
 
-# Auth Verification + Protected Route
-# Purpose: Verify a user is authenticated via cookie.
-@api_view(["GET"])
+# ── Logout ────────────────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def logout_view(request):
+    """
+    Logout. Clears the pqr_session cookie and invalidates the session.
+    AllowAny so the cookie is always cleared even if the session is already expired.
+    """
+    session_uid = request.COOKIES.get(COOKIE_NAME)
+    logged_out_user = getattr(request, 'user', None)
+    if logged_out_user and not logged_out_user.is_authenticated:
+        logged_out_user = None
+
+    if session_uid:
+        try:
+            session = UserSession.objects.get(session_uid=session_uid, is_active=True)
+            kill_session(session)
+            if not logged_out_user:
+                logged_out_user = session.user
+        except UserSession.DoesNotExist:
+            delete_session_cache(session_uid)
+
+    if logged_out_user:
+        log_action(
+            actor=logged_out_user, action=AuditLog.ActionType.LOGOUT,
+            target_model='CustomUser', target_id=logged_out_user.pk,
+            target_display=logged_out_user.username,
+            ip_address=_get_client_ip(request),
+        )
+
+    response = Response({'message': 'Logged out successfully.'})
+    _clear_session_cookie(response)
+    return response
+
+
+# ── Keepalive ─────────────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def session_keepalive(request):
+    """
+    Lightweight session keepalive. Resets the Redis TTL and updates last_seen_at.
+    Called by the web frontend when the user is active (interaction-event-driven,
+    at most once per 5 minutes). APK uses passive debounce via regular requests.
+    Returns the remaining session timeout so the frontend can sync its idle timer.
+    """
+    session_uid = request.auth.session_uid
+    device_type = request.auth.device_type
+    user = request.user
+
+    set_session_cache(session_uid, user.pk, device_type)
+
+    UserSession.objects.filter(
+        session_uid=session_uid, is_active=True,
+    ).update(last_seen_at=timezone.now())
+
+    response = Response({
+        'alive': True,
+        'session_timeout_seconds': get_session_timeout(device_type),
+    })
+    # Refresh the cookie on every keepalive so the browser cookie expiry tracks
+    # user activity, preventing SESSION_CONFLICT when idle logout fires after
+    # the original login cookie has already expired.
+    _set_session_cookie(response, session_uid, device_type)
+    return response
+
+
+# ── Verify Auth ───────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def verify_auth(request):
-    user = get_user_from_cookie(request)
-
-    if not user:
-        return Response({"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
-    company = user.company
-    valid_till = None
-    if company and company.product_to_date:
-        valid_till = company.product_to_date.strftime("%d-%m-%Y")
-
+    """
+    Auth check called on page load and tab focus. Returns current user payload.
+    request.user is already resolved by SessionAuthentication — one Redis read total.
+    Uses _user_payload for a consistent shape with the login response (including state).
+    """
     return Response({
-        "authenticated": True,
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-            "is_verified": user.is_verified,
-            "company_name": company.company_name if company else None,
-            "company_id": company.company_id if company else None,
-            "valid_till": valid_till,
-            "license_status": company.authentication_status if company else None,
-        }
+        'authenticated': True,
+        'user': _user_payload(request.user, request.user.company),
+        'session_timeout_seconds': get_session_timeout(request.auth.device_type),
     })
 
 
-@api_view(["GET"])
-def protected_view(request):
-    access_token = request.COOKIES.get("access_token")
+# ── Password Reset ────────────────────────────────────────────────────────────
 
-    if not access_token:
-        return Response({"error": "No access token provided"}, status=status.HTTP_401_UNAUTHORIZED)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password(request):
+    """
+    Initiate self-service password reset.
+    Accepts { email }.  Always responds with 200 to prevent email enumeration.
+    """
+    email = (request.data.get('email') or '').strip().lower()
+    if not email:
+        return Response({'error': 'email is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        token = AccessToken(access_token)
-        user_id = token["user_id"]
-        user = User.objects.get(id=user_id)
-
-        return Response({
-            "message": f"Hello {user.username}!",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "role": user.role,
-            }
-        })
-
-    except TokenError:
-        return Response({"error": "Invalid or expired token"}, status=status.HTTP_401_UNAUTHORIZED)
-
+        user = User.objects.get(email__iexact=email, is_active=True)
     except User.DoesNotExist:
-        return Response({"error": "User not found"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': 'If an account with that email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
+
+    uid   = urlsafe_base64_encode(force_bytes(user.pk))
+    token = _token_generator.make_token(user)
+
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+    reset_link   = f'{frontend_url}/reset-password?uid={uid}&token={token}'
+
+    subject = 'Password Reset Request'
+    body = (
+        f'Hello {user.username},\n\n'
+        f'We received a request to reset your password.\n\n'
+        f'Click the link below to set a new password (expires in 3 days):\n'
+        f'{reset_link}\n\n'
+        f'If you did not request a password reset, ignore this email — your password will not change.\n\n'
+        f'— Bus Management App'
+    )
+
+    try:
+        send_mail(
+            subject,
+            body,
+            getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@busmanagement.app'),
+            [user.email],
+            fail_silently=False,
+        )
+        logger.info(f"Password reset email sent to {user.email} (user_id={user.pk})")
+    except Exception as exc:
+        logger.error(f"Failed to send password reset email to {user.email}: {exc}")
+
+    return Response({'message': 'If an account with that email exists, a reset link has been sent.'}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """
+    Complete self-service password reset.
+    Accepts { uid, token, new_password }.
+    """
+    uid_b64      = (request.data.get('uid')          or '').strip()
+    token        = (request.data.get('token')         or '').strip()
+    new_password = (request.data.get('new_password')  or '').strip()
+
+    if not uid_b64 or not token or not new_password:
+        return Response({'error': 'uid, token, and new_password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(new_password) < 8:
+        return Response({'error': 'Password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        uid  = force_str(urlsafe_base64_decode(uid_b64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        return Response({'error': 'Invalid or expired reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not _token_generator.check_token(user, token):
+        return Response({'error': 'Invalid or expired reset link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(new_password)
+    user.save()
+
+    log_action(
+        actor=user, action=AuditLog.ActionType.PASSWORD_RESET,
+        target_model='CustomUser', target_id=user.pk,
+        target_display=user.username,
+        details={'self_service': True},
+        ip_address=_get_client_ip(request),
+    )
+
+    # Fix 5: kill all active sessions — DB and Redis both.
+    # The original code only bulk-updated the DB, leaving Redis keys alive for up
+    # to 20 minutes. An attacker holding a stolen cookie could still authenticate
+    # during that window because SessionAuthentication finds the Redis key first.
+    active_sessions = list(
+        UserSession.objects.filter(user=user, is_active=True).values_list('session_uid', flat=True)
+    )
+    UserSession.objects.filter(user=user, is_active=True).update(is_active=False)
+    for uid in active_sessions:
+        uid_str = str(uid)
+        set_session_revoked(uid_str)
+        delete_session_cache(uid_str)
+
+    logger.info(f"Password reset completed for user_id={user.pk} ({user.username})")
+    return Response({'message': 'Password reset successfully. Please log in with your new password.'}, status=status.HTTP_200_OK)

@@ -12,6 +12,8 @@ class ETMDeviceSerializer(serializers.ModelSerializer):
             'id',
             'serial_number',
             'device_type',
+            'palmtec_id',
+            'mosambee_tid',
             'company',
             'company_name',
             'dealer',

@@ -5,17 +5,20 @@ from .views.web import company as company_views
 from .views.web import dealers as dealer_views
 from .views.web import depots as depot_views
 from .views.web import executives as executive_views
-from .views.web import device_approvals as device_approval_views
 from .views.web import device_registry as device_registry_views
 from .views.web import ticket_reports
 from .views.web import raw_data_logs as raw_log_views
 from .views.web import settlements as settlement_views
+from .views.web import audit_logs as audit_log_views
+from .views.web import global_settings as global_settings_views
+from .views.web import ghost_records as ghost_record_views
+from .views.web import sessions as session_views
 from .views.web.masterdata import transport as transport_views
 from .views.web.masterdata import crew as crew_views
 from .views.web.masterdata import settings as settings_views
 from .views.web.imports import mdb as mdb_views
 from .views.web.imports import routes as route_import_views
-from .views.palmtec import master_send as palmtec_views
+from .views.apk import master_send as palmtec_views
 from .views.palmtec import data_post as palmtec_ingest
 from .views.webhooks import mosambee as mosambee_webhooks
 from .views.apk import reports as apk_views
@@ -24,28 +27,39 @@ from .views import setup_data as setup_data_views
 
 urlpatterns = [
     # authentication
-    path('signup', auth_views.signup_view, name='signup'),
     path('login', auth_views.login_view, name='login'),
-    path('token/refresh', auth_views.refresh_token_view, name='token_refresh'),
     path('logout', auth_views.logout_view, name='logout'),
-    path('protected', auth_views.protected_view, name='protected'),
     path('verify-auth', auth_views.verify_auth, name='verify_auth'),
-    path('device-approvals', device_approval_views.get_device_approvals, name='device_approvals'),
-    path('device-approvals/<int:mapping_id>/approve', device_approval_views.approve_device, name='approve_device'),
-    path('device-approvals/<int:mapping_id>/revoke', device_approval_views.revoke_device, name='revoke_device'),
+    path('session/keepalive', auth_views.session_keepalive, name='session_keepalive'),
+    # self-service password reset (no auth required)
+    path('auth/forgot-password', auth_views.forgot_password, name='forgot_password'),
+    path('auth/reset-password',  auth_views.reset_password,  name='reset_password'),
+    # user management
+    path('create_user',                          user_views.create_user,         name='create-user'),
+    path('get_users',                            user_views.get_all_users,        name='get_all_users'),
+    path('update_user/<int:user_id>',            user_views.update_user,          name='update_user'),
+    path('users/<int:user_id>/toggle-active',    user_views.toggle_user_active,   name='toggle_user_active'),
+    path('users/capacity',                       user_views.user_capacity,         name='user_capacity'),
+    path('change_user_password/<int:user_id>',   user_views.change_user_password,  name='change_user_password'),
 
-    # user data
-    path('create_user', user_views.create_user, name='create-user'),
-    path('get_users', user_views.get_all_users, name='get_all_users'),
-    path('update_user/<int:user_id>', user_views.update_user, name='update_user'),
-    path('change_user_password/<int:user_id>', user_views.change_user_password, name='change_user_password'),
+    # session management + device approvals (company_admin)
+    path('sessions',                                   session_views.list_sessions,             name='list_sessions'),
+    path('sessions/<str:session_uid>/force-logout',    session_views.force_logout_session,      name='force_logout_session'),
+    path('device-approvals',                           session_views.list_pending_approvals,    name='list_pending_approvals'),
+    path('device-approvals/<int:approval_id>/approve', session_views.approve_device,            name='approve_device'),
+    path('device-approvals/<int:approval_id>/reject',  session_views.reject_device,             name='reject_device'),
+    path('admin/sessions',                             session_views.list_all_sessions,         name='list_all_sessions'),
+    path('admin/sessions/<str:session_uid>/force-logout', session_views.force_logout_session_admin, name='force_logout_session_admin'),
 
     # company data
     path('customer-data', company_views.all_company_data, name='company_data'),
     path('create-company', company_views.create_company, name='create_company'),
     path('update-company-details/<int:pk>', company_views.update_company_details, name='update_company'),
+    path('delete-company/<int:pk>', company_views.delete_company, name='delete_company'),
     path('register-company-license/<int:pk>', company_views.register_company_with_license_server, name='register_company_license'),
     path('validate-company-license/<int:pk>', company_views.validate_company_license, name='validate_company_license'),
+    path('sync-company-license/<int:pk>',         company_views.sync_company_license,         name='sync_company_license'),
+    path('sync-company-license/<int:pk>/confirm', company_views.sync_company_license_confirm, name='sync_company_license_confirm'),
     path('get-company-by-company-id/<str:company_id>', company_views.get_company_by_company_id, name='get_company_by_company_id'),
     path('import-company', company_views.import_company, name='import_company'),
     path('get_company_dashboard_metrics', company_views.get_company_dashboard_metrics, name='company_dashboard_data'),
@@ -58,7 +72,8 @@ urlpatterns = [
     path('delete-depoteva/<int:pk>', depot_views.delete_depot, name='delete_depot'),
 
     # palmtec initial setup data
-    path('getEtmSetupDetails',setup_data_views.get_etm_intial_data),
+    path('getEtmSetupDetails', setup_data_views.get_etm_intial_data),
+    path('get_company_devices', setup_data_views.get_company_devices_for_download),
 
     # ticket data — device push (ETM → server)
     path('getScheduleOpen', palmtec_ingest.getScheduleOpenDataFromDevice, name='get_schedule_open_data'),
@@ -97,6 +112,11 @@ urlpatterns = [
     path('dealers', dealer_views.get_all_dealers, name='get_all_dealers'),
     path('create-dealer', dealer_views.create_dealer, name='create_dealer'),
     path('update-dealer-details/<int:pk>', dealer_views.update_dealer_details, name='update_dealer_details'),
+    path('delete-dealer/<int:pk>', dealer_views.delete_dealer, name='delete_dealer'),
+    path('register-dealer-license/<int:pk>', dealer_views.register_dealer_with_license_server, name='register_dealer_license'),
+    path('validate-dealer-license/<int:pk>',  dealer_views.validate_dealer_license,             name='validate_dealer_license'),
+    path('sync-dealer-license/<int:pk>',         dealer_views.sync_dealer_license,         name='sync_dealer_license'),
+    path('sync-dealer-license/<int:pk>/confirm', dealer_views.sync_dealer_license_confirm, name='sync_dealer_license_confirm'),
     path('dealer-mappings', dealer_views.get_dealer_mappings, name='get_dealer_mappings'),
     path('create-dealer-mapping', dealer_views.create_dealer_mapping, name='create_dealer_mapping'),
     path('update-dealer-mapping/<int:pk>', dealer_views.update_dealer_mapping, name='update_dealer_mapping'),
@@ -110,6 +130,19 @@ urlpatterns = [
 
     # mdb upload
     path('import-mdb', mdb_views.MdbImportView.as_view(), name='import-mdb'),
+
+    # About page + GlobalSettings
+    path('about',            global_settings_views.about,           name='about'),
+    path('global-settings',  global_settings_views.global_settings, name='global_settings'),
+
+    # Audit logs (superadmin)
+    path('audit-logs',              audit_log_views.list_audit_logs,        name='audit_logs'),
+    path('audit-logs/action-types', audit_log_views.audit_log_action_types, name='audit_log_action_types'),
+
+    # Ghost records — unresolved company (superadmin)
+    path('ghost-transactions',    ghost_record_views.get_ghost_transactions, name='ghost_transactions'),
+    path('ghost-payouts',         ghost_record_views.get_ghost_payouts,      name='ghost_payouts'),
+    path('ghost-assign-company',  ghost_record_views.assign_ghost_company,   name='ghost_assign_company'),
 
     # Master Data — transport
     path('masterdata/bus-types', transport_views.get_bus_types),
@@ -162,19 +195,21 @@ urlpatterns = [
     path('masterdata/settings-profiles/create', settings_views.create_profile),
     path('masterdata/settings-profiles/<int:profile_id>', settings_views.profile_detail),
 
-
     # ETM Device Registry
     path('etm-devices/upload',                         device_registry_views.DeviceUploadView.as_view(), name='etm_upload'),
     path('etm-devices',                                device_registry_views.list_devices,               name='etm_list'),
     path('etm-devices/summary',                        device_registry_views.device_summary,             name='etm_summary'),
     path('etm-devices/bulk-assign-dealer',             device_registry_views.bulk_assign_dealer,         name='etm_bulk_dealer'),
     path('etm-devices/bulk-assign-company',            device_registry_views.bulk_assign_company,        name='etm_bulk_company'),
-    path('etm-devices/<int:device_id>/allocate',       device_registry_views.allocate_to_company,        name='etm_allocate'),
-    path('etm-devices/<int:device_id>/deactivate',     device_registry_views.deactivate_device,          name='etm_deactivate'),
+    path('etm-devices/<int:device_id>/allocate',        device_registry_views.allocate_to_company,  name='etm_allocate'),
+    path('etm-devices/<int:device_id>/deactivate',     device_registry_views.deactivate_device,   name='etm_deactivate'),
+    path('etm-devices/<int:device_id>/reactivate',    device_registry_views.reactivate_device,   name='etm_reactivate'),
+    path('etm-devices/<int:device_id>/unmap',          device_registry_views.unmap_device,         name='etm_unmap'),
+    path('etm-devices/<int:device_id>/return-to-stock', device_registry_views.return_device_to_stock, name='etm_return_stock'),
+    path('etm-devices/<int:device_id>/set-palmtec-id',   device_registry_views.set_palmtec_id,   name='etm_set_palmtec_id'),
+    path('etm-devices/<int:device_id>/set-mosambee-tid', device_registry_views.set_mosambee_tid, name='etm_set_mosambee_tid'),
 
     # Palmtec device data APIs (server → APK → USB → device)
-    path('device/getEtmVersion', setup_data_views.get_etm_device_version_for_apk),
-    
     path('device/routes',      palmtec_views.get_routes_list),
     path('device/settings',    palmtec_views.get_settings_file),
     path('device/crew',        palmtec_views.get_crew_file),
@@ -187,21 +222,4 @@ urlpatterns = [
     path('device/rtedat',      palmtec_views.get_rtedat_file),
     # Settings group
     path('device/currency',    palmtec_views.get_currency_file),
-
-    # android apk data apis
-    path('apk/dashboard', apk_views.apk_dashboard, name='apk_dashboard'),
-    path('reports/duty', apk_views.duty_report, name='duty_report'),
-    path('reports/bus-summary', apk_views.bus_summary_report, name='bus_summary_report'),
-    path('reports/payment-type', apk_views.payment_type_report, name='payment_type_report'),
-    path('reports/farewise', apk_views.farewise_report, name='farewise_report'),
-    path('reports/passenger-info', apk_views.passenger_info, name='passenger_info'),
-    path('reports/trip-details', apk_views.trip_details, name='trip_details'),
-    path('reports/ticket-details', apk_views.ticket_details, name='ticket_details'),
-    path('reports/expense', apk_views.expense_report, name='expense_report'),
-    path('reports/stage-wise', apk_views.stage_wise_report, name='stage_wise_report'),
-
-
-    # APK file uploads
-    path('apk/upload/odometer-dat', apk_upload_views.uploadOdometerDat, name='upload_odometer_dat'),
-    path('apk/upload/expense-dat', apk_upload_views.uploadExpenseDat, name='upload_expense_dat'),
 ]
