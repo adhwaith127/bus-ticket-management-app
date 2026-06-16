@@ -147,7 +147,14 @@ def _pack_busdat(p, cs):
     data += b'\x00'                          # shedule_close_rpt
     data += b'\x00'                          # ladis_per
     data += b'\x00'                          # seniar_per
-    data += b'\x00' * 70                     # ucTemp padding
+    data += b'\x00'                          # bigfontenable
+    data += b'\x00'                          # ucSeniorEnable
+    data += b'\x00'                          # ucLaadiesEnable
+    data += struct.pack('<BBH', 1, 1, 2026)  # shd_opn_d (Day, Month, Year)
+    data += b'\x00' * 4                      # shd_opn_t (Hour, Min, Sec, Hund)
+    data += struct.pack('<BBH', 1, 1, 2026)  # trp_opn_d (Day, Month, Year)
+    data += b'\x00' * 4                      # trp_opn_t (Hour, Min, Sec, Hund)
+    data += b'\x00' * 51                     # ucTemp
 
     # ── HARDWARE_SETUP section (64 bytes) ──────────────────────────────────────
     # Ptime (4 bytes): Hour, Min, Sec, Hundredths — zeroed (device sets its own clock)
