@@ -316,13 +316,11 @@ def _pack_rtedat(routes, stage_index):
         data += bytes([nos % 256])
         data += b'\x00'  # NoOfDupFare
 
-        fares_qs = Fare.objects.filter(route=route)
-        if route.fare_type == 2:
-            # Graph/matrix fare: N*(N-1)/2 Singles ordered by number ASC
-            fares = list(fares_qs.order_by('number').values_list('fare_amount', flat=True))
-        else:
-            # Table fare: Singles ordered by fare_amount ASC
-            fares = list(fares_qs.order_by('fare_amount').values_list('fare_amount', flat=True))
+        fares = list(
+            Fare.objects.filter(route=route)
+            .order_by('row', 'col')
+            .values_list('fare_amount', flat=True)
+        )
 
         for f in fares:
             data += struct.pack('<f', float(f))

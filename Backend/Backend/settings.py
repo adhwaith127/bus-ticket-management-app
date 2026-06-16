@@ -144,6 +144,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
         'TicketAppB.permissions.LicensePermission',
     ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
 }
 
 # Session idle timeout in seconds. Read from env.
