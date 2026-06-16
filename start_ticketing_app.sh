@@ -6,7 +6,7 @@
 # Frontend server, Backend server, Django celery service, Django beat service
 # ─────────────────────────────────────────────
 
-PROJECT_ROOT="/home/silpc-011/Desktop/adwaith/TicketingApp-fresh"
+PROJECT_ROOT="/home/silpc-011/Desktop/adwaith/TicketingApp"
 FRONTEND_DIR="$PROJECT_ROOT/Frontend"
 BACKEND_DIR="$PROJECT_ROOT/Backend"
 

@@ -283,8 +283,9 @@ def mosambee_settlement_data(request):
         return JsonResponse(response_data,status=status.HTTP_200_OK)
 
     except Exception as e:
+        _co = locals().get('company')
         logger.exception("Unhandled exception in mosambee_settlement_data: %s", e)
-        logger_txn.exception("Unhandled exception in mosambee_settlement_data: %s", e)
+        logger_txn.exception("Unhandled exception in mosambee_settlement_data: %s", e, extra={'company_id': _co.company_id} if _co else {})
         return JsonResponse({'status': 500,'message': 'Data Entry failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -391,11 +392,12 @@ def mosambee_payout_callback(request):
             )
             linked += updated
 
-        logger.info(f"Payout {statement_id} received, linked {linked} transactions")
+        logger.info(f"Payout {statement_id} received, linked {linked} transactions", extra={'company_id': payout_company.company_id} if payout_company else {})
         return JsonResponse({'statusCode': '100'}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        logger_payout.exception("Unhandled exception in mosambee_payout_callback: %s | request: %s", e, data if 'data' in locals() else 'unavailable')
+        _co = locals().get('payout_company')
+        logger_payout.exception("Unhandled exception in mosambee_payout_callback: %s | request: %s", e, data if 'data' in locals() else 'unavailable', extra={'company_id': _co.company_id} if _co else {})
         return JsonResponse({'statusCode': '500'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
