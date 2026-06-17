@@ -77,7 +77,7 @@ urlpatterns = [
 
     # ticket data — device push (ETM → server)
     path('getScheduleOpen', palmtec_ingest.getScheduleOpenDataFromDevice, name='get_schedule_open_data'),
-    path('getScheduleClose', palmtec_ingest.getScheduleCloseDataFromDevice, name='get_schedule_close_data'),
+    path('getSdCl', palmtec_ingest.getScheduleCloseDataFromDevice, name='get_schedule_close_data'),
 
     path('getTripOpen', palmtec_ingest.getTripOpenDataFromDevice, name='get_trip_open_data'),
     path('getTripClose', palmtec_ingest.getTripCloseDataFromDevice, name='get_trip_close_data'),
@@ -85,7 +85,7 @@ urlpatterns = [
     path('getTicket', palmtec_ingest.getTicketDataFromDevice, name='get_ticket_data'),
 
     path('getTripCloseSummary', palmtec_ingest.getTripCloseSummaryFromDevice, name='get_trip_close_summary'),
-    path('getScheduleCloseSummary', palmtec_ingest.getScheduleCloseSummaryFromDevice, name='get_schedule_close_summary'),
+    path('getSdClSm', palmtec_ingest.getScheduleCloseSummaryFromDevice, name='get_schedule_close_summary'),
 
     path('getOdometerDetails', palmtec_ingest.getOdometerDataFromDevice, name='get_odometer_data'),
     path('getExpenseDetails', palmtec_ingest.getExpenseDataFromDevice, name='get_expense_data'),
