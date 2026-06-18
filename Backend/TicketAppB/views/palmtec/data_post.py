@@ -201,7 +201,7 @@ def getScheduleCloseDataFromDevice(request):
 
     log_schedule_close.debug("RECV fn=%s palmtec=%s", parts[1], parts[3])
 
-    if not _validate_checksum('getScheduleClose', raw):
+    if not _validate_checksum('getSdCl', raw):
         return HttpResponse("INVALID_CHECKSUM", status=400, content_type="text/plain")
 
     company_instance = None
@@ -331,7 +331,7 @@ def getScheduleCloseSummaryFromDevice(request):
 
     log_schedule_close_sum.debug("RECV fn=%s palmtec=%s", parts[1], parts[3])
 
-    if not _validate_checksum('getScheduleCloseSummary', raw):
+    if not _validate_checksum('getSdClSm', raw):
         return HttpResponse("INVALID_CHECKSUM", status=400, content_type="text/plain")
 
     company_instance = None

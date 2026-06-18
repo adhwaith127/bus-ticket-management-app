@@ -76,6 +76,8 @@ urlpatterns = [
     path('get_company_devices', setup_data_views.get_company_devices_for_download),
 
     # ticket data — device push (ETM → server)
+    # WARNING: path strings below are used verbatim in _validate_checksum() calls in
+    # views/palmtec/data_post.py — update both places when renaming any of these paths.
     path('getScheduleOpen', palmtec_ingest.getScheduleOpenDataFromDevice, name='get_schedule_open_data'),
     path('getSdCl', palmtec_ingest.getScheduleCloseDataFromDevice, name='get_schedule_close_data'),
 

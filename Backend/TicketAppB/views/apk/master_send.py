@@ -45,6 +45,13 @@ def _i(val):
     except (ValueError, TypeError):
         return struct.pack('<h', 0)
 
+def _u(val):
+    """2-byte little-endian unsigned short."""
+    try:
+        return struct.pack('<H', int(val or 0))
+    except (ValueError, TypeError):
+        return struct.pack('<H', 0)
+
 
 # ─── File packers ──────────────────────────────────────────────────────────────
 
@@ -83,7 +90,7 @@ def _pack_busdat(p, cs):
     data += _bool(p.roundoff)
     data += _bool(p.round_up)
     data += _s(cs.currency if cs else '', 8) # company Settings
-    data += _i(p.round_amt)
+    data += _u(p.round_amt)
     data += b'\x00'                          # ucbAdjust
     data += b'\x00'                          # ucbReviewPasswd
     data += b'\x00'                          # ucbReportPasswd
@@ -182,7 +189,7 @@ def _pack_busdat(p, cs):
     data += _b(p.language_option)           # select_language
     data += b'\x00'                          # login_mode
     data += b'\x00'                          # ucKPLight_opt
-    data += _i(0)                            # usShuntdownTime
+    data += _u(0)                            # usShuntdownTime
     data += _b(p.language_option)           # LangNo
     data += b'\x00' * 2                     # ucTemp
 
