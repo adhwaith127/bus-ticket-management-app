@@ -2,7 +2,7 @@ from celery import shared_task
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 from .models import (
     RawDataLog, TransactionData, Direction, RouteStage,
     ScheduleData, TripData, Employee, VehicleType,
@@ -33,6 +33,38 @@ def _parse_time(s, fmt="%H:%M:%S"):
         return datetime.strptime(s, fmt).time()
     except ValueError:
         return datetime.strptime(s, "%H:%M").time()
+
+
+def _decode_etm_date(s):
+    """Decode Palmtec YrMo-Day format: A=2026, a=Jan, DD=day."""
+    if not s or len(s) < 5:
+        return None
+    try:
+        year  = ord(s[0]) - ord('A') + 2026
+        month = ord(s[1]) - ord('a') + 1
+        day   = int(s[3:5])
+        return date(year, month, day)
+    except (ValueError, IndexError):
+        return None
+
+
+def _decode_etm_time(s):
+    """Decode Palmtec HrMin-Sec format: A=0h; A-Z=0-25min, a-z=26-51min, 1-8=52-59min."""
+    if not s or len(s) < 5:
+        return None
+    try:
+        hour = ord(s[0]) - ord('A')
+        m = s[1]
+        if m.isupper():
+            minute = ord(m) - ord('A')
+        elif m.islower():
+            minute = ord(m) - ord('a') + 26
+        else:
+            minute = int(m) + 51
+        second = int(s[3:5])
+        return time(hour, minute, second)
+    except (ValueError, IndexError):
+        return None
 
 
 def _resolve_schedule(palmtec_id, company_id, schedule_no, schedule_start_date):
@@ -320,10 +352,14 @@ def process_transaction_data(self, log_id):
                 _fail(log, "Invalid trip start date: device sent 0000-00-00")
                 return
 
-            trip_no         = int(_p(4))
-            trip_start_date = _parse_date(_p(32))
-            schedule_no     = int(_p(28))
-            schedule_start_date = _parse_date(_p(6))
+            trip_no             = int(_p(4))
+            schedule_no         = int(_p(28))
+            schedule_start_date = _decode_etm_date(_p(6))
+            schedule_start_time = _decode_etm_time(_p(7))
+            ticket_date         = _decode_etm_date(_p(8))
+            ticket_time         = _decode_etm_time(_p(9))
+            trip_start_date     = _decode_etm_date(_p(32))
+            trip_start_time     = _decode_etm_time(_p(33))
 
             # ── Resolve or ghost-create schedule ─────────────────────────────
             # Ticket carries schedule_no + schedule_start_date/time — enough to
@@ -335,7 +371,7 @@ def process_transaction_data(self, log_id):
                     company             = company,
                     schedule_no         = schedule_no,
                     schedule_start_date = schedule_start_date,
-                    schedule_start_time = _parse_time(_p(7)),
+                    schedule_start_time = schedule_start_time,
                     ghost_note          = "Ticket received; ShdOpn missing",
                 )
 
@@ -351,10 +387,10 @@ def process_transaction_data(self, log_id):
                     schedule_obj        = schedule_obj,
                     schedule_no         = schedule_no,
                     schedule_start_date = schedule_start_date,
-                    schedule_start_time = _parse_time(_p(7)),
+                    schedule_start_time = schedule_start_time,
                     trip_no             = trip_no,
                     start_date          = trip_start_date,
-                    start_time          = _parse_time(_p(33)),
+                    start_time          = trip_start_time,
                     bus_no              = _p(27),
                     bus_obj             = _resolve_vehicle(_p(27), company.id),
                     driver              = _p(29),
@@ -377,8 +413,8 @@ def process_transaction_data(self, log_id):
                         trip_id              = trip_obj,
                         schedule_id          = schedule_obj,
                         ticket_number        = _p(5),
-                        ticket_date          = _parse_date(_p(8)),
-                        ticket_time          = _parse_time(_p(9)),
+                        ticket_date          = ticket_date,
+                        ticket_time          = ticket_time,
                         from_stage           = from_raw,
                         from_stage_id        = from_stage_obj,
                         to_stage             = to_raw,
@@ -407,7 +443,7 @@ def process_transaction_data(self, log_id):
                         conductor_id         = _resolve_employee(_p(30), company.id),
                         up_down_trip         = up_down_trip,
                         trip_start_date      = trip_start_date,
-                        trip_start_time      = _parse_time(_p(33)),
+                        trip_start_time      = trip_start_time,
                         battery_percentage   = int(_p(34)) if _p(34) else None,
                         passenger_count      = int(_p(35)) if _p(35) else None,
                         full_total_amount    = Decimal(_p(36, '0')),
