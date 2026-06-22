@@ -298,7 +298,7 @@ class SettingsProfileSerializer(serializers.ModelSerializer):
         model  = SettingsProfile
         fields = [
             'id', 'name', 'company', 'palmtec_id',
-            'user_pwd', 'master_pwd',
+            'user_pwd', 'master_pwd', 'supervisor_pwd', 'remove_pwd',
             'half_per', 'con_per', 'phy_per', 'round_amt', 'luggage_unit_rate',
             'main_display', 'main_display2',
             'header1', 'header2', 'header3', 'footer1', 'footer2',

@@ -271,7 +271,11 @@ export default function DeviceDownload() {
         try {
           if (err.response?.data instanceof Blob) {
             const text = await err.response.data.text();
-            if (text) msg = `${task.filename}: ${text}`;
+            if (text) {
+              const match = text.match(/<pre class="exception_value">([\s\S]*?)<\/pre>/);
+              const clean = match ? match[1].replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').trim() : null;
+              msg = `${task.filename}: ${clean || err.response?.status || 'Server error'}`;
+            }
           }
         } catch {}
         setError(msg);

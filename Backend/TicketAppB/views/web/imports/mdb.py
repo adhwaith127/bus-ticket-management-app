@@ -695,6 +695,8 @@ class MdbImportService:
                         'adjust':     MdbImportService._to_bool(row.get('adjust')),
                         'conc':       MdbImportService._to_bool(row.get('conc')),
                         'ph':         MdbImportService._to_bool(row.get('ph')),
+                        'pass_allow': MdbImportService._to_bool(row.get('PASSALLOW')),
+                        'start_from': MdbImportService._to_int(row.get('startfrom')),
                         'created_by': user,
                     }
                 )
@@ -1039,6 +1041,13 @@ class MdbImportService:
                 'sendbill_enable':      str(row.get('sendbillEnable',    '0') or '0'),
 
                 'currency':   str(row.get('Currency', '') or '').strip() or None,
+
+                # ETM concession ratios & flags (previously unimported)
+                'ladies_ratio':  MdbImportService._to_int(row.get('ladies_ratio')),
+                'senior_ratio':  MdbImportService._to_int(row.get('senior_ratio')),
+                'big_font':      MdbImportService._to_bool(row.get('big_fond')),
+                'refund_enable': MdbImportService._to_bool(row.get('REFUND')),
+
                 'created_by': user,
             }
 

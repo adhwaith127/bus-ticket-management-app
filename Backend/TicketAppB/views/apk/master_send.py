@@ -73,25 +73,25 @@ def _pack_busdat(p, cs):
     data += _s(p.header3, 32)
     data += _s(p.footer1, 32)
     data += _s(p.footer2, 32)
-    data += b'\x00'                          # PaperFeed
+    data += b'\x02'                          # PaperFeed (VB default 2)
     data += _s(str(p.palmtec_id), 6)        # PalmtecID — from SettingsProfile
-    data += b'\x00'                          # DefaultFull
+    data += b'\x01'                          # DefaultFull (VB default 1)
     data += _b(p.half_per)
     data += _b(p.con_per)
     data += _f(p.st_max_amt)
     data += _f(cs.st_min_con if cs else 0)  # company Settings
     data += _b(p.phy_per)
-    data += b'\x00'                          # LuggageUnitRateEdit
+    data += b'\x01'                          # LuggageUnitRateEdit (VB default 1)
     data += _f(p.luggage_unit_rate)
     data += _b(p.stage_updation_msg)
-    data += b'\x00'                          # StageDisplayFont
+    data += b'\x01'                          # StageDisplayFont (VB default 1)
     data += b'\x00'                          # UseDuplicate
     data += b'\x00'                          # UseDup1
     data += _bool(p.roundoff)
     data += _bool(p.round_up)
     data += _s(cs.currency if cs else '', 8) # company Settings
     data += _u(p.round_amt)
-    data += b'\x00'                          # ucbAdjust
+    data += b'\x01'                          # ucbAdjust (VB default 1)
     data += b'\x00'                          # ucbReviewPasswd
     data += b'\x00'                          # ucbReportPasswd
     data += b'\x00'                          # ucbSTFromStage
@@ -102,7 +102,7 @@ def _pack_busdat(p, cs):
     data += _b(p.stage_updation_msg)         # UpdateStageMsg
     data += _bool(p.remove_ticket_flag)
     data += _bool(p.stage_font_flag)
-    data += b'\x00'                          # EnableStageDefault
+    data += b'\x01'                          # EnableStageDefault (VB default 1)
     data += b'\x00'                          # PrinterSel
     data += _bool(p.odometer_entry)
     data += _bool(p.ticket_no_big_font)
@@ -132,10 +132,10 @@ def _pack_busdat(p, cs):
     data += b'\x00'                          # MsgPrompt
     data += b'\x01' if p.exp_enable else b'\x00'
     data += b'\x01' if (cs and cs.smart_card == '1') else b'\x00'  # company Settings
-    data += b'\x00'                          # Modomon
+    data += b'\x01'                          # ModemON (VB default 1)
     data += b'\x01' if (cs and cs.ftp_enable == '1') else b'\x00'  # company Settings
-    data += _s('', 11)                       # RemovePswd
-    data += b'\x00'                          # StageReport_E_D
+    data += _s(p.remove_pwd, 11)             # RemovePassword — profile field
+    data += b'\x01'                          # StageReport_E_D (VB default 1)
     data += _bool(p.st_roundoff_enable)
     data += _i(p.st_roundoff_amt)
     data += _bool(p.simple_report)
@@ -148,19 +148,21 @@ def _pack_busdat(p, cs):
     data += _bool(p.userpswd_enable)
     data += b'\x00'                          # DieselEntryEnable
     data += b'\x00'                          # TripTimeEnable
-    data += b'\x00'                          # TripCloseReport
-    data += b'\x00'                          # ucPaperFeed
-    data += b'\x00'                          # refund
-    data += b'\x00'                          # shedule_close_rpt
-    data += b'\x00'                          # ladis_per
-    data += b'\x00'                          # seniar_per
-    data += b'\x00'                          # bigfontenable
+    data += b'\x01'                          # ucTripCloseReport (VB default 1)
+    data += b'\x01'                          # ucPaperFeed (VB default 1)
+    data += _bool(cs.refund_enable if cs else False)  # ucRefundEnable — company Settings
+    data += b'\x01'                          # ucsheduleCloseRpt (VB default 1)
+    data += _b(cs.ladies_ratio if cs else 0) # LadiPer — company Settings
+    data += _b(cs.senior_ratio if cs else 0) # SeniorPer — company Settings
+    data += _bool(cs.big_font if cs else False)  # bigfontenable — company Settings
     data += b'\x00'                          # ucSeniorEnable
     data += b'\x00'                          # ucLaadiesEnable
-    data += struct.pack('<BBH', 1, 1, 2026)  # shd_opn_d (Day, Month, Year)
-    data += b'\x00' * 4                      # shd_opn_t (Hour, Min, Sec, Hund)
-    data += struct.pack('<BBH', 1, 1, 2026)  # trp_opn_d (Day, Month, Year)
-    data += b'\x00' * 4                      # trp_opn_t (Hour, Min, Sec, Hund)
+    # shd_opn_d/shd_opn_t/trp_opn_d/trp_opn_t — firmware uses these bytes at runtime
+    # for schedule/trip open date+time state. Must be zeroed by web app; device manages.
+    data += b'\x00' * 4                      # shd_opn_d
+    data += b'\x00' * 4                      # shd_opn_t
+    data += b'\x00' * 4                      # trp_opn_d
+    data += b'\x00' * 4                      # trp_opn_t
     data += b'\x00' * 51                     # ucTemp
 
     # ── HARDWARE_SETUP section (64 bytes) ──────────────────────────────────────
@@ -169,27 +171,27 @@ def _pack_busdat(p, cs):
     # Pdate (4 bytes): Day, Month, Year(2 bytes) — zeroed
     data += b'\x00' * 4
     data += _s(p.master_pwd, 11)             # MSR_PSWD
-    data += _s(p.user_pwd, 11)              # USR_PSWD
-    data += _s('', 11)                       # SPR_PSWD (supervisor)
-    data += b'\x80'                          # val_contrast  (default mid)
-    data += b'\x80'                          # val_brightness
+    data += _s(p.user_pwd, 11)             # USR_PSWD
+    data += _s(p.supervisor_pwd, 11)       # SPR_PSWD — profile field
+    data += bytes([4])                       # val_contrast (VB default 4)
+    data += bytes([10])                      # val_brightness (VB default 10)
     data += b'\x00'                          # screensaver_onoff
-    data += b'\x1E'                          # backlit_timer (30s default)
-    data += b'\x00'                          # keyhitdelay
+    data += bytes([3])                       # backlit_timer (VB default 3)
+    data += _b(cs.keyhitdelay if cs else 12) # keyhitdelay — company Settings (default 12)
     data += b'\x00'                          # boarder_en
-    data += b'\x00'                          # dooropen_alert
-    data += b'\x00'                          # paperout_alert
+    data += b'\x01'                          # dooropen_alert (VB default 1)
+    data += b'\x01'                          # paperout_alert (VB default 1)
     data += b'\x00'                          # ucHalfPagePrinter
     data += b'\x01'                          # buzz_onoff (on)
-    data += b'\x00'                          # rs232_baud
-    data += b'\x00'                          # ir_baud
-    data += b'\x00'                          # rf_baud
-    data += b'\x00'                          # connecting_medium
-    data += b'\x00'                          # footer_stat
+    data += b'\x01'                          # rs232_baud (VB default 1)
+    data += b'\x01'                          # ir_baud (VB default 1)
+    data += b'\x01'                          # rf_baud (VB default 1)
+    data += b'\x01'                          # connecting_medium (VB default 1)
+    data += bytes([16])                      # footer_stat (VB default 16)
     data += _b(p.language_option)           # select_language
     data += b'\x00'                          # login_mode
-    data += b'\x00'                          # ucKPLight_opt
-    data += _u(0)                            # usShuntdownTime
+    data += b'\x00'                          # ucKPLite_Opt
+    data += _u(180)                          # usShuntdownTime (VB default 180)
     data += _b(p.language_option)           # LangNo
     data += b'\x00' * 2                     # ucTemp
 

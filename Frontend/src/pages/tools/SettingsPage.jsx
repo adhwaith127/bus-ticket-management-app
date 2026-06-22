@@ -190,7 +190,7 @@ const FONT_OPTIONS     = [{ value: 0, label: 'Normal' },    { value: 1, label: '
 
 const EMPTY_DEVICE_FORM = {
   palmtec_id: '',
-  user_pwd: '', master_pwd: '',
+  user_pwd: '', master_pwd: '', supervisor_pwd: '', remove_pwd: '',
   half_per: '', con_per: '', phy_per: '', round_amt: '', luggage_unit_rate: '',
   main_display: '', main_display2: '',
   header1: '', header2: '', header3: '', footer1: '', footer2: '',
@@ -209,6 +209,8 @@ const EMPTY_DEVICE_FORM = {
 const EMPTY_COMPANY_FORM = {
   ...EMPTY_DEVICE_FORM,
   st_max_amt: '', st_min_con: '',
+  ladies_ratio: 0, senior_ratio: 0,
+  big_font: false, refund_enable: false,
   // remove device-only ST fields
   st_ratio: undefined, st_min_amt: undefined, exp_enable: undefined,
 };
@@ -226,8 +228,10 @@ function SettingsFormFields({ formData, onChange, loading = false, isDevice = tr
 
       <SectionCard title="Passwords" icon={Smartphone}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextField label="User Password"   name="user_pwd"   value={formData.user_pwd}   onChange={onChange} loading={loading} />
-          <TextField label="Master Password" name="master_pwd" value={formData.master_pwd} onChange={onChange} loading={loading} />
+          <TextField label="User Password"       name="user_pwd"       value={formData.user_pwd}       onChange={onChange} loading={loading} />
+          <TextField label="Master Password"     name="master_pwd"     value={formData.master_pwd}     onChange={onChange} loading={loading} />
+          <TextField label="Supervisor Password" name="supervisor_pwd" value={formData.supervisor_pwd} onChange={onChange} loading={loading} />
+          <TextField label="Remove Password"     name="remove_pwd"     value={formData.remove_pwd}     onChange={onChange} loading={loading} />
         </div>
       </SectionCard>
 
@@ -306,6 +310,19 @@ function SettingsFormFields({ formData, onChange, loading = false, isDevice = tr
           {isDevice && <SettToggle label="Expense Enable" checked={!!formData.exp_enable} onChange={tog('exp_enable')} />}
         </div>
       </SectionCard>
+
+      {!isDevice && (
+        <SectionCard title="ETM Concession & Display" icon={BadgeDollarSign}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ConstrainedField label="Ladies Ratio (%)"       name="ladies_ratio" value={formData.ladies_ratio} onChange={onChange} maxLen={3} loading={loading} />
+            <ConstrainedField label="Senior Citizen Ratio (%)" name="senior_ratio" value={formData.senior_ratio} onChange={onChange} maxLen={3} loading={loading} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+            <SettToggle label="Big Font on ETM" checked={!!formData.big_font}      onChange={tog('big_font')} />
+            <SettToggle label="Refund Enable"   checked={!!formData.refund_enable} onChange={tog('refund_enable')} />
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard title="Other Settings" icon={Settings}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
