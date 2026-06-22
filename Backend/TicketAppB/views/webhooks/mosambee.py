@@ -39,6 +39,8 @@ def _resolve_company_for_mosambee(terminal_id, narration):
 
 @csrf_exempt
 def mosambee_settlement_data(request):
+    _txn_lg = logging.getLogger('mosambee.transactions')
+    logger.warning("[MOSAMBEE_DIAG] handlers=%s level=%s propagate=%s", _txn_lg.handlers, _txn_lg.level, _txn_lg.propagate)
     try:
         # Check if POST method
         if request.method != 'POST':
