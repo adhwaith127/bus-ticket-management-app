@@ -192,9 +192,17 @@ def configure_logging(base_dir, debug=False):
     # ticket.ticket_report (async, web UI report endpoints)
     _wire('ticket.ticket_report', logging.INFO, [queue_h])
 
-    # Sync loggers — written immediately
+    # Sync loggers — plain FileHandler avoids TimedRotatingFileHandler rename
+    # conflicts when IIS runs multiple worker processes (WinError 32).
     for logger_name, (filename, level) in _SYNC_LOGGER_MAP.items():
-        sync_h = _timed(logs_dir, filename, 30, json_fmt, level)
+        sync_h = logging.FileHandler(
+            os.path.join(logs_dir, filename),
+            mode='a',
+            encoding='utf-8',
+            delay=False,
+        )
+        sync_h.setLevel(level)
+        sync_h.setFormatter(json_fmt)
         sync_handlers = [sync_h] + ([console_h] if console_h else [])
         _wire(logger_name, level, sync_handlers)
 

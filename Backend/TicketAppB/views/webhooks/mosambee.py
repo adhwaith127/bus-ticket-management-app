@@ -39,8 +39,6 @@ def _resolve_company_for_mosambee(terminal_id, narration):
 
 @csrf_exempt
 def mosambee_settlement_data(request):
-    _txn_lg = logging.getLogger('mosambee.transactions')
-    logger.warning("[MOSAMBEE_DIAG] handlers=%s level=%s propagate=%s", _txn_lg.handlers, _txn_lg.level, _txn_lg.propagate)
     try:
         # Check if POST method
         if request.method != 'POST':
@@ -180,7 +178,7 @@ def mosambee_settlement_data(request):
         # Resolve company via terminal ID or bqrMerchantId (last 5 = palmtec_id)
         company = _resolve_company_for_mosambee(terminal_id, narration)
         if company is None:
-            logger_txn.warning(
+            logger_txn.error(
                 "Company unresolvable for transactionID=%s terminalId=%s narration=%s",
                 transaction_id, terminal_id, narration,
             )
@@ -362,7 +360,7 @@ def mosambee_payout_callback(request):
                 payout_company = related.company
 
         if payout_company is None:
-            logger_payout.warning(
+            logger_payout.error(
                 "Company unresolvable for payout statementId=%s txn_ids=%s",
                 statement_id, txn_ids,
             )

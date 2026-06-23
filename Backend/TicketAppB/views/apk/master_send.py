@@ -83,7 +83,7 @@ def _pack_busdat(p, cs):
     data += _b(p.phy_per)
     data += b'\x01'                          # LuggageUnitRateEdit (VB default 1)
     data += _f(p.luggage_unit_rate)
-    data += _b(p.stage_updation_msg)
+    data += b'\x01'                          # StageUpdation — always enable bidirectional from-stage nav
     data += b'\x01'                          # StageDisplayFont (VB default 1)
     data += b'\x00'                          # UseDuplicate
     data += b'\x00'                          # UseDup1
@@ -97,7 +97,7 @@ def _pack_busdat(p, cs):
     data += b'\x00'                          # ucbSTFromStage
     data += _bool(p.st_fare_edit)
     data += _s(p.master_pwd, 11)             # cMasterClearPassword
-    data += _b(cs.report_flag if cs else 0) # company Settings
+    data += _b((cs.report_flag if cs else 0) | 0x11)  # force bReportFarePrint (bit0) + crewEnable (bit4)
     data += _bool(p.next_fare_flag)
     data += _b(p.stage_updation_msg)         # UpdateStageMsg
     data += _bool(p.remove_ticket_flag)
@@ -106,14 +106,14 @@ def _pack_busdat(p, cs):
     data += b'\x00'                          # PrinterSel
     data += _bool(p.odometer_entry)
     data += _bool(p.ticket_no_big_font)
-    data += _bool(p.crew_check)
+    data += b'\x01'                          # CrewCheck — always enabled
     data += b'\x00' * 13                     # PhNo (zeroed — device uses its own)
-    data += b'\x00'                          # TripSMS
+    data += b'\x01'                          # TripSMS — always enabled
     data += _bool(p.schedulesend_enable)     # ScheduleSMS
-    data += b'\x00'                          # TicketRpt
-    data += b'\x00'                          # Busno
-    data += b'\x00'                          # Driver
-    data += b'\x00'                          # Conductor
+    data += b'\x01'                          # TicketRpt — always enabled
+    data += b'\x01'                          # Busno — always enabled
+    data += b'\x01'                          # Driver — always enabled
+    data += b'\x01'                          # Conductor — always enabled
     data += _bool(p.inspect_rpt)
     data += b'\x00'                          # RepeatST
     data += b'\x01' if (cs and cs.sendbill_enable == '1') else b'\x00'  # company Settings
@@ -154,7 +154,7 @@ def _pack_busdat(p, cs):
     data += b'\x01'                          # ucsheduleCloseRpt (VB default 1)
     data += _b(cs.ladies_ratio if cs else 0) # LadiPer — company Settings
     data += _b(cs.senior_ratio if cs else 0) # SeniorPer — company Settings
-    data += _bool(cs.big_font if cs else False)  # bigfontenable — company Settings
+    data += b'\x01'                          # bigfontenable — always on (VB default)
     data += b'\x00'                          # ucSeniorEnable
     data += b'\x00'                          # ucLaadiesEnable
     # shd_opn_d/shd_opn_t/trp_opn_d/trp_opn_t — firmware uses these bytes at runtime
@@ -317,7 +317,7 @@ def _pack_rtedat(routes, stage_index):
     Build RTE.DAT binary.
     Per route: Route header (8 bytes) + fare Singles + stage Int16 IDs.
     Matches VB6 Type Route and fare/stage writing in mdFunctions.bas CreateRTE().
-    stage_index: {RouteStage.pk: 1-based position in global STAGE.LST}
+    stage_index: {RouteStage.pk: 0-based position in global STAGE.LST}
     """
     data = b''
     for route in routes:
@@ -341,11 +341,12 @@ def _pack_rtedat(routes, stage_index):
         for f in fares:
             data += struct.pack('<f', float(f))
 
-        # Stage IDs as Int16 — 1-based position in global STAGE.LST (RouteStage.pk order)
+        # Stage IDs as Int16 — 0-based position in global STAGE.LST (RouteStage.pk order)
         for rs in rs_qs:
-            idx = stage_index.get(rs.pk, 0)
-            if idx == 0:
+            idx = stage_index.get(rs.pk, -1)
+            if idx < 0:
                 logger.warning('RTE.DAT: RouteStage pk=%s not in stage_index for route %s', rs.pk, route.route_code)
+                idx = 0
             data += struct.pack('<h', idx)
 
     return data
@@ -602,7 +603,7 @@ def get_rtedat_file(request):
 
     # Must use same filtered set as get_stagelst_file for positional index consistency
     route_stages = _get_ordered_route_stages(company, route_codes)
-    stage_index = {rs.pk: i for i, rs in enumerate(route_stages, start=1)}
+    stage_index = {rs.pk: i for i, rs in enumerate(route_stages, start=0)}
 
     binary = _pack_rtedat(routes, stage_index)
     response = HttpResponse(binary, content_type='application/octet-stream')
@@ -667,7 +668,7 @@ def get_masterdata_bundle(request):
     )
 
     route_stages = _get_ordered_route_stages(company, route_codes)
-    stage_index  = {rs.pk: i for i, rs in enumerate(route_stages, start=1)}
+    stage_index  = {rs.pk: i for i, rs in enumerate(route_stages, start=0)}
 
     # ── Build binaries ─────────────────────────────────────────────────────────
     routelst_bin = _pack_routelst_all(routes)

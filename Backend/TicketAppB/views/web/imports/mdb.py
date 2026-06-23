@@ -1000,7 +1000,7 @@ class MdbImportService:
                 'next_fare_flag':       MdbImportService._to_bool(row.get('NextFareFlag')),
                 'odometer_entry':       MdbImportService._to_bool(row.get('OdometerEntry')),
                 'ticket_no_big_font':   MdbImportService._to_bool(row.get('TicketNoBigFont')),
-                'crew_check':           MdbImportService._to_bool(row.get('CrewCheck')),
+
                 'gprs_enable':          MdbImportService._to_bool(row.get('GprsEnable')),
                 'tripsend_enable':      MdbImportService._to_bool(row.get('TripsendEnable')),
                 'schedulesend_enable':  MdbImportService._to_bool(row.get('SchedulesendEnable')),
