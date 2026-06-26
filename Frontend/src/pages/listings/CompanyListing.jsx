@@ -773,7 +773,8 @@ export default function CompanyListing() {
                   {[
                     { label: 'Contact Person', value: c.contact_person },
                     { label: 'Contact Number', value: c.contact_number ? `+91 ${c.contact_number}` : '—' },
-                    { label: 'GST Number',      value: c.gst_number || '—' },
+                    { label: 'GST Number',          value: c.gst_number || '—' },
+                    { label: 'Mosambee Merchant ID', value: c.mosambee_merchant_id || '—' },
                     { label: 'Company ID',       value: c.company_id ? `#${c.company_id}` : 'Not registered' },
                     { label: 'Valid From',        value: c.product_from_date ? new Date(c.product_from_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
                     { label: 'Valid Till',        value: c.product_to_date ? new Date(c.product_to_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
