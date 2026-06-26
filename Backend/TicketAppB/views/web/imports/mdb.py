@@ -11,6 +11,7 @@ progress via axios onDownloadProgress:
 """
 
 import os
+import sys
 import json
 import subprocess
 import csv
@@ -853,7 +854,7 @@ class MdbImportService:
         if not rows:
             return 0, 0, 0, []
 
-        imported, existing, skipped, errors = 0, 0, 0, []
+        imported, existing, skipped, errors, replaced = 0, 0, 0, [], 0
         to_create = []
         routes_in_batch = set()   # route PKs whose fares we will fully replace
 
@@ -1346,6 +1347,13 @@ class MdbReader:
 
     @staticmethod
     def read_all_tables(mdb_path, password=None):
+        if sys.platform == 'win32':
+            raise MdbReadError(
+                'Windows server detected. mdb-export (mdbtools) is not available on Windows. '
+                'MDB import requires a Linux server with mdbtools installed. '
+                'Contact support to enable Windows-compatible import (pyodbc).'
+            )
+
         tables_to_read = [
             'bustype',
             'EMPLOYEETYPE',

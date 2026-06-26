@@ -2,12 +2,12 @@ from celery import shared_task
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta, date, time
 from .models import (
     RawDataLog, TransactionData, Direction, RouteStage,
     ScheduleData, TripData, Employee, VehicleType,
-    ETMDevice, DeviceRejectionLog, Company,
+    ETMDevice, DeviceRejectionLog, Company, MosambeeTransaction,
 )
 from .views.utils import _get_route_for_palmtec
 
@@ -1645,6 +1645,124 @@ def poll_company_license(self, company_id: int) -> None:
                 company.save(update_fields=['authentication_status'])
         except Exception as e:
             log.error(f'[poll_company_license] Could not reset VALIDATING for {company_id}: {e}')
+
+
+import logging as _recon_logger
+_recon_log = _recon_logger.getLogger(__name__)
+
+@shared_task(bind=True, max_retries=3)
+def reconcile_mosambee_transaction(self, transaction_id):
+    """
+    Async reconciliation for a single MosambeeTransaction.
+    Fired by the webhook after create. Replaces the removed post_save signal.
+    """
+    try:
+        txn = MosambeeTransaction.objects.select_related('company').get(id=transaction_id)
+    except MosambeeTransaction.DoesNotExist:
+        _recon_log.error('[reconcile_mosambee] Transaction %s not found', transaction_id)
+        return
+
+    if not txn.is_payment_successful:
+        MosambeeTransaction.objects.filter(id=transaction_id).update(
+            processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION
+        )
+        return
+
+    MosambeeTransaction.objects.filter(id=transaction_id).update(
+        processing_status=MosambeeTransaction.ProcessingStatus.RECONCILING
+    )
+
+    def _fail(status, error, ticket=None):
+        update = dict(
+            reconciliation_status=status,
+            reconciliation_error=error,
+            processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION,
+        )
+        if ticket:
+            update['related_ticket'] = ticket
+        MosambeeTransaction.objects.filter(id=transaction_id).update(**update)
+
+    try:
+        if not txn.invoiceNumber:
+            _fail(MosambeeTransaction.ReconciliationStatus.NOT_FOUND, 'No invoice number provided')
+            return
+
+        company = txn.company
+        if not company:
+            _fail(
+                MosambeeTransaction.ReconciliationStatus.NOT_FOUND,
+                f'Company not resolved for terminal: {txn.transactionTerminalId}',
+            )
+            return
+
+        ticket = TransactionData.objects.filter(
+            ticket_number=txn.invoiceNumber,
+            company_code=company,
+        ).first()
+
+        if not ticket:
+            _fail(MosambeeTransaction.ReconciliationStatus.NOT_FOUND, f'No ticket found with number: {txn.invoiceNumber}')
+            return
+
+        ticket_amount  = ticket.ticket_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        payment_amount = Decimal(str(txn.transactionAmount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        if ticket_amount != payment_amount:
+            _fail(
+                MosambeeTransaction.ReconciliationStatus.AMOUNT_MISMATCH,
+                f'Amount mismatch - Ticket: ₹{ticket_amount}, Payment: ₹{payment_amount}',
+                ticket=ticket,
+            )
+            return
+
+        with transaction.atomic():
+            existing = MosambeeTransaction.objects.select_for_update().filter(
+                related_ticket=ticket
+            ).exclude(id=transaction_id).first()
+            if existing:
+                _fail(
+                    MosambeeTransaction.ReconciliationStatus.DUPLICATE,
+                    f'Ticket already paid by transaction: {existing.transactionID}',
+                )
+                return
+            MosambeeTransaction.objects.filter(id=transaction_id).update(
+                related_ticket=ticket,
+                reconciliation_status=MosambeeTransaction.ReconciliationStatus.AUTO_MATCHED,
+                reconciled_at=timezone.now(),
+                processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION,
+            )
+        _recon_log.info('[reconcile_mosambee] Auto-matched TXN-%s ↔ Ticket-%s', txn.transactionID, txn.invoiceNumber)
+
+    except Exception as exc:
+        _recon_log.exception('[reconcile_mosambee] Error for transaction %s: %s', transaction_id, exc)
+        MosambeeTransaction.objects.filter(id=transaction_id).update(
+            reconciliation_error=f'Reconciliation error: {exc}',
+            processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION,
+        )
+        raise self.retry(exc=exc, countdown=60)
+
+
+@shared_task
+def scan_pending_mosambee_reconciliations():
+    """
+    Beat task. Finds MosambeeTransaction records stuck in PENDING reconciliation
+    for more than 5 minutes (e.g. worker killed mid-task) and requeues them.
+    """
+    cutoff = timezone.now() - timedelta(minutes=5)
+    stuck = MosambeeTransaction.objects.filter(
+        reconciliation_status=MosambeeTransaction.ReconciliationStatus.PENDING,
+        created_at__lt=cutoff,
+        responseCode__in=['0', '00', '000'],
+    ).values_list('id', flat=True)[:200]
+
+    count = 0
+    for txn_id in stuck:
+        reconcile_mosambee_transaction.delay(txn_id)
+        count += 1
+
+    if count:
+        _recon_log.info('[scan_pending_mosambee] Requeued %d stuck transactions', count)
+    return count
 
 
 import json as _json

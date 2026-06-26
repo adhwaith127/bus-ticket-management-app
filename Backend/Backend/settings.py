@@ -229,6 +229,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'TicketAppB.tasks.auto_populate_mosambee_tids',
         'schedule': crontab(hour=0, minute=30),  # daily at 00:30
     },
+    'scan-pending-mosambee-reconciliations': {
+        'task': 'TicketAppB.tasks.scan_pending_mosambee_reconciliations',
+        'schedule': 300.0,  # every 5 minutes
+    },
 }
 
 

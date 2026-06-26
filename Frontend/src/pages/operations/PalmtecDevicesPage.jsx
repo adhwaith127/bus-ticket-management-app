@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api, { BASE_URL } from '../../assets/js/axiosConfig';
 import TableSkeleton from '../../components/TableSkeleton';
 import Modal from '../../components/Modal';
@@ -13,9 +13,11 @@ export default function PalmtecDevicesPage() {
   const [palmtecError, setPalmtecError] = useState('');
   const [palmtecBusy,  setPalmtecBusy]  = useState(false);
 
-  const [syncBusy,    setSyncBusy]    = useState(false);
-  const [syncResult,  setSyncResult]  = useState(null);
-  const [syncError,   setSyncError]   = useState(null);
+  const [syncBusy,     setSyncBusy]     = useState(false);
+  const [syncCooldown, setSyncCooldown] = useState(false);
+  const [syncResult,   setSyncResult]   = useState(null);
+  const [syncError,    setSyncError]    = useState(null);
+  const mountedRef = useRef(true);
 
   const fetchDevices = useCallback(async () => {
     setLoading(true);
@@ -29,7 +31,11 @@ export default function PalmtecDevicesPage() {
     }
   }, []);
 
-  useEffect(() => { fetchDevices(); }, [fetchDevices]);
+  useEffect(() => {
+    mountedRef.current = true;
+    fetchDevices();
+    return () => { mountedRef.current = false; };
+  }, [fetchDevices]);
 
   const openModal = (device) => {
     setPalmtecModal({ device });
@@ -59,12 +65,17 @@ export default function PalmtecDevicesPage() {
     setSyncError(null);
     try {
       const res = await api.post(`${BASE_URL}/etm-devices/sync-mosambee-tids`);
+      if (!mountedRef.current) return;
       setSyncResult(res.data);
       fetchDevices();
     } catch (err) {
+      if (!mountedRef.current) return;
       setSyncError(err?.response?.data?.error || 'Sync failed.');
     } finally {
+      if (!mountedRef.current) return;
       setSyncBusy(false);
+      setSyncCooldown(true);
+      setTimeout(() => { if (mountedRef.current) setSyncCooldown(false); }, 60000);
     }
   };
 
@@ -74,7 +85,6 @@ export default function PalmtecDevicesPage() {
 
   const assigned   = devices.filter(d => d.palmtec_id).length;
   const unassigned = devices.length - assigned;
-  const hasMissingTid = devices.some(d => !d.mosambee_tid);
 
   return (
     <div className="p-6 md:p-10 min-h-screen bg-slate-50 space-y-6 animate-fade-in">
@@ -120,8 +130,8 @@ export default function PalmtecDevicesPage() {
           />
           <button
             onClick={handleSync}
-            disabled={!hasMissingTid || syncBusy || loading}
-            title={!hasMissingTid ? 'All devices already have Mosambee TID set' : 'Fetch TIDs from license server'}
+            disabled={syncBusy || syncCooldown || loading}
+            title={syncCooldown ? 'Sync recently run, please wait' : 'Fetch TIDs from license server'}
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors
               disabled:opacity-40 disabled:cursor-not-allowed
               enabled:bg-slate-900 enabled:text-white enabled:border-slate-900 enabled:hover:bg-slate-700

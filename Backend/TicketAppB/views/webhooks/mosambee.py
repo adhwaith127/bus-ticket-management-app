@@ -21,11 +21,18 @@ logger_txn = logging.getLogger('mosambee.transactions')
 logger_payout = logging.getLogger('mosambee.payouts')
 
 
-def _resolve_company_for_mosambee(terminal_id, narration):
+def _resolve_company_for_mosambee(terminal_id, narration, merchant_id=None):
+    # 1. Mosambee merchant ID on Company
+    if merchant_id:
+        company = Company.objects.filter(mosambee_merchant_id=merchant_id).first()
+        if company:
+            return company
+    # 2. Device mosambee_tid
     if terminal_id:
         device = ETMDevice.objects.filter(mosambee_tid=terminal_id).select_related('company').first()
         if device and device.company_id:
             return device.company
+    # 3. Last 5 digits of narration as palmtec_id
     if narration and len(narration) >= 5:
         try:
             palmtec_int = int(narration[-5:])
@@ -176,7 +183,7 @@ def mosambee_settlement_data(request):
             return JsonResponse({'status': 400,'message': f'Invalid date/time format: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Resolve company via terminal ID or bqrMerchantId (last 5 = palmtec_id)
-        company = _resolve_company_for_mosambee(terminal_id, narration)
+        company = _resolve_company_for_mosambee(terminal_id, narration, merchant_id=merchant_id)
         if company is None:
             logger_txn.error(
                 "Company unresolvable for transactionID=%s terminalId=%s narration=%s",
@@ -272,13 +279,13 @@ def mosambee_settlement_data(request):
             reconciliation_status=MosambeeTransaction.ReconciliationStatus.PENDING,
         )
 
-        # bill number was the passed data in documentation
-        # response_data = {'status': 200,'message': 'success','merchant_refTxnId': bill_number or invoice_number}
         response_data = {'status': 200,'message': 'success','merchant_refTxnId': bill_number}
 
-        # Store what we sent back (for audit trail)
         transaction.response_sent_to_mosambee = response_data
         transaction.save()
+
+        from ...tasks import reconcile_mosambee_transaction
+        reconcile_mosambee_transaction.delay(transaction.id)
 
         return JsonResponse(response_data,status=status.HTTP_200_OK)
 

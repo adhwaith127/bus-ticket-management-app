@@ -799,6 +799,12 @@ def create_company(request):
         if alloc_total <= 0:
             return Response({'error': 'total_user_count must be greater than 0.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if alloc_premium + alloc_inter > alloc_total:
+            return Response(
+                {'error': 'premium_user_count + intermediate_user_count cannot exceed total_user_count.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Row-level lock on dealer to serialise concurrent company creations
         try:
             dealer = Dealer.objects.select_for_update().get(pk=user.dealer_id)
@@ -811,15 +817,18 @@ def create_company(request):
         # Pool validation (live-computed from child companies)
         slots_rem  = dealer.slots_remaining
         user_slots = dealer.users_slots_remaining
+        alloc_basic = alloc_total - alloc_premium - alloc_inter
         errors = []
         if alloc_palmtec > slots_rem:
-            errors.append(f"Palmtec: requested {alloc_palmtec}, available {slots_rem}")
+            errors.append(f"ETM devices: requested {alloc_palmtec}, available {slots_rem}")
         if alloc_total > user_slots['total']:
             errors.append(f"Total users: requested {alloc_total}, available {user_slots['total']}")
         if alloc_premium > user_slots['premium']:
             errors.append(f"Premium users: requested {alloc_premium}, available {user_slots['premium']}")
         if alloc_inter > user_slots['inter']:
             errors.append(f"Intermediate users: requested {alloc_inter}, available {user_slots['inter']}")
+        if alloc_basic > user_slots['basic']:
+            errors.append(f"Basic users: requested {alloc_basic}, available {user_slots['basic']}")
         if errors:
             return Response({
                 'error': 'Insufficient dealer pool capacity.',

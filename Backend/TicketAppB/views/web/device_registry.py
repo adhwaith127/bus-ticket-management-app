@@ -819,19 +819,6 @@ def sync_mosambee_tids(request):
     if not company:
         return Response({'error': 'No company associated with this account.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    devices_missing = ETMDevice.objects.filter(
-        company=company,
-        allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
-        mosambee_tid__isnull=True,
-    ) | ETMDevice.objects.filter(
-        company=company,
-        allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
-        mosambee_tid='',
-    )
-
-    if not devices_missing.exists():
-        return Response({'message': 'All devices already have Mosambee TID set.', 'updated': 0, 'already_set': 0, 'not_found': 0}, status=status.HTTP_200_OK)
-
     result = fetch_company_from_license_server(company.company_id)
     if not result.get('success'):
         return Response({'error': result.get('error', 'License server error.')}, status=status.HTTP_502_BAD_GATEWAY)
@@ -845,18 +832,24 @@ def sync_mosambee_tids(request):
     except (json.JSONDecodeError, TypeError):
         return Response({'error': 'Invalid TerminalMap format from license server.'}, status=status.HTTP_502_BAD_GATEWAY)
 
-    # Build serial → TID lookup from TerminalMap
     ser_to_tid = {entry['SER']: entry['TER'] for entry in terminal_map if entry.get('SER') and entry.get('TER')}
+
+    all_devices = ETMDevice.objects.filter(
+        company=company,
+        allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+    )
 
     updated = 0
     not_found = 0
 
     from django.db import transaction as db_transaction
     with db_transaction.atomic():
-        for device in devices_missing.select_for_update():
+        for device in all_devices.select_for_update():
             tid = ser_to_tid.get(device.serial_number)
             if not tid:
                 not_found += 1
+                continue
+            if device.mosambee_tid == tid:
                 continue
             conflict = ETMDevice.objects.filter(mosambee_tid=tid).exclude(pk=device.pk).first()
             if conflict:
