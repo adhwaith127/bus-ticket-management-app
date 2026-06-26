@@ -100,10 +100,25 @@ def auto_reconcile_mosambee_payment(sender, instance, created, **kwargs):
         print(f"🔍 Looking for ticket: {instance.invoiceNumber}")
 
         # CHECK 2: Resolve company via registered device
-        device = ETMDevice.objects.select_related('company').filter(
-            serial_number=instance.transactionTerminalId
-        ).first()
-        if not device or not device.company:
+        # Primary: mosambee_tid; fallback: last 5 digits of narration as palmtec_id
+        company = None
+        if instance.transactionTerminalId:
+            device = ETMDevice.objects.select_related('company').filter(
+                mosambee_tid=instance.transactionTerminalId
+            ).first()
+            if device and device.company:
+                company = device.company
+        if not company and instance.narration and len(instance.narration) >= 5:
+            try:
+                palmtec_int = int(instance.narration[-5:])
+                device = ETMDevice.objects.select_related('company').filter(
+                    palmtec_id=palmtec_int
+                ).first()
+                if device and device.company:
+                    company = device.company
+            except ValueError:
+                pass
+        if not company:
             print(f"⚠️ Device not registered: {instance.transactionTerminalId}")
             instance.reconciliation_status = MosambeeTransaction.ReconciliationStatus.NOT_FOUND
             instance.reconciliation_error = f"Device not registered or company not found: {instance.transactionTerminalId}"
@@ -114,7 +129,7 @@ def auto_reconcile_mosambee_payment(sender, instance, created, **kwargs):
         # CHECK 3: Find matching bus ticket scoped to company
         ticket = TransactionData.objects.filter(
             ticket_number=instance.invoiceNumber,
-            company_code=device.company,
+            company_code=company,
         ).first()
 
         if not ticket:

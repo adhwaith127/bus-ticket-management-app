@@ -154,9 +154,9 @@ SESSION_IDLE_TIMEOUT = int(env('SESSION_IDLE_TIMEOUT', default=1200))
 SESSION_IDLE_TIMEOUT_APK = int(env('SESSION_IDLE_TIMEOUT_APK', default=43200))
 
 
-# Cookie Settings for HTTP Testing
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+COOKIE_SECURE = env.bool('COOKIE_SECURE', default=not DEBUG)
+SESSION_COOKIE_SECURE = COOKIE_SECURE
+CSRF_COOKIE_SECURE = COOKIE_SECURE
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
@@ -224,6 +224,10 @@ CELERY_BEAT_SCHEDULE = {
     'sweep-stale-sessions': {
         'task': 'TicketAppB.tasks.sweep_stale_sessions',
         'schedule': 600,  # every 10 minutes
+    },
+    'auto-populate-mosambee-tids': {
+        'task': 'TicketAppB.tasks.auto_populate_mosambee_tids',
+        'schedule': crontab(hour=0, minute=30),  # daily at 00:30
     },
 }
 

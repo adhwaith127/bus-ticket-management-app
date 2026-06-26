@@ -209,7 +209,8 @@ urlpatterns = [
     path('etm-devices/<int:device_id>/unmap',          device_registry_views.unmap_device,         name='etm_unmap'),
     path('etm-devices/<int:device_id>/return-to-stock', device_registry_views.return_device_to_stock, name='etm_return_stock'),
     path('etm-devices/<int:device_id>/set-palmtec-id',   device_registry_views.set_palmtec_id,   name='etm_set_palmtec_id'),
-    path('etm-devices/<int:device_id>/set-mosambee-tid', device_registry_views.set_mosambee_tid, name='etm_set_mosambee_tid'),
+    path('etm-devices/<int:device_id>/set-mosambee-tid', device_registry_views.set_mosambee_tid,  name='etm_set_mosambee_tid'),
+    path('etm-devices/sync-mosambee-tids',               device_registry_views.sync_mosambee_tids, name='etm_sync_mosambee_tids'),
 
     # Palmtec device data APIs (server → APK → USB → device)
     path('device/routes',      palmtec_views.get_routes_list),

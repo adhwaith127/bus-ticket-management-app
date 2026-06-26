@@ -16,6 +16,7 @@ Dealer assigns from their pool to a client company (Allocated).
 """
 
 import io
+import json
 import logging
 import openpyxl
 
@@ -797,4 +798,77 @@ def set_mosambee_tid(request, device_id):
     return Response({
         'message': f'Mosambee TID {tid} assigned to device {device.serial_number}.',
         'data': ETMDeviceSerializer(device).data,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, LicensePermission])
+def sync_mosambee_tids(request):
+    """
+    POST /etm-devices/sync-mosambee-tids
+
+    Fetches TerminalMap from the license server for the logged-in company
+    and populates mosambee_tid on devices that have it unset.
+    Only devices with serial_number matching TerminalMap SER are updated.
+    Already-set TIDs are never overwritten.
+    """
+    from .company import fetch_company_from_license_server
+
+    user = request.user
+    company = getattr(user, 'company', None)
+    if not company:
+        return Response({'error': 'No company associated with this account.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    devices_missing = ETMDevice.objects.filter(
+        company=company,
+        allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+        mosambee_tid__isnull=True,
+    ) | ETMDevice.objects.filter(
+        company=company,
+        allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+        mosambee_tid='',
+    )
+
+    if not devices_missing.exists():
+        return Response({'message': 'All devices already have Mosambee TID set.', 'updated': 0, 'already_set': 0, 'not_found': 0}, status=status.HTTP_200_OK)
+
+    result = fetch_company_from_license_server(company.company_id)
+    if not result.get('success'):
+        return Response({'error': result.get('error', 'License server error.')}, status=status.HTTP_502_BAD_GATEWAY)
+
+    terminal_map_raw = result['data'].get('TerminalMap')
+    if not terminal_map_raw:
+        return Response({'error': 'No TerminalMap in license server response.'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    try:
+        terminal_map = json.loads(terminal_map_raw) if isinstance(terminal_map_raw, str) else terminal_map_raw
+    except (json.JSONDecodeError, TypeError):
+        return Response({'error': 'Invalid TerminalMap format from license server.'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    # Build serial → TID lookup from TerminalMap
+    ser_to_tid = {entry['SER']: entry['TER'] for entry in terminal_map if entry.get('SER') and entry.get('TER')}
+
+    updated = 0
+    not_found = 0
+
+    from django.db import transaction as db_transaction
+    with db_transaction.atomic():
+        for device in devices_missing.select_for_update():
+            tid = ser_to_tid.get(device.serial_number)
+            if not tid:
+                not_found += 1
+                continue
+            conflict = ETMDevice.objects.filter(mosambee_tid=tid).exclude(pk=device.pk).first()
+            if conflict:
+                logger.warning("Sync: TID %s already assigned to %s, skipping %s", tid, conflict.serial_number, device.serial_number)
+                not_found += 1
+                continue
+            device.mosambee_tid = tid
+            device.save(update_fields=['mosambee_tid', 'updated_at'])
+            updated += 1
+
+    return Response({
+        'message': f'Sync complete. {updated} device(s) updated.',
+        'updated': updated,
+        'not_found_in_map': not_found,
     }, status=status.HTTP_200_OK)

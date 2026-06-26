@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 from decimal import Decimal
 from datetime import datetime, timedelta, date, time
@@ -1644,3 +1645,72 @@ def poll_company_license(self, company_id: int) -> None:
                 company.save(update_fields=['authentication_status'])
         except Exception as e:
             log.error(f'[poll_company_license] Could not reset VALIDATING for {company_id}: {e}')
+
+
+import json as _json
+import logging as _tid_logger
+_tid_log = _tid_logger.getLogger(__name__)
+
+@shared_task
+def auto_populate_mosambee_tids():
+    """
+    Daily beat task. For each company that has any device with mosambee_tid unset,
+    fetches TerminalMap from the license server and populates mosambee_tid
+    by matching TerminalMap SER to ETMDevice.serial_number.
+    Skips companies where all devices already have TID set.
+    Never overwrites an already-set TID.
+    """
+    from .views.web.company import fetch_company_from_license_server
+
+    companies_with_gaps = Company.objects.filter(
+        etmdevice__mosambee_tid__isnull=True,
+        etmdevice__allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+    ).distinct() | Company.objects.filter(
+        etmdevice__mosambee_tid='',
+        etmdevice__allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+    ).distinct()
+
+    total_updated = 0
+
+    for company in companies_with_gaps:
+        try:
+            result = fetch_company_from_license_server(company.company_id)
+            if not result.get('success'):
+                _tid_log.warning('[auto_populate_mosambee_tids] License server failed for company %s: %s', company.company_id, result.get('error'))
+                continue
+
+            terminal_map_raw = result['data'].get('TerminalMap')
+            if not terminal_map_raw:
+                continue
+
+            try:
+                terminal_map = _json.loads(terminal_map_raw) if isinstance(terminal_map_raw, str) else terminal_map_raw
+            except (_json.JSONDecodeError, TypeError):
+                _tid_log.warning('[auto_populate_mosambee_tids] Invalid TerminalMap for company %s', company.company_id)
+                continue
+
+            ser_to_tid = {e['SER']: e['TER'] for e in terminal_map if e.get('SER') and e.get('TER')}
+
+            devices = ETMDevice.objects.filter(
+                company=company,
+                allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
+            ).filter(
+                Q(mosambee_tid__isnull=True) | Q(mosambee_tid='')
+            )
+
+            for device in devices:
+                tid = ser_to_tid.get(device.serial_number)
+                if not tid:
+                    continue
+                if ETMDevice.objects.filter(mosambee_tid=tid).exclude(pk=device.pk).exists():
+                    _tid_log.warning('[auto_populate_mosambee_tids] TID %s already taken, skipping %s', tid, device.serial_number)
+                    continue
+                device.mosambee_tid = tid
+                device.save(update_fields=['mosambee_tid', 'updated_at'])
+                total_updated += 1
+
+        except Exception as exc:
+            _tid_log.exception('[auto_populate_mosambee_tids] Error processing company %s: %s', company.company_id, exc)
+
+    _tid_log.info('[auto_populate_mosambee_tids] Done. %d device(s) updated.', total_updated)
+    return total_updated
