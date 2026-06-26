@@ -18,6 +18,7 @@ import VehicleCombined from './pages/listings/VehicleCombined'
 import CurrencyListing from './pages/listings/CurrencyListing'
 import RouteListing from './pages/listings/RouteListing'
 import EmployeeCombined from './pages/listings/EmployeeCombined'
+import InspectorListing from './pages/listings/InspectorListing'
 
 import CrewAssignmentListing from './pages/operations/CrewAssignmentListing'
 import DeviceRegistry from './pages/operations/DeviceRegistry'
@@ -174,6 +175,10 @@ const router = createBrowserRouter([
           {
             path: 'master-data/crew-assignments',
             element: <CrewAssignmentListing />
+          },
+          {
+            path: 'master-data/inspector-records',
+            element: <InspectorListing />
           },
           {
             path: 'master-data/settings',

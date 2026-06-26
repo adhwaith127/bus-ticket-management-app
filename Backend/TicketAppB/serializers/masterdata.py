@@ -3,6 +3,7 @@ from ..models import (
     BusType, EmployeeType, Stage, Currency,
     Employee, VehicleType, CrewAssignment, Settings,
     RouteStage, Route, RouteBusType, Fare, SettingsProfile,
+    ExpenseMaster, InspectorDetails,
 )
 
 
@@ -338,3 +339,32 @@ class SettingsProfileSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'created_by', 'updated_by',
         ]
         read_only_fields = ['id', 'company', 'created_at', 'updated_at', 'created_by', 'updated_by']
+
+
+class ExpenseMasterSerializer(serializers.ModelSerializer):
+    company    = serializers.PrimaryKeyRelatedField(read_only=True)
+    created_by = serializers.PrimaryKeyRelatedField(read_only=True)
+    updated_by = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model  = ExpenseMaster
+        fields = [
+            'id', 'expense_code', 'expense_name', 'palmtec_id',
+            'company', 'created_by', 'updated_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at']
+
+
+class InspectorDetailsSerializer(serializers.ModelSerializer):
+    inspector_name = serializers.CharField(source='inspector.employee_name', read_only=True)
+    inspector_code = serializers.CharField(source='inspector.employee_code', read_only=True)
+
+    class Meta:
+        model  = InspectorDetails
+        fields = [
+            'id', 'tripmaster_ref_id', 'inspector', 'inspector_name', 'inspector_code',
+            'station_no', 'date', 'time', 'palmtec_id',
+            'schedule_no', 'trip_no', 'company',
+            'created_at',
+        ]
+        read_only_fields = fields

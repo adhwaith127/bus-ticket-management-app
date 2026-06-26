@@ -16,6 +16,7 @@ from .views.web import sessions as session_views
 from .views.web.masterdata import transport as transport_views
 from .views.web.masterdata import crew as crew_views
 from .views.web.masterdata import settings as settings_views
+from .views.web.masterdata import operations as operations_views
 from .views.web.imports import mdb as mdb_views
 from .views.web.imports import routes as route_import_views
 from .views.apk import master_send as palmtec_views
@@ -184,6 +185,11 @@ urlpatterns = [
     path('masterdata/crew-assignments/create', crew_views.create_crew_assignment),
     path('masterdata/crew-assignments/update/<int:pk>', crew_views.update_crew_assignment),
     path('masterdata/crew-assignments/delete/<int:pk>', crew_views.delete_crew_assignment),
+    path('masterdata/expense-masters', operations_views.get_expense_masters),
+    path('masterdata/expense-masters/create', operations_views.create_expense_master),
+    path('masterdata/expense-masters/update/<int:pk>', operations_views.update_expense_master),
+    path('masterdata/expense-masters/delete/<int:pk>', operations_views.delete_expense_master),
+    path('masterdata/inspector-details', operations_views.get_inspector_details),
     path('masterdata/dropdowns/employee-types', crew_views.get_employee_types_dropdown),
     path('masterdata/dropdowns/employees', crew_views.get_employees_by_type_dropdown),
 

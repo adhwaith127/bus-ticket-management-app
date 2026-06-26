@@ -355,9 +355,10 @@ export default function Sidebar() {
                   <SubLink to="/dashboard/master-data/employees"        icon={Users2}      label="Employee"         onClose={close} />
                   <SubLink to="/dashboard/master-data/vehicles"         icon={Truck}       label="Vehicles"         onClose={close} />
                   <SubLink to="/dashboard/master-data/routes"           icon={Route}       label="Routes"           onClose={close} />
-                  <SubLink to="/dashboard/master-data/crew-assignments" icon={CalendarCog} label="Crew Assignments" onClose={close} />
-                  <SubLink to="/dashboard/master-data/expense-master"   icon={IndianRupee} label="Expense Master"   onClose={close} />
-                  <SubLink to="/dashboard/master-data/settings"         icon={Settings}    label="Settings"         onClose={close} />
+                  <SubLink to="/dashboard/master-data/crew-assignments"   icon={CalendarCog} label="Crew Assignments"   onClose={close} />
+                  <SubLink to="/dashboard/master-data/expense-master"    icon={IndianRupee} label="Expense Master"    onClose={close} />
+                  <SubLink to="/dashboard/master-data/inspector-records" icon={Shield}      label="Inspector Records" onClose={close} />
+                  <SubLink to="/dashboard/master-data/settings"          icon={Settings}    label="Settings"          onClose={close} />
                 </DropdownSection>
                 <NavItem to="/dashboard/device-download" icon={MonitorDown} label="Device Download" isCollapsed={isCollapsed} onClose={close} />
 
