@@ -190,6 +190,7 @@ urlpatterns = [
     path('masterdata/expense-masters/update/<int:pk>', operations_views.update_expense_master),
     path('masterdata/expense-masters/delete/<int:pk>', operations_views.delete_expense_master),
     path('masterdata/inspector-details', operations_views.get_inspector_details),
+    path('masterdata/expenses', operations_views.get_expenses),
     path('masterdata/dropdowns/employee-types', crew_views.get_employee_types_dropdown),
     path('masterdata/dropdowns/employees', crew_views.get_employees_by_type_dropdown),
 

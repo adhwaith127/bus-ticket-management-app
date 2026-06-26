@@ -27,6 +27,7 @@ import StageEditor from './pages/operations/StageEditor'
 import ExpenseMasterPage from './pages/operations/ExpenseMasterPage'
 
 import TicketDataPage from './pages/reports/TicketDataPage'
+import ExpenseDataPage from './pages/reports/ExpenseDataPage'
 import TripDataPage from './pages/reports/TripDataPage'
 import ScheduleDataPage from './pages/reports/ScheduleDataPage'
 import SettlementsLayout from './pages/reports/settlements/SettlementsLayout'
@@ -179,6 +180,10 @@ const router = createBrowserRouter([
           {
             path: 'master-data/inspector-records',
             element: <InspectorListing />
+          },
+          {
+            path: 'expense-records',
+            element: <ExpenseDataPage />
           },
           {
             path: 'master-data/settings',

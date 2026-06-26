@@ -3,7 +3,7 @@ from ..models import (
     BusType, EmployeeType, Stage, Currency,
     Employee, VehicleType, CrewAssignment, Settings,
     RouteStage, Route, RouteBusType, Fare, SettingsProfile,
-    ExpenseMaster, InspectorDetails,
+    ExpenseMaster, InspectorDetails, Expense,
 )
 
 
@@ -353,6 +353,21 @@ class ExpenseMasterSerializer(serializers.ModelSerializer):
             'company', 'created_by', 'updated_by', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at']
+
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    driver_name = serializers.CharField(source='driver.employee_name', read_only=True)
+
+    class Meta:
+        model  = Expense
+        fields = [
+            'id', 'expense_code', 'expense_name', 'expense_amount',
+            'date', 'time', 'palmtec_id',
+            'schedule_no', 'bus_number', 'receipt_no',
+            'driver', 'driver_name', 'tripmaster_ref_id',
+            'company', 'created_at',
+        ]
+        read_only_fields = fields
 
 
 class InspectorDetailsSerializer(serializers.ModelSerializer):

@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 
-const emptyForm = { expense_code: '', expense_name: '', palmtec_id: '' };
+const emptyForm = { expense_code: '', expense_name: '' };
 
 export default function ExpenseMasterPage() {
   const [items, setItems]   = useState([]);
@@ -21,7 +21,7 @@ export default function ExpenseMasterPage() {
   const [deleting, setDeleting] = useState(false);
 
   const { filteredItems, searchTerm, setSearchTerm } = useFilteredList(
-    items, ['expense_code', 'expense_name', 'palmtec_id']
+    items, ['expense_code', 'expense_name']
   );
 
   const {
@@ -67,7 +67,6 @@ export default function ExpenseMasterPage() {
     setFormData({
       expense_code: item.expense_code,
       expense_name: item.expense_name,
-      palmtec_id:   item.palmtec_id || '',
     });
     setIsModalOpen(true);
   };
@@ -145,7 +144,6 @@ export default function ExpenseMasterPage() {
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Code</th>
                 <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Name</th>
-                <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Device ID</th>
                 <th className="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
@@ -155,13 +153,12 @@ export default function ExpenseMasterPage() {
                   <tr key={i}>
                     <td className="px-5 py-3"><Skeleton className="h-4 w-20" /></td>
                     <td className="px-5 py-3"><Skeleton className="h-4 w-40" /></td>
-                    <td className="px-5 py-3"><Skeleton className="h-4 w-24" /></td>
                     <td className="px-5 py-3"><Skeleton className="h-4 w-16 ml-auto" /></td>
                   </tr>
                 ))
               ) : currentItems.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-5 py-12 text-center text-slate-400 text-sm">
+                  <td colSpan={3} className="px-5 py-12 text-center text-slate-400 text-sm">
                     {searchTerm ? 'No results for your search.' : 'No expense categories yet. Add one above.'}
                   </td>
                 </tr>
@@ -170,7 +167,6 @@ export default function ExpenseMasterPage() {
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-3 text-sm font-mono font-medium text-slate-800">{item.expense_code}</td>
                     <td className="px-5 py-3 text-sm text-slate-700">{item.expense_name}</td>
-                    <td className="px-5 py-3 text-sm text-slate-500 font-mono">{item.palmtec_id || '—'}</td>
                     <td className="px-5 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
@@ -246,16 +242,6 @@ export default function ExpenseMasterPage() {
                 onChange={handleInputChange}
                 placeholder="e.g. Fuel Expense"
                 required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="palmtec_id">Device ID <span className="text-slate-400 font-normal">(optional)</span></Label>
-              <Input
-                id="palmtec_id"
-                name="palmtec_id"
-                value={formData.palmtec_id}
-                onChange={handleInputChange}
-                placeholder="Palmtec device identifier"
               />
             </div>
             <div className="flex gap-2 pt-2">

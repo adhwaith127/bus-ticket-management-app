@@ -2,14 +2,14 @@
 User management views — Phase 4
 ================================
 Permission matrix:
-  superadmin    → create: executive, dealer_admin, company_admin (any direct company)
+  superadmin    → create: executive, dealer_admin, company_admin, production
                → view / edit / toggle all non-superadmin users
   dealer_admin  → create: company_admin (their dealer's companies only)
                → view / edit company_admins under their dealer
   company_admin → create: company_user (own company only, auto-scoped)
                → view / edit / toggle company_users in own company
                → see tier capacity (remaining slots)
-  nobody        → create: superadmin / production (blocked)
+  nobody        → create: superadmin (blocked)
 """
 
 from django.utils import timezone
@@ -21,7 +21,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ...models import Company, CustomUser, AuditLog, UserRole, UserTier
+from ...models import Company, Dealer, CustomUser, AuditLog, UserRole, UserTier
 from ...serializers.auth import UserSerializer
 from ...permissions import LicensePermission
 from ..utils import _is_superadmin, _is_dealer_admin, _is_company_admin
@@ -129,17 +129,26 @@ def create_user(request):
     if not all([username, email, role, password]):
         return Response({'error': 'username, email, role, and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if role in (UserRole.SUPERADMIN, UserRole.PRODUCTION):
-        return Response({'error': 'Creating superadmin or production accounts is not allowed.'}, status=status.HTTP_403_FORBIDDEN)
+    if role == UserRole.SUPERADMIN:
+        return Response({'error': 'Creating superadmin accounts is not allowed.'}, status=status.HTTP_403_FORBIDDEN)
 
     company_instance = None
+    dealer_instance  = None
+    dealer_id        = request.data.get('dealer_id')
 
     if _is_superadmin(requester):
-        if role not in (UserRole.EXECUTIVE, UserRole.COMPANY_ADMIN, UserRole.DEALER_ADMIN):
-            return Response({'error': 'Superadmin can only create executive, dealer_admin, or company_admin users.'}, status=status.HTTP_403_FORBIDDEN)
+        if role not in (UserRole.EXECUTIVE, UserRole.COMPANY_ADMIN, UserRole.DEALER_ADMIN, UserRole.PRODUCTION):
+            return Response({'error': 'Superadmin can only create executive, dealer_admin, company_admin, or production users.'}, status=status.HTTP_403_FORBIDDEN)
         if role == UserRole.EXECUTIVE:
             if not executive_state:
                 return Response({'error': 'state is required when creating an executive user.'}, status=status.HTTP_400_BAD_REQUEST)
+        if role == UserRole.DEALER_ADMIN:
+            if not dealer_id:
+                return Response({'error': 'dealer_id is required for dealer_admin.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                dealer_instance = Dealer.objects.get(id=dealer_id)
+            except Dealer.DoesNotExist:
+                return Response({'error': 'Dealer not found.'}, status=status.HTTP_404_NOT_FOUND)
         if role == UserRole.COMPANY_ADMIN:
             if not company_id:
                 return Response({'error': 'company_id is required for company_admin.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -210,6 +219,7 @@ def create_user(request):
             email=email,
             password=password,
             company=company_instance,
+            dealer=dealer_instance,
             role=role,
             tier=tier,
             state=executive_state if role == UserRole.EXECUTIVE else None,
@@ -240,7 +250,8 @@ def get_all_users(request):
         users = CustomUser.objects.filter(
             models_Q(role=UserRole.COMPANY_ADMIN, company_id__in=direct_company_ids) |
             models_Q(role=UserRole.EXECUTIVE) |
-            models_Q(role=UserRole.DEALER_ADMIN)
+            models_Q(role=UserRole.DEALER_ADMIN) |
+            models_Q(role=UserRole.PRODUCTION)
         ).order_by('id')
 
     elif _is_dealer_admin(requester):

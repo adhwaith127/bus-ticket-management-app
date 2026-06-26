@@ -2,8 +2,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from ....models import ExpenseMaster, InspectorDetails
-from ....serializers.masterdata import ExpenseMasterSerializer, InspectorDetailsSerializer
+from ....models import ExpenseMaster, InspectorDetails, Expense
+from ....serializers.masterdata import ExpenseMasterSerializer, InspectorDetailsSerializer, ExpenseSerializer
 from ...utils import _get_authenticated_company_admin, _get_object_or_404
 
 
@@ -74,3 +74,27 @@ def get_inspector_details(request):
         .order_by('-date', '-time')
     )
     return Response({'message': 'Success', 'data': InspectorDetailsSerializer(qs, many=True).data})
+
+
+# ── Expense Data ───────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+def get_expenses(request):
+    user, company = _get_authenticated_company_admin(request)
+
+    from_date = request.query_params.get('from_date')
+    to_date   = request.query_params.get('to_date')
+
+    if not from_date or not to_date:
+        return Response(
+            {'error': 'from_date and to_date are required (YYYY-MM-DD).'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    qs = (
+        Expense.objects
+        .filter(company=company, date__gte=from_date, date__lte=to_date)
+        .select_related('driver')
+        .order_by('-date', '-time')
+    )
+    return Response({'message': 'Success', 'data': ExpenseSerializer(qs, many=True).data})

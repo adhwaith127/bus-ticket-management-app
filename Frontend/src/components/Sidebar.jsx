@@ -368,9 +368,10 @@ export default function Sidebar() {
                   isCollapsed={isCollapsed} isOpen={reportsOpen}
                   onToggle={() => setReportsOpen(p => !p)}
                 >
-                  <SubLink to="/dashboard/schedule-data" icon={CalendarRange} label="Schedule Data" onClose={close} />
-                  <SubLink to="/dashboard/trip-data"     icon={BusFront}      label="Trip Data"     onClose={close} />
-                  <SubLink to="/dashboard/ticket-data"   icon={Ticket}        label="Ticket Data"   onClose={close} />
+                  <SubLink to="/dashboard/schedule-data"   icon={CalendarRange} label="Schedule Data"   onClose={close} />
+                  <SubLink to="/dashboard/trip-data"       icon={BusFront}      label="Trip Data"       onClose={close} />
+                  <SubLink to="/dashboard/ticket-data"     icon={Ticket}        label="Ticket Data"     onClose={close} />
+                  <SubLink to="/dashboard/expense-records" icon={Receipt}       label="Expense Records" onClose={close} />
                 </DropdownSection>
                 <NavItem to="/dashboard/settlements" icon={Receipt} label="Settlements" isCollapsed={isCollapsed} onClose={close} />
 
