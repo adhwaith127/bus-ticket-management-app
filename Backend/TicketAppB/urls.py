@@ -1,30 +1,28 @@
 from django.urls import path
+from .views.web import ticket_reports
 from .views.web import auth as auth_views
 from .views.web import users as user_views
-from .views.web import company as company_views
-from .views.web import dealers as dealer_views
 from .views.web import depots as depot_views
+from .views.web import dealers as dealer_views
+from .views.web.imports import mdb as mdb_views
+from .views.web import company as company_views
+from .views.web import sessions as session_views
+from .views import setup_data as setup_data_views
+from .views.apk import master_send as palmtec_views
+from .views.web.masterdata import crew as crew_views
+from .views.web import audit_logs as audit_log_views
 from .views.web import executives as executive_views
-from .views.web import device_registry as device_registry_views
-from .views.web import ticket_reports
 from .views.web import raw_data_logs as raw_log_views
 from .views.web import settlements as settlement_views
-from .views.web import audit_logs as audit_log_views
-from .views.web import global_settings as global_settings_views
-from .views.web import ghost_records as ghost_record_views
-from .views.web import sessions as session_views
-from .views.web.masterdata import transport as transport_views
-from .views.web.masterdata import crew as crew_views
-from .views.web.masterdata import settings as settings_views
-from .views.web.masterdata import operations as operations_views
-from .views.web.imports import mdb as mdb_views
-from .views.web.imports import routes as route_import_views
-from .views.apk import master_send as palmtec_views
 from .views.palmtec import data_post as palmtec_ingest
 from .views.webhooks import mosambee as mosambee_webhooks
-from .views.apk import reports as apk_views
-from .views.apk import apk_upload as apk_upload_views
-from .views import setup_data as setup_data_views
+from .views.web import ghost_records as ghost_record_views
+from .views.web.imports import routes as route_import_views
+from .views.web.masterdata import settings as settings_views
+from .views.web.masterdata import transport as transport_views
+from .views.web import device_registry as device_registry_views
+from .views.web import global_settings as global_settings_views
+from .views.web.masterdata import operations as operations_views
 
 urlpatterns = [
     # authentication
