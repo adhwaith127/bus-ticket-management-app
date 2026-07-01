@@ -1683,10 +1683,6 @@ def reconcile_mosambee_transaction(self, transaction_id):
         MosambeeTransaction.objects.filter(id=transaction_id).update(**update)
 
     try:
-        if not txn.invoiceNumber:
-            _fail(MosambeeTransaction.ReconciliationStatus.NOT_FOUND, 'No invoice number provided')
-            return
-
         company = txn.company
         if not company:
             _fail(
@@ -1695,13 +1691,31 @@ def reconcile_mosambee_transaction(self, transaction_id):
             )
             return
 
+        # Tier 1: device wrote the Mosambee transactionID back onto the ticket
+        # after its own UPI status check succeeded — authoritative match.
         ticket = TransactionData.objects.filter(
-            ticket_number=txn.invoiceNumber,
+            transaction_id=txn.transactionID,
             company_code=company,
         ).first()
 
+        # Tier 2: device-side write-back failed/dropped, but Mosambee's posting
+        # still arrived. narration == bqrMerchantId; first 6 chars = ticket_number.
+        if not ticket and txn.narration and len(txn.narration) >= 6:
+            try:
+                ticket_number = str(int(txn.narration[:6]))
+            except ValueError:
+                ticket_number = None
+            if ticket_number:
+                ticket = TransactionData.objects.filter(
+                    ticket_number=ticket_number,
+                    company_code=company,
+                ).first()
+
         if not ticket:
-            _fail(MosambeeTransaction.ReconciliationStatus.NOT_FOUND, f'No ticket found with number: {txn.invoiceNumber}')
+            _fail(
+                MosambeeTransaction.ReconciliationStatus.NOT_FOUND,
+                f'No ticket found for transactionID: {txn.transactionID}',
+            )
             return
 
         ticket_amount  = ticket.ticket_amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
@@ -1731,7 +1745,7 @@ def reconcile_mosambee_transaction(self, transaction_id):
                 reconciled_at=timezone.now(),
                 processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION,
             )
-        _recon_log.info('[reconcile_mosambee] Auto-matched TXN-%s ↔ Ticket-%s', txn.transactionID, txn.invoiceNumber)
+        _recon_log.info('[reconcile_mosambee] Auto-matched TXN-%s ↔ Ticket-%s', txn.transactionID, ticket.ticket_number)
 
     except Exception as exc:
         _recon_log.exception('[reconcile_mosambee] Error for transaction %s: %s', transaction_id, exc)
@@ -1762,6 +1776,32 @@ def scan_pending_mosambee_reconciliations():
 
     if count:
         _recon_log.info('[scan_pending_mosambee] Requeued %d stuck transactions', count)
+    return count
+
+
+@shared_task
+def scan_unmatched_mosambee_transactions():
+    """
+    Beat task. Retries MosambeeTransaction rows stuck NOT_FOUND (ticket not yet
+    synced from device — device may have been offline). Retried for up to
+    MAX_AGE_DAYS; older rows are left NOT_FOUND for manual review.
+    """
+    cutoff = timezone.now() - timedelta(minutes=5)
+    max_age = timezone.now() - timedelta(days=3)
+
+    unmatched = MosambeeTransaction.objects.filter(
+        reconciliation_status=MosambeeTransaction.ReconciliationStatus.NOT_FOUND,
+        created_at__lt=cutoff,
+        created_at__gte=max_age,
+    ).values_list('id', flat=True)[:200]
+
+    count = 0
+    for txn_id in unmatched:
+        reconcile_mosambee_transaction.delay(txn_id)
+        count += 1
+
+    if count:
+        _recon_log.info('[scan_unmatched_mosambee] Requeued %d NOT_FOUND transactions', count)
     return count
 
 

@@ -233,6 +233,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'TicketAppB.tasks.scan_pending_mosambee_reconciliations',
         'schedule': 300.0,  # every 5 minutes
     },
+    'scan-unmatched-mosambee-transactions': {
+        'task': 'TicketAppB.tasks.scan_unmatched_mosambee_transactions',
+        'schedule': 300.0,  # every 5 minutes
+    },
 }
 
 

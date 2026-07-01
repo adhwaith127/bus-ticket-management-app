@@ -32,8 +32,6 @@ def apk_bus_list(request):
 @permission_classes([IsAuthenticated, LicensePermission])
 def apk_schedules(request):
     user = request.user
-    if not _meets_tier(user, 'intermediate'):
-        return Response(_TIER_ERROR, status=403)
 
     bus_no = request.GET.get('bus_no')
     date_str = request.GET.get('date')
@@ -68,8 +66,6 @@ def apk_schedules(request):
 @permission_classes([IsAuthenticated, LicensePermission])
 def apk_dashboard(request):
     user = request.user
-    if not _meets_tier(user, 'intermediate'):
-        return Response(_TIER_ERROR, status=403)
 
     date_str = request.GET.get('date')
     if not date_str:
@@ -220,8 +216,6 @@ def apk_dashboard(request):
 @permission_classes([IsAuthenticated, LicensePermission])
 def apk_trips(request):
     user = request.user
-    if not _meets_tier(user, 'intermediate'):
-        return Response(_TIER_ERROR, status=403)
 
     bus_no = request.GET.get('bus_no')
     schedule_no = request.GET.get('schedule_no')
@@ -281,8 +275,6 @@ def apk_trips(request):
 @permission_classes([IsAuthenticated, LicensePermission])
 def apk_tickets(request):
     user = request.user
-    if not _meets_tier(user, 'intermediate'):
-        return Response(_TIER_ERROR, status=403)
 
     bus_no = request.GET.get('bus_no')
     schedule_no = request.GET.get('schedule_no')
@@ -358,8 +350,6 @@ def apk_tickets(request):
 @permission_classes([IsAuthenticated, LicensePermission])
 def apk_passengers(request):
     user = request.user
-    if not _meets_tier(user, 'intermediate'):
-        return Response(_TIER_ERROR, status=403)
 
     bus_no = request.GET.get('bus_no')
     schedule_no = request.GET.get('schedule_no')

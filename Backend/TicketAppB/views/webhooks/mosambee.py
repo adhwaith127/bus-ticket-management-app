@@ -32,7 +32,16 @@ def _resolve_company_for_mosambee(terminal_id, narration, merchant_id=None):
         device = ETMDevice.objects.filter(mosambee_tid=terminal_id).select_related('company').first()
         if device and device.company_id:
             return device.company
-    # 3. Last 5 digits of narration as palmtec_id
+    # 3. Company code embedded in bqrMerchantId (narration[6:11]), zero-padded to 5 digits
+    if narration and len(narration) >= 11:
+        try:
+            code = str(int(narration[6:11]))
+            company = Company.objects.filter(company_id=code).first()
+            if company:
+                return company
+        except ValueError:
+            pass
+    # 4. Last 5 digits of narration as palmtec_id (last resort — palmtec_id not globally unique)
     if narration and len(narration) >= 5:
         try:
             palmtec_int = int(narration[-5:])

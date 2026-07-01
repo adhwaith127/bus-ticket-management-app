@@ -440,7 +440,7 @@ export default function TransactionPosting() {
                       </div>
                       <div>
                         <p className="text-xs text-slate-400 uppercase tracking-wider">BQR Merchant ID</p>
-                        <p className="text-sm mt-0.5">{selectedTxn.narration || 'N/A'}</p>
+                        <p className="text-xs font-mono mt-0.5 break-all">{selectedTxn.narration || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="bg-white p-3 rounded-lg border border-blue-100">
