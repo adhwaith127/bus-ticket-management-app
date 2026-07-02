@@ -28,6 +28,7 @@ const ROLE_PATHS = {
     '/dashboard/schedule-data',
     '/dashboard/trip-data',
     '/dashboard/ticket-data',
+    '/dashboard/expense-records',
     '/dashboard/settlements',
     '/dashboard/sessions',
     '/dashboard/about',

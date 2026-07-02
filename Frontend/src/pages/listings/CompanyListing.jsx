@@ -222,6 +222,7 @@ export default function CompanyListing() {
   const [registeringLicense, setRegisteringLicense] = useState({});
   const [validatingLicense,  setValidatingLicense]  = useState({});
   const [syncingLicense,     setSyncingLicense]      = useState({});
+  const [togglingActive,     setTogglingActive]      = useState({});
   const [search, setSearch]           = useState('');
 
   // ── Sync modal state ─────────────────────────────────────────────────────
@@ -446,6 +447,22 @@ export default function CompanyListing() {
     } finally { setSyncConfirming(false); }
   };
 
+  const handleToggleActive = async (company) => {
+    const nextActive = !company.is_active;
+    const confirmMsg = nextActive
+      ? `Activate "${company.company_name}"? Users will be able to log in again.`
+      : `Deactivate "${company.company_name}"? All logged-in users of this company will be signed out immediately and blocked from logging in.`;
+    if (!window.confirm(confirmMsg)) return;
+    setTogglingActive(p => ({ ...p, [company.id]: true }));
+    setCompanies(list => list.map(c => c.id === company.id ? { ...c, is_active: nextActive } : c));
+    try {
+      await api.put(`${BASE_URL}/update-company-details/${company.id}`, { is_active: nextActive });
+    } catch (err) {
+      setCompanies(list => list.map(c => c.id === company.id ? { ...c, is_active: company.is_active } : c));
+      window.alert(err.response?.data?.message || err.response?.data?.error || 'Failed to update status.');
+    } finally { setTogglingActive(p => ({ ...p, [company.id]: false })); }
+  };
+
   // ── Edit / View modal ────────────────────────────────────────────────────
   const openView = (company) => {
     setModalForm({
@@ -488,7 +505,6 @@ export default function CompanyListing() {
         address:             modalForm.address,
         state:          modalForm.state,
         district:       modalForm.district,
-        is_active:      modalForm.is_active,
       });
       if (res?.status === 200 || res?.status === 201) {
         window.alert(res.data.message || 'Company updated!');
@@ -571,18 +587,19 @@ export default function CompanyListing() {
                   <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Company ID</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Company</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">License Units</th>
-                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Status</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">License</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Validity</th>
+                  <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">Access</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap">License Action</th>
                   <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-400 uppercase tracking-widest whitespace-nowrap text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
-                  <TableSkeleton columns={['w-40', 'w-20', 'w-16', 'w-20', 'w-24', 'w-24', 'w-16']} />
+                  <TableSkeleton columns={['w-40', 'w-20', 'w-16', 'w-16', 'w-24', 'w-16', 'w-24', 'w-16']} />
                 ) : filteredCompanies.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-4 py-10 text-center">
+                    <td colSpan="8" className="px-4 py-10 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Building2 size={20} className="text-slate-300" />
                         <p className="text-sm text-slate-400">{search ? 'No companies match your search' : 'No companies found'}</p>
@@ -633,14 +650,6 @@ export default function CompanyListing() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-col gap-1">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border w-fit ${
-                            company.is_active
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-slate-50 text-slate-500 border-slate-200'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${company.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                            {company.is_active ? 'Active' : 'Inactive'}
-                          </span>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border w-fit ${getStatusStyle(authStatus)}`}>
                             {authStatus || 'Pending'}
                           </span>
@@ -662,6 +671,22 @@ export default function CompanyListing() {
                         ) : (
                           <span className="text-sm text-slate-400">—</span>
                         )}
+                      </td>
+                      <td className="px-5 py-4">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleActive(company)}
+                          disabled={togglingActive[company.id]}
+                          title={company.is_active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+                          className="inline-flex items-center gap-1.5 w-fit cursor-pointer disabled:opacity-50"
+                        >
+                          <span className={`relative w-8 h-[18px] rounded-full transition-colors shrink-0 ${company.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                            <span className={`absolute top-0.5 left-0.5 w-[14px] h-[14px] rounded-full bg-white shadow transition-transform ${company.is_active ? 'translate-x-[14px]' : ''}`} />
+                          </span>
+                          <span className={`text-xs font-medium ${company.is_active ? 'text-emerald-700' : 'text-slate-500'}`}>
+                            {company.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </button>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-col gap-1">
@@ -889,17 +914,6 @@ export default function CompanyListing() {
                 </select>
               </div>
             </div>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div onClick={() => setModalForm(f => ({ ...f, is_active: !f.is_active }))}
-                className={`relative w-10 h-[22px] rounded-full transition-colors cursor-pointer ${modalForm.is_active ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                <span className={`absolute top-0.5 left-0.5 w-[18px] h-[18px] rounded-full bg-white shadow transition-transform ${modalForm.is_active ? 'translate-x-[18px]' : ''}`} />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-700">Company Status</p>
-                <p className="text-xs text-slate-500">{modalForm.is_active ? 'Active — users can log in' : 'Inactive — all company users blocked'}</p>
-              </div>
-            </label>
 
             <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
               <button type="button" onClick={() => setModal(null)}

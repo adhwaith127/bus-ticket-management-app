@@ -189,6 +189,8 @@ def _populate_dealer_counts(dealer, auth_data):
     dealer.premium_user_count      = new_premium
     dealer.intermediate_user_count = new_inter
     dealer.error_message           = None
+    if dealer.authentication_status == Dealer.AuthStatus.APPROVED:
+        dealer.is_active = True
 
     from .company import check_datetime as _check_datetime
     raw_from = auth_data.get('ProductFromDate')
@@ -237,7 +239,7 @@ def create_dealer(request):
     if User.objects.filter(email=email).exists():
         return Response({'message': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
-    dealer = serializer.save(created_by=user)
+    dealer = serializer.save(created_by=user, is_active=False)
 
     User.objects.create_user(
         username=username,

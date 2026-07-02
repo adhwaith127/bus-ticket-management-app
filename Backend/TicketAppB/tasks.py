@@ -1581,6 +1581,7 @@ def poll_company_license(self, company_id: int) -> None:
 
         if auth_status == 'Approve':
             company.authentication_status = Company.AuthStatus.APPROVED
+            company.is_active = True
         elif auth_status == 'Expired':
             company.authentication_status = Company.AuthStatus.EXPIRED
         elif auth_status == 'Block':
