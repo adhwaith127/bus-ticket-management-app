@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from ...models import MosambeeTransaction, MosambeePayoutCallback, Company, UserRole
+from ...models import AggregatorTransaction, AggregatorPayoutCallback, Company, UserRole
 from ...permissions import LicensePermission
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ def get_ghost_transactions(request):
         return Response({'error': 'Superadmin only'}, status=status.HTTP_403_FORBIDDEN)
 
     try:
-        qs = MosambeeTransaction.objects.filter(
+        qs = AggregatorTransaction.objects.filter(
             company__isnull=True
         ).order_by('-first_received_at')[:500]
 
@@ -53,7 +53,7 @@ def get_ghost_payouts(request):
         return Response({'error': 'Superadmin only'}, status=status.HTTP_403_FORBIDDEN)
 
     try:
-        qs = MosambeePayoutCallback.objects.filter(
+        qs = AggregatorPayoutCallback.objects.filter(
             company__isnull=True
         ).order_by('-created_at')[:500]
 
@@ -102,11 +102,11 @@ def assign_ghost_company(request):
             return Response({'error': f'Company {company_id} not found'}, status=status.HTTP_404_NOT_FOUND)
 
         if record_type == 'transaction':
-            updated = MosambeeTransaction.objects.filter(pk=record_id, company__isnull=True).update(company=company)
+            updated = AggregatorTransaction.objects.filter(pk=record_id, company__isnull=True).update(company=company)
             if not updated:
                 return Response({'error': 'Transaction not found or already has a company'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            updated = MosambeePayoutCallback.objects.filter(pk=record_id, company__isnull=True).update(company=company)
+            updated = AggregatorPayoutCallback.objects.filter(pk=record_id, company__isnull=True).update(company=company)
             if not updated:
                 return Response({'error': 'Payout not found or already has a company'}, status=status.HTTP_404_NOT_FOUND)
 

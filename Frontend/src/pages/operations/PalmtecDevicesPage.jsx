@@ -64,7 +64,7 @@ export default function PalmtecDevicesPage() {
     setSyncResult(null);
     setSyncError(null);
     try {
-      const res = await api.post(`${BASE_URL}/etm-devices/sync-mosambee-tids`);
+      const res = await api.post(`${BASE_URL}/etm-devices/sync-aggregator-tids`);
       if (!mountedRef.current) return;
       setSyncResult(res.data);
       fetchDevices();
@@ -147,7 +147,7 @@ export default function PalmtecDevicesPage() {
             <tr>
               <th className="px-4 py-3 text-left font-semibold text-slate-700">Serial Number</th>
               <th className="px-4 py-3 text-left font-semibold text-slate-700">Palmtec ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Mosambee TID</th>
+              <th className="px-4 py-3 text-left font-semibold text-slate-700">Payment Aggregator TID</th>
             </tr>
           </thead>
           <tbody>
@@ -183,9 +183,9 @@ export default function PalmtecDevicesPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  {device.mosambee_tid ? (
+                  {device.aggregator_tid ? (
                     <span className="inline-flex px-2 py-0.5 rounded-md text-xs font-mono font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                      {device.mosambee_tid}
+                      {device.aggregator_tid}
                     </span>
                   ) : (
                     <span className="inline-flex px-2 py-0.5 rounded-md text-xs font-medium bg-slate-50 text-slate-400 border border-slate-100">

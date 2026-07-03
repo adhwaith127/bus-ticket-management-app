@@ -34,7 +34,7 @@ class GetEtmInitialDataTests(TestCase):
             company=self.company,
             is_active=True,
             has_fetched_setup=False,
-            mosambee_tid=None,
+            aggregator_tid=None,
         )
 
     # ─── Gate 0: missing serial number ───────────────────────────────────────
@@ -141,22 +141,22 @@ class GetEtmInitialDataTests(TestCase):
         self.device.refresh_from_db()
         self.assertEqual(self.device.setup_fetched_at, original_time)  # unchanged
 
-    # ─── mosambee_tid behaviour ───────────────────────────────────────────────
+    # ─── aggregator_tid behaviour ───────────────────────────────────────────────
 
-    def test_mosambee_tid_is_saved_when_passed_and_not_already_set(self):
-        self.client.get(self.url, {"serialnumber": "SN-001", "mosambee_tid": "TID-999"})
+    def test_aggregator_tid_is_saved_when_passed_and_not_already_set(self):
+        self.client.get(self.url, {"serialnumber": "SN-001", "aggregator_tid": "TID-999"})
 
         self.device.refresh_from_db()
-        self.assertEqual(self.device.mosambee_tid, "TID-999")
+        self.assertEqual(self.device.aggregator_tid, "TID-999")
 
-    def test_mosambee_tid_is_not_overwritten_if_already_set(self):
-        self.device.mosambee_tid = "EXISTING-TID"
+    def test_aggregator_tid_is_not_overwritten_if_already_set(self):
+        self.device.aggregator_tid = "EXISTING-TID"
         self.device.save()
 
-        self.client.get(self.url, {"serialnumber": "SN-001", "mosambee_tid": "NEW-TID"})
+        self.client.get(self.url, {"serialnumber": "SN-001", "aggregator_tid": "NEW-TID"})
 
         self.device.refresh_from_db()
-        self.assertEqual(self.device.mosambee_tid, "EXISTING-TID")  # unchanged
+        self.assertEqual(self.device.aggregator_tid, "EXISTING-TID")  # unchanged
 
     # ─── Response data values ─────────────────────────────────────────────────
 

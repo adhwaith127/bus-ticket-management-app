@@ -649,9 +649,9 @@ class MdbImportService:
     def _process_routes(rows, company, user, lookups):
         """
         MDB ROUTE: rutcode, rutname, minfare, faretype, bustype(int),
-                   usestop, Half, luggage, student, adjust, conc, ph, PASSALLOW
+                   Half, luggage, adjust, conc, ph, PASSALLOW
         Django Route: route_code, route_name, min_fare, fare_type,
-                      bus_type(FK), use_stop, half, luggage, student,
+                      bus_type(FK), half, luggage,
                       adjust, conc, ph, company
 
         Bus type is resolved through:
@@ -689,10 +689,8 @@ class MdbImportService:
                         'min_fare':   MdbImportService._to_float(row.get('minfare')),
                         'fare_type':  MdbImportService._to_int(row.get('faretype')),
                         'bus_type':   bus_type_obj,
-                        'use_stop':   MdbImportService._to_bool(row.get('usestop')),
                         'half':       MdbImportService._to_bool(row.get('Half')),
                         'luggage':    MdbImportService._to_bool(row.get('luggage')),
-                        'student':    MdbImportService._to_bool(row.get('student')),
                         'adjust':     MdbImportService._to_bool(row.get('adjust')),
                         'conc':       MdbImportService._to_bool(row.get('conc')),
                         'ph':         MdbImportService._to_bool(row.get('ph')),

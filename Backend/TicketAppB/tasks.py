@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, date, time
 from .models import (
     RawDataLog, TransactionData, Direction, RouteStage,
     ScheduleData, TripData, Employee, VehicleType,
-    ETMDevice, DeviceRejectionLog, Company, MosambeeTransaction,
+    ETMDevice, DeviceRejectionLog, Company, AggregatorTransaction,
 )
 from .views.utils import _get_route_for_palmtec
 
@@ -1652,54 +1652,54 @@ import logging as _recon_logger
 _recon_log = _recon_logger.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3)
-def reconcile_mosambee_transaction(self, transaction_id):
+def reconcile_aggregator_transaction(self, transaction_id):
     """
-    Async reconciliation for a single MosambeeTransaction.
+    Async reconciliation for a single AggregatorTransaction.
     Fired by the webhook after create. Replaces the removed post_save signal.
     """
     try:
-        txn = MosambeeTransaction.objects.select_related('company').get(id=transaction_id)
-    except MosambeeTransaction.DoesNotExist:
-        _recon_log.error('[reconcile_mosambee] Transaction %s not found', transaction_id)
+        txn = AggregatorTransaction.objects.select_related('company').get(id=transaction_id)
+    except AggregatorTransaction.DoesNotExist:
+        _recon_log.error('[reconcile_aggregator] Transaction %s not found', transaction_id)
         return
 
     if not txn.is_payment_successful:
-        MosambeeTransaction.objects.filter(id=transaction_id).update(
-            processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION
+        AggregatorTransaction.objects.filter(id=transaction_id).update(
+            processing_status=AggregatorTransaction.ProcessingStatus.PENDING_VERIFICATION
         )
         return
 
-    MosambeeTransaction.objects.filter(id=transaction_id).update(
-        processing_status=MosambeeTransaction.ProcessingStatus.RECONCILING
+    AggregatorTransaction.objects.filter(id=transaction_id).update(
+        processing_status=AggregatorTransaction.ProcessingStatus.RECONCILING
     )
 
     def _fail(status, error, ticket=None):
         update = dict(
             reconciliation_status=status,
             reconciliation_error=error,
-            processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION,
+            processing_status=AggregatorTransaction.ProcessingStatus.PENDING_VERIFICATION,
         )
         if ticket:
             update['related_ticket'] = ticket
-        MosambeeTransaction.objects.filter(id=transaction_id).update(**update)
+        AggregatorTransaction.objects.filter(id=transaction_id).update(**update)
 
     try:
         company = txn.company
         if not company:
             _fail(
-                MosambeeTransaction.ReconciliationStatus.NOT_FOUND,
+                AggregatorTransaction.ReconciliationStatus.NOT_FOUND,
                 f'Company not resolved for terminal: {txn.transactionTerminalId}',
             )
             return
 
-        # Tier 1: device wrote the Mosambee transactionID back onto the ticket
+        # Tier 1: device wrote the aggregator transactionID back onto the ticket
         # after its own UPI status check succeeded — authoritative match.
         ticket = TransactionData.objects.filter(
             transaction_id=txn.transactionID,
             company_code=company,
         ).first()
 
-        # Tier 2: device-side write-back failed/dropped, but Mosambee's posting
+        # Tier 2: device-side write-back failed/dropped, but aggregator's posting
         # still arrived. narration == bqrMerchantId; first 6 chars = ticket_number.
         if not ticket and txn.narration and len(txn.narration) >= 6:
             try:
@@ -1714,7 +1714,7 @@ def reconcile_mosambee_transaction(self, transaction_id):
 
         if not ticket:
             _fail(
-                MosambeeTransaction.ReconciliationStatus.NOT_FOUND,
+                AggregatorTransaction.ReconciliationStatus.NOT_FOUND,
                 f'No ticket found for transactionID: {txn.transactionID}',
             )
             return
@@ -1724,85 +1724,85 @@ def reconcile_mosambee_transaction(self, transaction_id):
 
         if ticket_amount != payment_amount:
             _fail(
-                MosambeeTransaction.ReconciliationStatus.AMOUNT_MISMATCH,
+                AggregatorTransaction.ReconciliationStatus.AMOUNT_MISMATCH,
                 f'Amount mismatch - Ticket: ₹{ticket_amount}, Payment: ₹{payment_amount}',
                 ticket=ticket,
             )
             return
 
         with transaction.atomic():
-            existing = MosambeeTransaction.objects.select_for_update().filter(
+            existing = AggregatorTransaction.objects.select_for_update().filter(
                 related_ticket=ticket
             ).exclude(id=transaction_id).first()
             if existing:
                 _fail(
-                    MosambeeTransaction.ReconciliationStatus.DUPLICATE,
+                    AggregatorTransaction.ReconciliationStatus.DUPLICATE,
                     f'Ticket already paid by transaction: {existing.transactionID}',
                 )
                 return
-            MosambeeTransaction.objects.filter(id=transaction_id).update(
+            AggregatorTransaction.objects.filter(id=transaction_id).update(
                 related_ticket=ticket,
-                reconciliation_status=MosambeeTransaction.ReconciliationStatus.AUTO_MATCHED,
+                reconciliation_status=AggregatorTransaction.ReconciliationStatus.AUTO_MATCHED,
                 reconciled_at=timezone.now(),
-                processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION,
+                processing_status=AggregatorTransaction.ProcessingStatus.PENDING_VERIFICATION,
             )
-        _recon_log.info('[reconcile_mosambee] Auto-matched TXN-%s ↔ Ticket-%s', txn.transactionID, ticket.ticket_number)
+        _recon_log.info('[reconcile_aggregator] Auto-matched TXN-%s ↔ Ticket-%s', txn.transactionID, ticket.ticket_number)
 
     except Exception as exc:
-        _recon_log.exception('[reconcile_mosambee] Error for transaction %s: %s', transaction_id, exc)
-        MosambeeTransaction.objects.filter(id=transaction_id).update(
+        _recon_log.exception('[reconcile_aggregator] Error for transaction %s: %s', transaction_id, exc)
+        AggregatorTransaction.objects.filter(id=transaction_id).update(
             reconciliation_error=f'Reconciliation error: {exc}',
-            processing_status=MosambeeTransaction.ProcessingStatus.PENDING_VERIFICATION,
+            processing_status=AggregatorTransaction.ProcessingStatus.PENDING_VERIFICATION,
         )
         raise self.retry(exc=exc, countdown=60)
 
 
 @shared_task
-def scan_pending_mosambee_reconciliations():
+def scan_pending_aggregator_reconciliations():
     """
-    Beat task. Finds MosambeeTransaction records stuck in PENDING reconciliation
+    Beat task. Finds AggregatorTransaction records stuck in PENDING reconciliation
     for more than 5 minutes (e.g. worker killed mid-task) and requeues them.
     """
     cutoff = timezone.now() - timedelta(minutes=5)
-    stuck = MosambeeTransaction.objects.filter(
-        reconciliation_status=MosambeeTransaction.ReconciliationStatus.PENDING,
+    stuck = AggregatorTransaction.objects.filter(
+        reconciliation_status=AggregatorTransaction.ReconciliationStatus.PENDING,
         created_at__lt=cutoff,
         responseCode__in=['0', '00', '000'],
     ).values_list('id', flat=True)[:200]
 
     count = 0
     for txn_id in stuck:
-        reconcile_mosambee_transaction.delay(txn_id)
+        reconcile_aggregator_transaction.delay(txn_id)
         count += 1
 
     if count:
-        _recon_log.info('[scan_pending_mosambee] Requeued %d stuck transactions', count)
+        _recon_log.info('[scan_pending_aggregator] Requeued %d stuck transactions', count)
     return count
 
 
 @shared_task
-def scan_unmatched_mosambee_transactions():
+def scan_unmatched_aggregator_transactions():
     """
-    Beat task. Retries MosambeeTransaction rows stuck NOT_FOUND (ticket not yet
+    Beat task. Retries AggregatorTransaction rows stuck NOT_FOUND (ticket not yet
     synced from device — device may have been offline). Retried for up to
     MAX_AGE_DAYS; older rows are left NOT_FOUND for manual review.
     """
     cutoff = timezone.now() - timedelta(minutes=5)
     max_age = timezone.now() - timedelta(days=3)
 
-    unmatched = MosambeeTransaction.objects.filter(
-        reconciliation_status=MosambeeTransaction.ReconciliationStatus.NOT_FOUND,
+    unmatched = AggregatorTransaction.objects.filter(
+        reconciliation_status=AggregatorTransaction.ReconciliationStatus.NOT_FOUND,
         created_at__lt=cutoff,
         created_at__gte=max_age,
     ).values_list('id', flat=True)[:200]
 
     count = 0
     for txn_id in unmatched:
-        reconcile_mosambee_transaction.delay(txn_id)
+        reconcile_aggregator_transaction.delay(txn_id)
         count += 1
 
     if count:
-        _recon_log.info('[scan_unmatched_mosambee] Requeued %d NOT_FOUND transactions', count)
+        _recon_log.info('[scan_unmatched_aggregator] Requeued %d NOT_FOUND transactions', count)
     return count
 
 
@@ -1811,10 +1811,10 @@ import logging as _tid_logger
 _tid_log = _tid_logger.getLogger(__name__)
 
 @shared_task
-def auto_populate_mosambee_tids():
+def auto_populate_aggregator_tids():
     """
-    Daily beat task. For each company that has any device with mosambee_tid unset,
-    fetches TerminalMap from the license server and populates mosambee_tid
+    Daily beat task. For each company that has any device with aggregator_tid unset,
+    fetches TerminalMap from the license server and populates aggregator_tid
     by matching TerminalMap SER to ETMDevice.serial_number.
     Skips companies where all devices already have TID set.
     Never overwrites an already-set TID.
@@ -1822,10 +1822,10 @@ def auto_populate_mosambee_tids():
     from .views.web.company import fetch_company_from_license_server
 
     companies_with_gaps = Company.objects.filter(
-        etmdevice__mosambee_tid__isnull=True,
+        etmdevice__aggregator_tid__isnull=True,
         etmdevice__allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
     ).distinct() | Company.objects.filter(
-        etmdevice__mosambee_tid='',
+        etmdevice__aggregator_tid='',
         etmdevice__allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
     ).distinct()
 
@@ -1835,7 +1835,7 @@ def auto_populate_mosambee_tids():
         try:
             result = fetch_company_from_license_server(company.company_id)
             if not result.get('success'):
-                _tid_log.warning('[auto_populate_mosambee_tids] License server failed for company %s: %s', company.company_id, result.get('error'))
+                _tid_log.warning('[auto_populate_aggregator_tids] License server failed for company %s: %s', company.company_id, result.get('error'))
                 continue
 
             terminal_map_raw = result['data'].get('TerminalMap')
@@ -1845,7 +1845,7 @@ def auto_populate_mosambee_tids():
             try:
                 terminal_map = _json.loads(terminal_map_raw) if isinstance(terminal_map_raw, str) else terminal_map_raw
             except (_json.JSONDecodeError, TypeError):
-                _tid_log.warning('[auto_populate_mosambee_tids] Invalid TerminalMap for company %s', company.company_id)
+                _tid_log.warning('[auto_populate_aggregator_tids] Invalid TerminalMap for company %s', company.company_id)
                 continue
 
             ser_to_tid = {e['SER']: e['TER'] for e in terminal_map if e.get('SER') and e.get('TER')}
@@ -1854,22 +1854,22 @@ def auto_populate_mosambee_tids():
                 company=company,
                 allocation_status=ETMDevice.AllocationStatus.ALLOCATED,
             ).filter(
-                Q(mosambee_tid__isnull=True) | Q(mosambee_tid='')
+                Q(aggregator_tid__isnull=True) | Q(aggregator_tid='')
             )
 
             for device in devices:
                 tid = ser_to_tid.get(device.serial_number)
                 if not tid:
                     continue
-                if ETMDevice.objects.filter(mosambee_tid=tid).exclude(pk=device.pk).exists():
-                    _tid_log.warning('[auto_populate_mosambee_tids] TID %s already taken, skipping %s', tid, device.serial_number)
+                if ETMDevice.objects.filter(aggregator_tid=tid).exclude(pk=device.pk).exists():
+                    _tid_log.warning('[auto_populate_aggregator_tids] TID %s already taken, skipping %s', tid, device.serial_number)
                     continue
-                device.mosambee_tid = tid
-                device.save(update_fields=['mosambee_tid', 'updated_at'])
+                device.aggregator_tid = tid
+                device.save(update_fields=['aggregator_tid', 'updated_at'])
                 total_updated += 1
 
         except Exception as exc:
-            _tid_log.exception('[auto_populate_mosambee_tids] Error processing company %s: %s', company.company_id, exc)
+            _tid_log.exception('[auto_populate_aggregator_tids] Error processing company %s: %s', company.company_id, exc)
 
-    _tid_log.info('[auto_populate_mosambee_tids] Done. %d device(s) updated.', total_updated)
+    _tid_log.info('[auto_populate_aggregator_tids] Done. %d device(s) updated.', total_updated)
     return total_updated

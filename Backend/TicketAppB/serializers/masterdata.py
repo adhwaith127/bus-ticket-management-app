@@ -48,6 +48,22 @@ class StageSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'company', 'created_by', 'updated_by', 'created_at', 'updated_at']
 
+    def validate_stage_code(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Stage code is required.')
+        if not value.isdigit():
+            raise serializers.ValidationError('Stage code must contain numbers only.')
+        return value
+
+    def validate_stage_name(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('Stage name is required.')
+        if not value.isalnum():
+            raise serializers.ValidationError('Stage name must be alphanumeric.')
+        return value
+
 
 class CurrencySerializer(serializers.ModelSerializer):
     company    = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -244,7 +260,7 @@ class RouteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'route_code', 'route_name', 'min_fare', 'fare_type',
             'bus_type', 'bus_type_name',
-            'use_stop', 'half', 'luggage', 'student', 'adjust', 'conc', 'ph',
+            'half', 'luggage', 'adjust', 'conc', 'ph',
             'start_from', 'pass_allow', 'is_deleted',
             'company', 'created_by', 'updated_by', 'created_at', 'updated_at',
             'route_stages', 'route_bus_types', 'depot_ids', 'depots',
@@ -270,8 +286,8 @@ class RouteListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'route_code', 'route_name', 'min_fare', 'fare_type',
             'bus_type', 'bus_type_name',
-            'start_from', 'half', 'luggage', 'student', 'adjust', 'conc', 'ph',
-            'pass_allow', 'use_stop', 'is_deleted', 'stage_count',
+            'start_from', 'half', 'luggage', 'adjust', 'conc', 'ph',
+            'pass_allow', 'is_deleted', 'stage_count',
         ]
 
 

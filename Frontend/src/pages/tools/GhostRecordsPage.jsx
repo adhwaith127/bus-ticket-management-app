@@ -223,7 +223,7 @@ export default function GhostRecordsPage() {
             Ghost Records
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Mosambee transactions and payouts where company could not be resolved automatically
+            Payment Aggregator transactions and payouts where company could not be resolved automatically
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={refresh} className="gap-1.5">

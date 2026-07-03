@@ -438,7 +438,7 @@ export default function Sidebar() {
             >
               <p className="text-[13px] font-semibold text-slate-800 truncate whitespace-nowrap leading-tight text-left">{username}</p>
               <p className="text-[10px] text-slate-400 uppercase tracking-wide whitespace-nowrap text-left">
-                {role?.replace(/_/g, " ")}
+                {role === "company_admin" ? "customer admin" : role?.replace(/_/g, " ")}
               </p>
             </div>
             <ChevronDown

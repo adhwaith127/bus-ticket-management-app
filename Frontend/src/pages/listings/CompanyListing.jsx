@@ -174,7 +174,7 @@ function ModalWrapper({ open, onClose, title, icon: Icon, width = 'max-w-2xl', c
 
 // ── EMPTY form ─────────────────────────────────────────────────────────────────
 const EMPTY = {
-  company_name: '', company_email: '', gst_number: '', mosambee_merchant_id: '',
+  company_name: '', company_email: '', gst_number: '', aggregator_merchant_id: '',
   contact_person: '', contact_number: '',
   address: '', state: '', district: '',
   is_active: true,
@@ -362,7 +362,7 @@ export default function CompanyListing() {
       contact_person: form.contact_person,
       contact_number: form.contact_number,
       gst_number:          form.gst_number,
-      mosambee_merchant_id: form.mosambee_merchant_id || null,
+      aggregator_merchant_id: form.aggregator_merchant_id || null,
       address:             form.address,
       state:          form.state,
       district:       form.district,
@@ -469,7 +469,7 @@ export default function CompanyListing() {
       company_name:   company.company_name   || '',
       company_email:  company.company_email  || '',
       gst_number:          company.gst_number          || '',
-      mosambee_merchant_id: company.mosambee_merchant_id || '',
+      aggregator_merchant_id: company.aggregator_merchant_id || '',
       contact_person:      company.contact_person      || '',
       contact_number: company.contact_number || '',
       address:        company.address        || '',
@@ -501,7 +501,7 @@ export default function CompanyListing() {
         contact_person: modalForm.contact_person,
         contact_number: modalForm.contact_number,
         gst_number:          modalForm.gst_number,
-        mosambee_merchant_id: modalForm.mosambee_merchant_id || null,
+        aggregator_merchant_id: modalForm.aggregator_merchant_id || null,
         address:             modalForm.address,
         state:          modalForm.state,
         district:       modalForm.district,
@@ -799,7 +799,7 @@ export default function CompanyListing() {
                     { label: 'Contact Person', value: c.contact_person },
                     { label: 'Contact Number', value: c.contact_number ? `+91 ${c.contact_number}` : '—' },
                     { label: 'GST Number',          value: c.gst_number || '—' },
-                    { label: 'Mosambee Merchant ID', value: c.mosambee_merchant_id || '—' },
+                    { label: 'Payment Aggregator Merchant ID', value: c.aggregator_merchant_id || '—' },
                     { label: 'Company ID',       value: c.company_id ? `#${c.company_id}` : 'Not registered' },
                     { label: 'Valid From',        value: c.product_from_date ? new Date(c.product_from_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
                     { label: 'Valid Till',        value: c.product_to_date ? new Date(c.product_to_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
@@ -875,7 +875,7 @@ export default function CompanyListing() {
                 { label: 'Contact Person', name: 'contact_person', required: true },
                 { label: 'Contact Number', name: 'contact_number', required: true },
                 { label: 'GST Number',           name: 'gst_number' },
-                { label: 'Mosambee Merchant ID', name: 'mosambee_merchant_id' },
+                { label: 'Payment Aggregator Merchant ID', name: 'aggregator_merchant_id' },
               ].map(f => (
                 <div key={f.name} className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700">
@@ -1115,8 +1115,8 @@ export default function CompanyListing() {
                   <Field label="GST Number" hint="Optional" span={1}>
                     <input value={form.gst_number} onChange={e => set('gst_number', e.target.value)} placeholder="29ABCDE1234F1Z5" className={inputCls} />
                   </Field>
-                  <Field label="Mosambee Merchant ID" hint="Optional" span={1}>
-                    <input value={form.mosambee_merchant_id} onChange={e => set('mosambee_merchant_id', e.target.value)} placeholder="HDFC000024839241" className={inputCls} />
+                  <Field label="Payment Aggregator Merchant ID" hint="Optional" span={1}>
+                    <input value={form.aggregator_merchant_id} onChange={e => set('aggregator_merchant_id', e.target.value)} placeholder="HDFC000024839241" className={inputCls} />
                   </Field>
                 </div>
               </SectionCard>

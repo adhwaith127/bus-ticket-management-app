@@ -163,8 +163,8 @@ def configure_logging(base_dir, debug=False):
     # ── Sync file handlers (written immediately in caller thread) ─────────
     _SYNC_LOGGER_MAP = {
         'ticket.palmtec.ticket_data': ('palmtec_ticket_data.log',   logging.INFO),   # ETM device ticket reception
-        'mosambee.transactions':      ('mosambee_transactions.log',  logging.ERROR),
-        'mosambee.payouts':           ('mosambee_payouts.log',       logging.ERROR),
+        'aggregator.transactions':    ('aggregator_transactions.log', logging.ERROR),
+        'aggregator.payouts':         ('aggregator_payouts.log',      logging.ERROR),
     }
 
     # ── Wire loggers ──────────────────────────────────────────────────────

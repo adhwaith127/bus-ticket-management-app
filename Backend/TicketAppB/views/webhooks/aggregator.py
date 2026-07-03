@@ -4,11 +4,11 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from django.utils import timezone as tz
 from rest_framework import status
-from ...models import TransactionData, Company, MosambeeTransaction, MosambeePayoutCallback, ETMDevice
+from ...models import TransactionData, Company, AggregatorTransaction, AggregatorPayoutCallback, ETMDevice
 from django.http import HttpResponse, JsonResponse
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
-from ...serializers.payments import MosambeeTransactionSerializer, SettlementVerificationSerializer
+from ...serializers.payments import AggregatorTransactionSerializer, SettlementVerificationSerializer
 from django.views.decorators.csrf import csrf_exempt
 import json
 from rest_framework.decorators import api_view
@@ -17,19 +17,19 @@ import hashlib
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
-logger_txn = logging.getLogger('mosambee.transactions')
-logger_payout = logging.getLogger('mosambee.payouts')
+logger_txn = logging.getLogger('aggregator.transactions')
+logger_payout = logging.getLogger('aggregator.payouts')
 
 
-def _resolve_company_for_mosambee(terminal_id, narration, merchant_id=None):
-    # 1. Mosambee merchant ID on Company
+def _resolve_company_for_aggregator(terminal_id, narration, merchant_id=None):
+    # 1. Payment aggregator merchant ID on Company
     if merchant_id:
-        company = Company.objects.filter(mosambee_merchant_id=merchant_id).first()
+        company = Company.objects.filter(aggregator_merchant_id=merchant_id).first()
         if company:
             return company
-    # 2. Device mosambee_tid
+    # 2. Device aggregator_tid
     if terminal_id:
-        device = ETMDevice.objects.filter(mosambee_tid=terminal_id).select_related('company').first()
+        device = ETMDevice.objects.filter(aggregator_tid=terminal_id).select_related('company').first()
         if device and device.company_id:
             return device.company
     # 3. Company code embedded in bqrMerchantId (narration[6:11]), zero-padded to 5 digits
@@ -54,7 +54,7 @@ def _resolve_company_for_mosambee(terminal_id, narration, merchant_id=None):
 
 
 @csrf_exempt
-def mosambee_settlement_data(request):
+def aggregator_settlement_data(request):
     try:
         # Check if POST method
         if request.method != 'POST':
@@ -157,7 +157,7 @@ def mosambee_settlement_data(request):
             logger_txn.error("Missing required fields: %s | request: %s", missing_fields, data)
             return JsonResponse({'status': 400,'message': f'Missing required fields: {", ".join(missing_fields)}'}, status=status.HTTP_400_BAD_REQUEST)
 
-        salt = settings.MOSAMBEE_SALT
+        salt = settings.AGGREGATOR_SALT
         # CHECKSUM: TRANSACTIONID + MERCHANTID + TRANSACTIONRRN + SALT VALUE
         checksum_input=str(transaction_id) + str(merchant_id) + str(transaction_rrn) + salt
         hashed_value = hashlib.sha512(checksum_input.encode('utf-8')).hexdigest()
@@ -167,9 +167,9 @@ def mosambee_settlement_data(request):
             return JsonResponse({'status': 401,'message': 'Checksum Error'}, status=status.HTTP_401_UNAUTHORIZED)
         
         # check if repost
-        existing_transaction = MosambeeTransaction.objects.filter(transactionID=transaction_id).first()
+        existing_transaction = AggregatorTransaction.objects.filter(transactionID=transaction_id).first()
 
-        # If transaction already exists (repost from Mosambee)
+        # If transaction already exists (repost from aggregator)
         if existing_transaction:
             # Increment repost counter
             existing_transaction.repost_count += 1
@@ -192,7 +192,7 @@ def mosambee_settlement_data(request):
             return JsonResponse({'status': 400,'message': f'Invalid date/time format: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Resolve company via terminal ID or bqrMerchantId (last 5 = palmtec_id)
-        company = _resolve_company_for_mosambee(terminal_id, narration, merchant_id=merchant_id)
+        company = _resolve_company_for_aggregator(terminal_id, narration, merchant_id=merchant_id)
         if company is None:
             logger_txn.error(
                 "Company unresolvable for transactionID=%s terminalId=%s narration=%s",
@@ -200,7 +200,7 @@ def mosambee_settlement_data(request):
             )
 
         # save data to db if all okay
-        transaction = MosambeeTransaction.objects.create(
+        transaction = AggregatorTransaction.objects.create(
             # Critical identifiers
             transactionID=transaction_id,
             merchantId=merchant_id,
@@ -283,30 +283,30 @@ def mosambee_settlement_data(request):
             company=company,
 
             # Set initial statuses
-            processing_status=MosambeeTransaction.ProcessingStatus.VALIDATED,
-            verification_status=MosambeeTransaction.VerificationStatus.UNVERIFIED,
-            reconciliation_status=MosambeeTransaction.ReconciliationStatus.PENDING,
+            processing_status=AggregatorTransaction.ProcessingStatus.VALIDATED,
+            verification_status=AggregatorTransaction.VerificationStatus.UNVERIFIED,
+            reconciliation_status=AggregatorTransaction.ReconciliationStatus.PENDING,
         )
 
         response_data = {'status': 200,'message': 'success','merchant_refTxnId': bill_number}
 
-        transaction.response_sent_to_mosambee = response_data
+        transaction.response_sent_to_aggregator = response_data
         transaction.save()
 
-        from ...tasks import reconcile_mosambee_transaction
-        reconcile_mosambee_transaction.delay(transaction.id)
+        from ...tasks import reconcile_aggregator_transaction
+        reconcile_aggregator_transaction.delay(transaction.id)
 
         return JsonResponse(response_data,status=status.HTTP_200_OK)
 
     except Exception as e:
         _co = locals().get('company')
-        logger.exception("Unhandled exception in mosambee_settlement_data: %s", e)
-        logger_txn.exception("Unhandled exception in mosambee_settlement_data: %s", e, extra={'company_id': _co.company_id} if _co else {})
+        logger.exception("Unhandled exception in aggregator_settlement_data: %s", e)
+        logger_txn.exception("Unhandled exception in aggregator_settlement_data: %s", e, extra={'company_id': _co.company_id} if _co else {})
         return JsonResponse({'status': 500,'message': 'Data Entry failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @csrf_exempt
-def mosambee_payout_callback(request):
+def aggregator_payout_callback(request):
     try:
         if request.method != 'POST':
             return JsonResponse({'statusCode': '500'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
@@ -316,7 +316,7 @@ def mosambee_payout_callback(request):
         except json.JSONDecodeError:
             return JsonResponse({'statusCode': '500'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Support both camelCase and snake_case field names as Mosambee's own spec is inconsistent
+        # Support both camelCase and snake_case field names as aggregator's own spec is inconsistent
         statement_id = data.get('statementId')
         payout_amount = data.get('payoutAmount') or data.get('actual_payout_amount')
         utr_number = data.get('utrNumber') or data.get('utr_number')
@@ -350,12 +350,12 @@ def mosambee_payout_callback(request):
             return JsonResponse({'statusCode': '500'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Handle repost — same statementId received again
-        existing = MosambeePayoutCallback.objects.filter(statementId=statement_id).first()
+        existing = AggregatorPayoutCallback.objects.filter(statementId=statement_id).first()
         if existing:
             logger.info(f"Payout callback repost received for statementId: {statement_id}")
             return JsonResponse({'statusCode': '100'}, status=status.HTTP_200_OK)
 
-        # Resolve company from linked MosambeeTransaction rows (transactions arrive day before payout)
+        # Resolve company from linked AggregatorTransaction rows (transactions arrive day before payout)
         txn_ids = []
         for txn in transactions:
             raw = txn.get('transactionId') or txn.get('transactionID')
@@ -367,7 +367,7 @@ def mosambee_payout_callback(request):
         payout_company = None
         if txn_ids:
             related = (
-                MosambeeTransaction.objects
+                AggregatorTransaction.objects
                 .filter(transactionID__in=txn_ids, company__isnull=False)
                 .select_related('company')
                 .first()
@@ -381,7 +381,7 @@ def mosambee_payout_callback(request):
                 statement_id, txn_ids,
             )
 
-        payout = MosambeePayoutCallback.objects.create(
+        payout = AggregatorPayoutCallback.objects.create(
             statementId=statement_id,
             payoutAmount=payout_amount,
             utrNumber=utr_number,
@@ -395,13 +395,13 @@ def mosambee_payout_callback(request):
             company=payout_company,
         )
 
-        # Link each transaction in the payout to MosambeeTransaction
+        # Link each transaction in the payout to AggregatorTransaction
         linked = 0
         for txn in transactions:
             txn_id = txn.get('transactionId') or txn.get('transactionID')
             if not txn_id:
                 continue
-            updated = MosambeeTransaction.objects.filter(transactionID=str(txn_id)).update(
+            updated = AggregatorTransaction.objects.filter(transactionID=str(txn_id)).update(
                 settlement_batch_id=statement_id,
                 settled_at=payout_date,
                 settlement_amount=txn.get('amount'),
@@ -413,7 +413,7 @@ def mosambee_payout_callback(request):
 
     except Exception as e:
         _co = locals().get('payout_company')
-        logger_payout.exception("Unhandled exception in mosambee_payout_callback: %s | request: %s", e, data if 'data' in locals() else 'unavailable', extra={'company_id': _co.company_id} if _co else {})
+        logger_payout.exception("Unhandled exception in aggregator_payout_callback: %s | request: %s", e, data if 'data' in locals() else 'unavailable', extra={'company_id': _co.company_id} if _co else {})
         return JsonResponse({'statusCode': '500'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 

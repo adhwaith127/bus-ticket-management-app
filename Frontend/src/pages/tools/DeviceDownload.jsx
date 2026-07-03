@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../assets/js/axiosConfig';
-import { Download, MonitorDown, X, Check, ChevronDown } from 'lucide-react';
+import { Download, MonitorDown, X, Check, ChevronDown, AlertTriangle } from 'lucide-react';
 
 const FILE_OPTIONS = [
   { key: 'settings',  label: 'Settings',        desc: 'BUS.DAT'                                            },
@@ -128,10 +128,56 @@ function RouteSelectModal({ routes, selected, onToggle, onConfirm, onClose }) {
   );
 }
 
+// ── Skip Files Warning Modal ────────────────────────────────────────────────
+function SkipWarningModal({ skipped, onConfirm, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 flex flex-col">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+          <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <h2 className="text-base font-bold text-slate-800">Some files won't be sent</h2>
+        </div>
+
+        <div className="px-5 py-4">
+          <p className="text-sm text-slate-600 mb-3">
+            The following files are unchecked and will <strong>not</strong> be downloaded to the device:
+          </p>
+          <ul className="space-y-1 mb-3">
+            {skipped.map(opt => (
+              <li key={opt.key} className="text-sm font-medium text-slate-700">• {opt.label} <span className="text-xs text-slate-400 font-normal">({opt.desc})</span></li>
+            ))}
+          </ul>
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Make sure these are already present on the device. If they aren't, device functionality may break.
+          </p>
+        </div>
+
+        <div className="px-5 py-4 border-t border-slate-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-semibold bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+          >
+            OK, Download Anyway
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DeviceDownload() {
   const [selected,       setSelected]       = useState({ settings: true, schedule: true, crew: true, vehicles: true, expenses: true });
   const [showRouteModal, setShowRouteModal] = useState(false);
+  const [showSkipModal,  setShowSkipModal]  = useState(false);
   const [routes,         setRoutes]         = useState([]);
   const [routesLoading,  setRoutesLoading]  = useState(false);
   const [selectedRoutes, setSelectedRoutes] = useState([]);
@@ -220,7 +266,17 @@ export default function DeviceDownload() {
     );
   };
 
+  const skippedOptions = FILE_OPTIONS.filter(opt => !selected[opt.key]);
+
   const handleDownloadClick = () => {
+    if (skippedOptions.length > 0) {
+      setShowSkipModal(true);
+      return;
+    }
+    proceedToDownload();
+  };
+
+  const proceedToDownload = () => {
     if (scheduleSelected && selectedRoutes.length === 0) {
       setShowRouteModal(true);
       return;
@@ -514,6 +570,15 @@ export default function DeviceDownload() {
           onToggle={toggleRoute}
           onConfirm={() => setShowRouteModal(false)}
           onClose={() => setShowRouteModal(false)}
+        />
+      )}
+
+      {/* Skip files warning modal */}
+      {showSkipModal && (
+        <SkipWarningModal
+          skipped={skippedOptions}
+          onConfirm={() => { setShowSkipModal(false); proceedToDownload(); }}
+          onClose={() => setShowSkipModal(false)}
         />
       )}
     </div>

@@ -20,7 +20,7 @@ from rest_framework.permissions import IsAuthenticated
 from ...permissions import LicensePermission
 from django.db.utils import OperationalError, ProgrammingError
 from django.db.models import Sum, Q, Count, Case, When, IntegerField
-from ...models import Company, TransactionData, TripData, Route, VehicleType, MosambeeTransaction, Dealer, ETMDevice, UserSession, UserRole, UserTier
+from ...models import Company, TransactionData, TripData, ScheduleData, Route, VehicleType, AggregatorTransaction, Dealer, ETMDevice, UserSession, UserRole, UserTier
 from ..utils import _is_superadmin, _is_executive, _is_dealer_admin, _is_company_admin
 from .audit_logs import log_action
 from ...models import AuditLog
@@ -1145,6 +1145,8 @@ def get_company_dashboard_metrics(request):
                 },
                 "operations": {
                     "buses_active": 0,
+                    "buses_idle": 0,
+                    "buses_running": 0,
                     "buses_total": 0,
                     "trips_completed": 0,
                     "trips_scheduled": 0,
@@ -1170,6 +1172,8 @@ def get_company_dashboard_metrics(request):
     }
     operations = {
         "buses_active": 0,
+        "buses_idle": 0,
+        "buses_running": 0,
         "buses_total": 0,
         "trips_completed": 0,
         "trips_scheduled": 0,
@@ -1245,12 +1249,31 @@ def get_company_dashboard_metrics(request):
         operations["trips_completed"] = trips_completed
         operations["trips_scheduled"] = trips_completed
 
-        buses_active = TripData.objects.filter(
-            company_code=company,
-            start_date=selected_date,
-        ).values('palmtec_id').distinct().count()
-        operations["buses_active"] = buses_active
-        
+        # Buses with an open schedule today, split into:
+        #   running = schedule open AND a trip currently open under it
+        #   idle    = schedule open, no trip currently open
+        open_schedule_bus_ids = set(
+            ScheduleData.objects.filter(
+                company_code=company,
+                start_date=selected_date,
+                is_closed=False,
+                bus_id__isnull=False,
+            ).values_list('bus_id', flat=True)
+        )
+        running_bus_ids = set(
+            TripData.objects.filter(
+                company_code=company,
+                start_date=selected_date,
+                is_closed=False,
+                bus_id__isnull=False,
+            ).values_list('bus_id', flat=True)
+        ) & open_schedule_bus_ids
+        idle_bus_ids = open_schedule_bus_ids - running_bus_ids
+
+        operations["buses_running"] = len(running_bus_ids)
+        operations["buses_idle"] = len(idle_bus_ids)
+        operations["buses_active"] = len(open_schedule_bus_ids)
+
     except (OperationalError, ProgrammingError) as e:
         logger.warning(f"Trip metrics unavailable: {str(e)}")
     except Exception as e:
@@ -1279,10 +1302,10 @@ def get_company_dashboard_metrics(request):
     except Exception as e:
         logger.exception(f"Route/vehicle metrics error: {str(e)}")
     
-    #  Section 3: Settlements (from MosambeeTransaction) 
-    # IMPORTANT FIX: MosambeeTransaction doesn't have a direct company FK.
+    #  Section 3: Settlements (from AggregatorTransaction) 
+    # IMPORTANT FIX: AggregatorTransaction doesn't have a direct company FK.
     # It links to TransactionData via related_ticket → company_code.
-    # However, not all Mosambee transactions may be reconciled yet (related_ticket could be null).
+    # However, not all aggregator transactions may be reconciled yet (related_ticket could be null).
     # 
     # Solution: We filter by transactions that are EITHER:
     #   1. Already linked to a ticket from this company, OR
@@ -1294,7 +1317,7 @@ def get_company_dashboard_metrics(request):
     
     try:
         # Base queryset: all transactions on this date
-        settlement_qs = MosambeeTransaction.objects.filter(
+        settlement_qs = AggregatorTransaction.objects.filter(
             transaction_date=selected_date
         )
         
@@ -1309,22 +1332,22 @@ def get_company_dashboard_metrics(request):
         
         # Verified transactions
         settlements["verified"] = settlement_qs.filter(
-            verification_status=MosambeeTransaction.VerificationStatus.VERIFIED
+            verification_status=AggregatorTransaction.VerificationStatus.VERIFIED
         ).count()
         
         # Pending verification (unverified + flagged)
         settlements["pending_verification"] = settlement_qs.filter(
             verification_status__in=[
-                MosambeeTransaction.VerificationStatus.UNVERIFIED,
-                MosambeeTransaction.VerificationStatus.FLAGGED,
+                AggregatorTransaction.VerificationStatus.UNVERIFIED,
+                AggregatorTransaction.VerificationStatus.FLAGGED,
             ]
         ).count()
         
         # Failed (rejected + disputed)
         settlements["failed"] = settlement_qs.filter(
             verification_status__in=[
-                MosambeeTransaction.VerificationStatus.REJECTED,
-                MosambeeTransaction.VerificationStatus.DISPUTED,
+                AggregatorTransaction.VerificationStatus.REJECTED,
+                AggregatorTransaction.VerificationStatus.DISPUTED,
             ]
         ).count()
         
@@ -1355,10 +1378,10 @@ def get_company_dashboard_metrics(request):
             })
 
         # Recent verified settlements for this date
-        recent_settlements = MosambeeTransaction.objects.filter(
+        recent_settlements = AggregatorTransaction.objects.filter(
             transaction_date=selected_date,
             related_ticket__company_code=company,
-            verification_status=MosambeeTransaction.VerificationStatus.VERIFIED,
+            verification_status=AggregatorTransaction.VerificationStatus.VERIFIED,
         ).order_by('-created_at')[:2]
 
         for s in recent_settlements:

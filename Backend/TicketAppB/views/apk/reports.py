@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from django.db.models import Q, Sum, Count
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from ...models import TransactionData, TripData, ScheduleData, Stage, ExpenseData, Route, RouteStage, VehicleType, MosambeeTransaction
+from ...models import TransactionData, TripData, ScheduleData, Stage, ExpenseData, Route, RouteStage, VehicleType, AggregatorTransaction
 from ...permissions import LicensePermission
 from ..utils import _meets_tier, _TIER_ERROR
 
@@ -44,6 +44,15 @@ def apk_schedules(request):
         bus_no=bus_no,
         start_date=date_str,
     ).order_by('schedule_no').values('schedule_no', 'is_closed')
+
+    # Range-match version (schedule opened on a past date, still open today) — disabled for now:
+    # schedules = ScheduleData.objects.filter(
+    #     company_code=user.company,
+    #     bus_no=bus_no,
+    #     start_date__lte=date_str,
+    # ).filter(
+    #     Q(end_date__gte=date_str) | Q(end_date__isnull=True)
+    # ).order_by('schedule_no').values('schedule_no', 'is_closed')
 
     data = [
         {
@@ -120,8 +129,10 @@ def apk_dashboard(request):
         )
     }
 
+    # Running status comes from ScheduleData (schedule > trip > tickets) — a bus is
+    # running when its schedule is opened for this date and not yet closed.
     running_buses = set(
-        TripData.objects.filter(
+        ScheduleData.objects.filter(
             company_code=company,
             start_date=date_str,
             is_closed=False,
@@ -855,18 +866,18 @@ def expense_report(request):
     })
 
 
-# GET /reports/mosambee-transactions
-# Mosambee transaction posting data for the company on a given date.
+# GET /reports/aggregator-transactions
+# Payment aggregator transaction posting data for the company on a given date.
 # Params: date (YYYY-MM-DD)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, LicensePermission])
-def mosambee_transaction_report(request):
+def aggregator_transaction_report(request):
     user = request.user
     date_str = request.GET.get('date')
     if not date_str:
         return Response({'error': 'date is required'}, status=400)
 
-    qs = MosambeeTransaction.objects.filter(
+    qs = AggregatorTransaction.objects.filter(
         company=user.company,
         transaction_date=date_str,
     ).order_by('transaction_datetime')

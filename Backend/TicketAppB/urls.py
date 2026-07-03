@@ -15,7 +15,7 @@ from .views.web import executives as executive_views
 from .views.web import raw_data_logs as raw_log_views
 from .views.web import settlements as settlement_views
 from .views.palmtec import data_post as palmtec_ingest
-from .views.webhooks import mosambee as mosambee_webhooks
+from .views.webhooks import aggregator as aggregator_webhooks
 from .views.web import ghost_records as ghost_record_views
 from .views.web.imports import routes as route_import_views
 from .views.web.masterdata import settings as settings_views
@@ -100,10 +100,10 @@ urlpatterns = [
     path('get_all_trip_data',        ticket_reports.get_all_trip_data,        name='get_all_trip_data'),
     path('get_all_schedule_data',    ticket_reports.get_all_schedule_data,    name='get_all_schedule_data'),
 
-    # mosambee webhooks (Mosambee server → us)
-    path('postTransactionDetails', mosambee_webhooks.mosambee_settlement_data, name='postTransactionDetails'),
-    path('postPayoutDetails', mosambee_webhooks.mosambee_payout_callback, name='postPayoutDetails'),
-    # mosambee web fetch
+    # payment aggregator webhooks (aggregator server → us)
+    path('postTransactionDetails', aggregator_webhooks.aggregator_settlement_data, name='postTransactionDetails'),
+    path('postPayoutDetails', aggregator_webhooks.aggregator_payout_callback, name='postPayoutDetails'),
+    # payment aggregator web fetch
     path('get_settlement_data', settlement_views.get_settlement_data, name='get_settlement_data'),
     path('get_payout_data', settlement_views.get_payout_data, name='get_payout_data'),
     path('verify_settlement', settlement_views.verify_settlement, name='verify_settlement'),
@@ -214,8 +214,8 @@ urlpatterns = [
     path('etm-devices/<int:device_id>/unmap',          device_registry_views.unmap_device,         name='etm_unmap'),
     path('etm-devices/<int:device_id>/return-to-stock', device_registry_views.return_device_to_stock, name='etm_return_stock'),
     path('etm-devices/<int:device_id>/set-palmtec-id',   device_registry_views.set_palmtec_id,   name='etm_set_palmtec_id'),
-    path('etm-devices/<int:device_id>/set-mosambee-tid', device_registry_views.set_mosambee_tid,  name='etm_set_mosambee_tid'),
-    path('etm-devices/sync-mosambee-tids',               device_registry_views.sync_mosambee_tids, name='etm_sync_mosambee_tids'),
+    path('etm-devices/<int:device_id>/set-aggregator-tid', device_registry_views.set_aggregator_tid,  name='etm_set_aggregator_tid'),
+    path('etm-devices/sync-aggregator-tids',               device_registry_views.sync_aggregator_tids, name='etm_sync_aggregator_tids'),
 
     # Palmtec device data APIs (server → APK → USB → device)
     path('device/routes',      palmtec_views.get_routes_list),

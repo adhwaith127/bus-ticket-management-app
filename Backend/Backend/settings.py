@@ -178,8 +178,8 @@ PROJECT_NAME  = env('PROJECT_NAME')
 DEVICE_MODEL  = env('DeviceModel',  default='Windows')
 DEVICE_TYPE   = env.int('DeviceType', default=1)
 
-# Mosambee salt
-MOSAMBEE_SALT=env('MOSAMBEE_SALT')
+# Payment aggregator salt
+AGGREGATOR_SALT=env('AGGREGATOR_SALT')
 
 # automatically append slash to URLs (for DRF)
 APPEND_SLASH = False
@@ -225,16 +225,16 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'TicketAppB.tasks.sweep_stale_sessions',
         'schedule': 600,  # every 10 minutes
     },
-    'auto-populate-mosambee-tids': {
-        'task': 'TicketAppB.tasks.auto_populate_mosambee_tids',
+    'auto-populate-aggregator-tids': {
+        'task': 'TicketAppB.tasks.auto_populate_aggregator_tids',
         'schedule': crontab(hour=0, minute=30),  # daily at 00:30
     },
-    'scan-pending-mosambee-reconciliations': {
-        'task': 'TicketAppB.tasks.scan_pending_mosambee_reconciliations',
+    'scan-pending-aggregator-reconciliations': {
+        'task': 'TicketAppB.tasks.scan_pending_aggregator_reconciliations',
         'schedule': 300.0,  # every 5 minutes
     },
-    'scan-unmatched-mosambee-transactions': {
-        'task': 'TicketAppB.tasks.scan_unmatched_mosambee_transactions',
+    'scan-unmatched-aggregator-transactions': {
+        'task': 'TicketAppB.tasks.scan_unmatched_aggregator_transactions',
         'schedule': 300.0,  # every 5 minutes
     },
 }

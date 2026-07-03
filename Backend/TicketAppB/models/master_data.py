@@ -208,12 +208,10 @@ class Route(models.Model):
 
     fare_type = models.IntegerField(help_text="Fare calculation type")
     bus_type = models.ForeignKey(BusType,on_delete=models.PROTECT,related_name='routes',help_text="Bus type for route")
-    use_stop = models.BooleanField(default=False,help_text="Use stop-based fare calculation")
     half = models.BooleanField(default=False,help_text="Allow half fare tickets")
     luggage = models.BooleanField(default=False,help_text="Allow luggage charges")
-    student = models.BooleanField(default=False,help_text="Allow student concession")
     adjust = models.BooleanField(default=False,help_text="Allow fare adjustment")
-    conc = models.BooleanField(default=False,help_text="Allow general concession")
+    conc = models.BooleanField(default=False,help_text="Allow concession")
     ph = models.BooleanField(default=False,help_text="Allow physically handicapped concession")
     start_from = models.IntegerField(default=0,help_text="Starting stage number")
     pass_allow = models.BooleanField(default=False,help_text="Allow pass holders")

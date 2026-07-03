@@ -35,7 +35,7 @@ urlpatterns = [
     path('reports/payment-type',  apk_views.payment_type_report,  name='apk_payment_type'),
     path('reports/farewise',      apk_views.farewise_report,      name='apk_farewise'),
     path('reports/expense',                apk_views.expense_report,                name='apk_expense'),
-    path('reports/mosambee-transactions',  apk_views.mosambee_transaction_report,   name='apk_mosambee_transactions'),
+    path('reports/aggregator-transactions', apk_views.aggregator_transaction_report, name='apk_aggregator_transactions'),
 
     # etm version for apk (open to everyone, no tier gate)
     path('device/getEtmVersion', setup_data_views.get_etm_device_version_for_apk),
