@@ -1425,7 +1425,19 @@ class MdbReader:
             return []
 
         reader = csv.DictReader(io.StringIO(result.stdout))
-        return list(reader)
+        return [
+            {k: MdbReader._strip_control_chars(v) for k, v in row.items()}
+            for row in reader
+        ]
+
+    @staticmethod
+    def _strip_control_chars(value):
+        """mdb-export leaks NUL/control bytes from fixed-length Jet text field
+        padding; these survive str.strip() (not whitespace) and render as an
+        invisible tofu glyph in the UI."""
+        if not isinstance(value, str):
+            return value
+        return ''.join(ch for ch in value if ch == '\t' or ch >= ' ')
 
     @staticmethod
     def _read_table_pyodbc(mdb_path, table_name, password=None):

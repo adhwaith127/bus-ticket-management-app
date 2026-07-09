@@ -28,7 +28,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ...models import ETMDevice, Company, Dealer, AuditLog, UserRole
+from ...models import ETMDevice, Company, Dealer, AuditLog, UserRole, SettingsProfile
 from ...serializers.devices import ETMDeviceSerializer
 from ...permissions import LicensePermission
 from ..utils import (
@@ -581,6 +581,8 @@ def unmap_device(request, device_id):
     returning_to_dealer = device.source_dealer is not None
 
     with db_transaction.atomic():
+        profile_removed = SettingsProfile.objects.filter(device=device).delete()[0] > 0
+
         if returning_to_dealer:
             destination_label = f'DealerPool ({device.source_dealer.dealer_name})'
             device.dealer            = device.source_dealer
@@ -611,7 +613,10 @@ def unmap_device(request, device_id):
         actor=user, action=AuditLog.ActionType.DEVICE_DEALLOCATE,
         target_model='ETMDevice', target_id=device.pk,
         target_display=device.serial_number,
-        details={'previous_company': prev_company, 'previous_palmtec': prev_palmtec, 'returned_to': destination_label},
+        details={
+            'previous_company': prev_company, 'previous_palmtec': prev_palmtec,
+            'returned_to': destination_label, 'profile_removed': profile_removed,
+        },
         ip_address=request.META.get('REMOTE_ADDR'),
     )
 
@@ -731,6 +736,11 @@ def set_palmtec_id(request, device_id):
 
     device.palmtec_id = palmtec_id
     device.save(update_fields=['palmtec_id', 'updated_at'])
+
+    # Keep the profile's mirrored palmtec_id in sync — device stays mapped, so
+    # unmap's cascade-delete never fires here; without this the profile would
+    # silently go stale and later match whichever device inherits the old ID.
+    SettingsProfile.objects.filter(device=device).update(palmtec_id=palmtec_id)
 
     log_action(
         actor=user, action=AuditLog.ActionType.UPDATE,

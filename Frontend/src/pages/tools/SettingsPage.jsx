@@ -61,7 +61,7 @@ const ConstrainedField = ({ label, name, value, onChange, maxLen, allowDecimal =
   );
 };
 
-function DevicePalmtecSelect({ label, value, onChange, excludePalmtecIds = [] }) {
+function DevicePalmtecSelect({ label, value, onChange, excludeDeviceIds = [] }) {
   const [devices, setDevices]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [open, setOpen]         = useState(false);
@@ -80,13 +80,13 @@ function DevicePalmtecSelect({ label, value, onChange, excludePalmtecIds = [] })
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const select = (palmtecId) => {
-    onChange({ target: { name: 'palmtec_id', value: palmtecId } });
+  const select = (deviceId) => {
+    onChange({ target: { name: 'device_id', value: deviceId } });
     setOpen(false);
   };
 
-  const assignedDevices = devices.filter(d => d.palmtec_id && !excludePalmtecIds.includes(String(d.palmtec_id)));
-  const displayValue   = value ? String(value) : null;
+  const assignedDevices = devices.filter(d => d.palmtec_id && !excludeDeviceIds.includes(d.id));
+  const selectedDevice = value ? devices.find(d => d.id === value) : null;
 
   return (
     <div className="space-y-1.5" ref={ref}>
@@ -100,8 +100,8 @@ function DevicePalmtecSelect({ label, value, onChange, excludePalmtecIds = [] })
             onClick={() => setOpen(p => !p)}
             className="w-full flex items-center justify-between px-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-slate-500 text-sm bg-white transition-all text-left"
           >
-            <span className={displayValue ? 'text-slate-800 font-mono' : 'text-slate-400'}>
-              {displayValue ?? '— Select device —'}
+            <span className={selectedDevice ? 'text-slate-800 font-mono' : 'text-slate-400'}>
+              {selectedDevice ? `${selectedDevice.serial_number} (${selectedDevice.palmtec_id})` : '— Select device —'}
             </span>
             <ChevronDown size={16} className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
           </button>
@@ -119,8 +119,8 @@ function DevicePalmtecSelect({ label, value, onChange, excludePalmtecIds = [] })
               ) : assignedDevices.map(d => (
                 <div
                   key={d.id}
-                  onClick={() => select(String(d.palmtec_id))}
-                  className={`px-4 py-2.5 text-sm cursor-pointer flex items-center justify-between hover:bg-slate-50 ${String(d.palmtec_id) === displayValue ? 'bg-slate-100 font-medium' : ''}`}
+                  onClick={() => select(d.id)}
+                  className={`px-4 py-2.5 text-sm cursor-pointer flex items-center justify-between hover:bg-slate-50 ${d.id === value ? 'bg-slate-100 font-medium' : ''}`}
                 >
                   <span className="text-slate-500 font-mono text-xs">{d.serial_number}</span>
                   <span className="font-mono text-slate-800 text-xs font-semibold">{d.palmtec_id}</span>
@@ -189,7 +189,7 @@ const LANGUAGE_OPTIONS = [{ value: 0, label: 'Malayalam' }, { value: 1, label: '
 const FONT_OPTIONS     = [{ value: 0, label: 'Normal' },    { value: 1, label: 'Condensed' }];
 
 const EMPTY_DEVICE_FORM = {
-  palmtec_id: '',
+  device_id: '',
   user_pwd: '', master_pwd: '', supervisor_pwd: '', remove_pwd: '',
   half_per: '', con_per: '', phy_per: '', round_amt: '', luggage_unit_rate: '',
   main_display: '', main_display2: '',
@@ -437,7 +437,7 @@ function ProfilesTab({ setHeaderAction }) {
   useEffect(() => () => setHeaderAction(null), [setHeaderAction]);
 
   const openEdit = (profile) => {
-    setFormData({ ...EMPTY_DEVICE_FORM, ...profile });
+    setFormData({ ...EMPTY_DEVICE_FORM, ...profile, device_id: profile.device });
     setEditingId(profile.id);
   };
 
@@ -448,7 +448,7 @@ function ProfilesTab({ setHeaderAction }) {
 
   const handleSave = async () => {
     if (!formData.name?.trim()) { window.alert('Profile name is required.'); return false; }
-    if (!formData.palmtec_id)   { window.alert('Palmtec ID is required. Select a device.'); return false; }
+    if (!formData.device_id)    { window.alert('Select a device.'); return false; }
     setSaving(true);
     try {
       let res;
@@ -508,12 +508,12 @@ function ProfilesTab({ setHeaderAction }) {
             placeholder="e.g. City Route Default"
           />
           <DevicePalmtecSelect
-            label="Palmtec ID"
-            value={formData.palmtec_id}
+            label="Device"
+            value={formData.device_id}
             onChange={handleChange}
-            excludePalmtecIds={profiles
+            excludeDeviceIds={profiles
               .filter(p => editingId === 'new' || p.id !== editingId)
-              .map(p => String(p.palmtec_id))}
+              .map(p => p.device)}
           />
         </div>
 
@@ -559,6 +559,7 @@ function ProfilesTab({ setHeaderAction }) {
                 <div className="min-w-0">
                   <p className="font-semibold text-sm text-slate-800 truncate">{p.name}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
+                    {p.device_serial_number ? `${p.device_serial_number} · ` : ''}
                     Half fare {p.half_per}% · Lang {p.language_option === 0 ? 'Malayalam' : 'Tamil'}
                   </p>
                 </div>
