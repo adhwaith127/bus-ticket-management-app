@@ -29,7 +29,13 @@ def create_currency(request):
 
     serializer = CurrencySerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save(company=company, created_by=user)
+        try:
+            serializer.save(company=company, created_by=user)
+        except IntegrityError:
+            return Response(
+                {'message': 'This currency already exists for your company.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response({'message': 'Currency created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
 
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
@@ -45,7 +51,13 @@ def update_currency(request, pk):
 
     serializer = CurrencySerializer(obj, data=request.data, partial=True)
     if serializer.is_valid():
-        serializer.save(updated_by=user)
+        try:
+            serializer.save(updated_by=user)
+        except IntegrityError:
+            return Response(
+                {'message': 'This currency already exists for your company.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response({'message': 'Currency updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
 
     return Response({'message': 'Validation failed', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
