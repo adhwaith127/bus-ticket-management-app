@@ -18,6 +18,7 @@ Dealer assigns from their pool to a client company (Allocated).
 import io
 import json
 import logging
+import re
 import openpyxl
 
 from django.db.models import Count
@@ -695,7 +696,7 @@ def set_palmtec_id(request, device_id):
     ticket / trip payloads (TransactionData.palmtec_id, TripData.palmtec_id, etc.).
     Setting it here links the physical box to all its operational data.
 
-    Body: { palmtec_id: <positive integer> }
+    Body: { palmtec_id: <exactly 5 digits> }
     Company admin only — device must be ALLOCATED to their company.
     """
     user = request.user
@@ -717,12 +718,10 @@ def set_palmtec_id(request, device_id):
     if raw_id is None:
         return Response({'error': 'palmtec_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        palmtec_id = int(raw_id)
-        if palmtec_id <= 0:
-            raise ValueError()
-    except (TypeError, ValueError):
-        return Response({'error': 'palmtec_id must be a positive integer'}, status=status.HTTP_400_BAD_REQUEST)
+    if not re.fullmatch(r'\d{5}', str(raw_id).strip()):
+        return Response({'error': 'palmtec_id must be exactly 5 digits'}, status=status.HTTP_400_BAD_REQUEST)
+
+    palmtec_id = int(raw_id)
 
     # Check for conflicts within the company
     conflict = ETMDevice.objects.filter(
