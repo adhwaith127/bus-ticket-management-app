@@ -400,21 +400,21 @@ class ETMDevice(models.Model):
         blank=True,
         help_text="Holds the terminal ID assigned by the payment aggregator to each ETM device")
 
-    nfi = models.CharField(
-        max_length=30,
-        unique=True,
-        blank=True,
-        null=True,
-        help_text="Unique NFI identifier assigned to the device."
-    )
+    # nfi = models.CharField(
+    #     max_length=30,
+    #     unique=True,
+    #     blank=True,
+    #     null=True,
+    #     help_text="Unique NFI identifier assigned to the device."
+    # )
 
-    upi = models.CharField(
-        max_length=30,
-        unique=True,
-        blank=True,
-        null=True,
-        help_text="Unique UPI identifier assigned to the device."
-    )
+    # upi = models.CharField(
+    #     max_length=30,
+    #     unique=True,
+    #     blank=True,
+    #     null=True,
+    #     help_text="Unique UPI identifier assigned to the device."
+    # )
 
     company = models.ForeignKey(
         Company,
