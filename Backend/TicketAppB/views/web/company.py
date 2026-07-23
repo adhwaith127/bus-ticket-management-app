@@ -618,6 +618,7 @@ def import_company(request):
         'contact_person': request.data.get('contact_person', '').strip(),
         'contact_number': request.data.get('contact_number', '').strip(),
         'gst_number':     request.data.get('gst_number', '').strip(),
+        'aggregator_merchant_id': request.data.get('aggregator_merchant_id', '').strip() or None,
         'address':        request.data.get('address', '').strip(),
         'state':          request.data.get('state', '').strip(),
         'district':       request.data.get('district', '').strip() or None,

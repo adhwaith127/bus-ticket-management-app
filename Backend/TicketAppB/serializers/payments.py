@@ -6,6 +6,8 @@ class AggregatorTransactionSerializer(serializers.ModelSerializer):
     related_ticket_number = serializers.SerializerMethodField()
     related_ticket_amount = serializers.SerializerMethodField()
     related_ticket_date = serializers.SerializerMethodField()
+    palmtecID = serializers.SerializerMethodField()
+    palmtecSerialNumber = serializers.SerializerMethodField()
     payment_status_display = serializers.SerializerMethodField()
     formatted_transaction_date = serializers.SerializerMethodField()
     needs_attention = serializers.SerializerMethodField()
@@ -16,6 +18,8 @@ class AggregatorTransactionSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'transactionID',
+            'palmtecID',
+            'palmtecSerialNumber',
             'transactionRRN',
             'merchantId',
             'transaction_date',
@@ -75,6 +79,33 @@ class AggregatorTransactionSerializer(serializers.ModelSerializer):
         if obj.related_ticket:
             return obj.related_ticket.ticket_date.strftime('%d-%m-%Y')
         return None
+
+    def _get_palmtec_id(self, obj):
+        if obj.related_ticket:
+            return obj.related_ticket.palmtec_id
+
+        ticket_by_transaction_id = self.context.get('ticket_by_transaction_id', {})
+        ticket = ticket_by_transaction_id.get(str(obj.transactionID))
+        if ticket:
+            return ticket.get('palmtec_id')
+
+        return None
+
+    def get_palmtecID(self, obj):
+        return self._get_palmtec_id(obj)
+
+    def get_palmtecSerialNumber(self, obj):
+        palmtec_id = self._get_palmtec_id(obj)
+        if not palmtec_id:
+            return None
+
+        device_serial_by_palmtec_id = self.context.get('device_serial_by_palmtec_id', {})
+        try:
+            palmtec_key = str(int(str(palmtec_id).strip()))
+        except (TypeError, ValueError):
+            palmtec_key = str(palmtec_id).strip()
+
+        return device_serial_by_palmtec_id.get(palmtec_key)
 
     def get_payment_status_display(self, obj):
         if obj.responseCode in ['0', '00', '000']:

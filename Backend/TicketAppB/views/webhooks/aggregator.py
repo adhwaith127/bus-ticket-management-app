@@ -381,6 +381,8 @@ def aggregator_payout_callback(request):
                 statement_id, txn_ids,
             )
 
+        payout_amount /= 100
+
         payout = AggregatorPayoutCallback.objects.create(
             statementId=statement_id,
             payoutAmount=payout_amount,

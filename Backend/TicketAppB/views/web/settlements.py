@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from django.utils import timezone as tz
 from rest_framework import status
-from ...models import TransactionData, Company, AggregatorTransaction, AggregatorPayoutCallback, UserRole
+from ...models import TransactionData, Company, AggregatorTransaction, AggregatorPayoutCallback, ETMDevice, UserRole
 from django.http import HttpResponse, JsonResponse
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
@@ -17,6 +17,69 @@ from django.db.models import Count, Sum, Q
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _normalise_palmtec_lookup_key(value):
+    try:
+        return str(int(str(value).strip()))
+    except (TypeError, ValueError):
+        return str(value).strip() if value is not None else ''
+
+
+def _build_palmtec_context(transactions, company):
+    transaction_ids = {
+        str(txn.transactionID)
+        for txn in transactions
+        if txn.transactionID is not None
+    }
+
+    ticket_by_transaction_id = {}
+    if transaction_ids:
+        tickets = TransactionData.objects.filter(
+            company_code=company,
+            transaction_id__in=transaction_ids,
+        ).values('transaction_id', 'palmtec_id')
+
+        ticket_by_transaction_id = {
+            str(ticket['transaction_id']): ticket
+            for ticket in tickets
+            if ticket['transaction_id'] is not None
+        }
+
+    palmtec_ids = {
+        _normalise_palmtec_lookup_key(txn.related_ticket.palmtec_id)
+        for txn in transactions
+        if txn.related_ticket_id and txn.related_ticket and txn.related_ticket.palmtec_id
+    }
+    palmtec_ids.update(
+        _normalise_palmtec_lookup_key(ticket['palmtec_id'])
+        for ticket in ticket_by_transaction_id.values()
+        if ticket.get('palmtec_id')
+    )
+    palmtec_ids.discard('')
+
+    numeric_palmtec_ids = [
+        int(palmtec_id)
+        for palmtec_id in palmtec_ids
+        if palmtec_id.isdigit()
+    ]
+
+    device_serial_by_palmtec_id = {}
+    if numeric_palmtec_ids:
+        devices = ETMDevice.objects.filter(
+            company=company,
+            palmtec_id__in=numeric_palmtec_ids,
+        ).values_list('palmtec_id', 'serial_number')
+
+        device_serial_by_palmtec_id = {
+            _normalise_palmtec_lookup_key(palmtec_id): serial_number
+            for palmtec_id, serial_number in devices
+        }
+
+    return {
+        'ticket_by_transaction_id': ticket_by_transaction_id,
+        'device_serial_by_palmtec_id': device_serial_by_palmtec_id,
+    }
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, LicensePermission])
@@ -151,10 +214,15 @@ def get_settlement_data(request):
         queryset = queryset.order_by('-transaction_datetime')
         
         # Limit to 500 records
-        queryset = queryset[:500]
+        transactions = list(queryset[:500])
+        serializer_context = _build_palmtec_context(transactions, user.company)
         
         # Serialize
-        serializer = AggregatorTransactionSerializer(queryset, many=True)
+        serializer = AggregatorTransactionSerializer(
+            transactions,
+            many=True,
+            context=serializer_context,
+        )
         
         return Response({'message': 'success','data': serializer.data,'count': len(serializer.data)}, status=status.HTTP_200_OK)
         

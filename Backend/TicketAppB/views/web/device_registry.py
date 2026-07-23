@@ -111,52 +111,208 @@ class DeviceUploadView(APIView):
         if not rows:
             return Response({'error': 'File is empty'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # headers = [str(h or '').strip().lower() for h in rows[0]]
+        # if 'serial_number' not in headers:
+        #     return Response({'error': 'Column "serial_number" not found in header row'}, status=status.HTTP_400_BAD_REQUEST)
+        # col_idx = headers.index('serial_number')
+
         headers = [str(h or '').strip().lower() for h in rows[0]]
-        if 'serial_number' not in headers:
-            return Response({'error': 'Column "serial_number" not found in header row'}, status=status.HTTP_400_BAD_REQUEST)
-        col_idx = headers.index('serial_number')
 
-        serials = []
+        required_headers = ["serial_number", "nfi", "upi", "ter"]
+
+        missing = [h for h in required_headers if h not in headers]
+        if missing:
+            return Response(
+                {
+                    "error": f"Missing column(s): {', '.join(missing)}"
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serial_idx = headers.index("serial_number")
+        nfi_idx = headers.index("nfi")
+        upi_idx = headers.index("upi")
+        ter_idx = headers.index("ter")
+
+        # serials = []
+        # for row in rows[1:]:
+        #     val = row[col_idx] if col_idx < len(row) else None
+        #     if val is not None and str(val).strip():
+        #         serials.append(str(val).strip())
+
+        devices = []
+
         for row in rows[1:]:
-            val = row[col_idx] if col_idx < len(row) else None
-            if val is not None and str(val).strip():
-                serials.append(str(val).strip())
 
-        if not serials:
-            return Response({'error': 'No serial numbers found in file'}, status=status.HTTP_400_BAD_REQUEST)
+            serial = str(row[serial_idx]).strip() if serial_idx < len(row) and row[serial_idx] else ""
+            nfi = str(row[nfi_idx]).strip() if nfi_idx < len(row) and row[nfi_idx] else ""
+            upi = str(row[upi_idx]).strip() if upi_idx < len(row) and row[upi_idx] else ""
+            ter = str(row[ter_idx]).strip() if ter_idx < len(row) and row[ter_idx] else ""
+
+            if serial:
+                devices.append({
+                    "serial_number": serial,
+                    "nfi": nfi,
+                    "upi": upi,
+                    "ter": ter,
+                })
+
+        # if not serials:
+        #     return Response({'error': 'No serial numbers found in file'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not devices:
+            return Response(
+                {'error': 'No devices found in file'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Deduplicate within the file preserving order
-        serials = list(dict.fromkeys(serials))
+        # serials = list(dict.fromkeys(serials))
+
+        unique_devices = {}
+
+        for device in devices:
+            unique_devices.setdefault(device["serial_number"], device)
+
+        devices = list(unique_devices.values())
+
+        # existing = set(
+        #     ETMDevice.objects.filter(serial_number__in=serials).values_list('serial_number', flat=True)
+        # )
+        # new_serials = [s for s in serials if s not in existing]
+
+        serials = [d["serial_number"] for d in devices]
 
         existing = set(
-            ETMDevice.objects.filter(serial_number__in=serials).values_list('serial_number', flat=True)
+            ETMDevice.objects.filter(serial_number__in=serials)
+            .values_list("serial_number", flat=True)
         )
-        new_serials = [s for s in serials if s not in existing]
+
+        new_devices = [
+            d for d in devices
+            if d["serial_number"] not in existing
+        ]
+
+        # ETMDevice.objects.bulk_create([
+        #     ETMDevice(
+        #         serial_number=s,
+        #         device_type=ETMDevice.DeviceType.ETM,
+        #         allocation_status=ETMDevice.AllocationStatus.STOCK,
+        #         created_by=user,
+        #     )
+        #     for s in new_serials
+        # ])
 
         ETMDevice.objects.bulk_create([
             ETMDevice(
-                serial_number=s,
+                serial_number=d["serial_number"],
+                nfi=d["nfi"],
+                upi=d["upi"],
+                aggregator_tid=d["ter"],
                 device_type=ETMDevice.DeviceType.ETM,
                 allocation_status=ETMDevice.AllocationStatus.STOCK,
                 created_by=user,
             )
-            for s in new_serials
+            for d in new_devices
         ])
+
+        # log_action(
+        #     actor=user, action=AuditLog.ActionType.SERIAL_UPLOAD,
+        #     target_model='ETMDevice',
+        #     details={'created': len(new_serials), 'skipped': len(existing)},
+        #     ip_address=request.META.get('REMOTE_ADDR'),
+        # )
 
         log_action(
             actor=user, action=AuditLog.ActionType.SERIAL_UPLOAD,
             target_model='ETMDevice',
-            details={'created': len(new_serials), 'skipped': len(existing)},
+            details={'created': len(new_devices), 'skipped': len(existing)},
             ip_address=request.META.get('REMOTE_ADDR'),
         )
 
-        logger.info(f"Device upload by {user}: {len(new_serials)} created, {len(existing)} skipped")
+        logger.info(f"Device upload by {user}: {len(new_devices)} created, {len(existing)} skipped")
         return Response({
-            'message': f'{len(new_serials)} device(s) added to stock.',
-            'created': len(new_serials),
+            'message': f'{len(new_devices)} device(s) added to stock.',
+            'created': len(new_devices),
             'skipped': len(existing),
             'skipped_serials': sorted(existing),
         }, status=status.HTTP_201_CREATED)
+    
+# class DeviceUploadView(APIView):
+#     """
+#     POST /etm-devices/upload
+#     Accepts .xlsx with header row containing 'serial_number'.
+#     Creates Stock records; skips duplicates. Superadmin only.
+#     """
+#     parser_classes = [MultiPartParser, FormParser]
+
+#     def post(self, request):
+#         user = self.request.user
+#         if not (_is_superadmin(user) or user.role == UserRole.PRODUCTION):
+#             return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+
+#         excel_file = request.FILES.get('file')
+#         if not excel_file:
+#             return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+#         if not excel_file.name.lower().endswith('.xlsx'):
+#             return Response({'error': 'Only .xlsx files are accepted'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             wb = openpyxl.load_workbook(io.BytesIO(excel_file.read()), data_only=True)
+#         except Exception as e:
+#             return Response({'error': f'Cannot read file: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         ws = wb.active
+#         rows = list(ws.iter_rows(values_only=True))
+#         if not rows:
+#             return Response({'error': 'File is empty'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         headers = [str(h or '').strip().lower() for h in rows[0]]
+#         if 'serial_number' not in headers:
+#             return Response({'error': 'Column "serial_number" not found in header row'}, status=status.HTTP_400_BAD_REQUEST)
+#         col_idx = headers.index('serial_number')
+
+#         serials = []
+#         for row in rows[1:]:
+#             val = row[col_idx] if col_idx < len(row) else None
+#             if val is not None and str(val).strip():
+#                 serials.append(str(val).strip())
+
+#         if not serials:
+#             return Response({'error': 'No serial numbers found in file'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Deduplicate within the file preserving order
+#         serials = list(dict.fromkeys(serials))
+
+#         existing = set(
+#             ETMDevice.objects.filter(serial_number__in=serials).values_list('serial_number', flat=True)
+#         )
+#         new_serials = [s for s in serials if s not in existing]
+
+#         ETMDevice.objects.bulk_create([
+#             ETMDevice(
+#                 serial_number=s,
+#                 device_type=ETMDevice.DeviceType.ETM,
+#                 allocation_status=ETMDevice.AllocationStatus.STOCK,
+#                 created_by=user,
+#             )
+#             for s in new_serials
+#         ])
+
+#         log_action(
+#             actor=user, action=AuditLog.ActionType.SERIAL_UPLOAD,
+#             target_model='ETMDevice',
+#             details={'created': len(new_serials), 'skipped': len(existing)},
+#             ip_address=request.META.get('REMOTE_ADDR'),
+#         )
+
+#         logger.info(f"Device upload by {user}: {len(new_serials)} created, {len(existing)} skipped")
+#         return Response({
+#             'message': f'{len(new_serials)} device(s) added to stock.',
+#             'created': len(new_serials),
+#             'skipped': len(existing),
+#             'skipped_serials': sorted(existing),
+#         }, status=status.HTTP_201_CREATED)
 
 
 @api_view(['GET'])

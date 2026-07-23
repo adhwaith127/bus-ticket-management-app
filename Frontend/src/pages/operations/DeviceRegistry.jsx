@@ -135,7 +135,12 @@ export default function DeviceRegistry() {
   const handleDownloadTemplate = async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Devices");
-    ws.columns = [{ header: "serial_number", key: "serial_number", width: 24 }];
+    ws.columns = [
+      { header: "serial_number", key: "serial_number", width: 24 },
+      { header: "NFI", key: "nfi", width: 24 },
+      { header: "TER", key: "ter", width: 24 },
+      { header: "UPI", key: "upi", width: 24 },
+    ];
     const buf = await wb.xlsx.writeBuffer();
     const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
     const a = document.createElement("a");

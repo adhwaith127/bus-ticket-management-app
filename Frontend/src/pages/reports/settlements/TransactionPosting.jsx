@@ -19,10 +19,10 @@ const today = () => new Date().toISOString().split('T')[0];
 function verificationBadge(status) {
   const map = {
     UNVERIFIED: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    VERIFIED:   'bg-green-100  text-green-700  border-green-200',
-    REJECTED:   'bg-red-100    text-red-700    border-red-200',
-    FLAGGED:    'bg-orange-100 text-orange-700 border-orange-200',
-    DISPUTED:   'bg-purple-100 text-purple-700 border-purple-200',
+    VERIFIED: 'bg-green-100  text-green-700  border-green-200',
+    REJECTED: 'bg-red-100    text-red-700    border-red-200',
+    FLAGGED: 'bg-orange-100 text-orange-700 border-orange-200',
+    DISPUTED: 'bg-purple-100 text-purple-700 border-purple-200',
   };
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium border ${map[status] || 'bg-gray-100 text-gray-600'}`}>
@@ -33,12 +33,12 @@ function verificationBadge(status) {
 
 function reconciliationBadge(status) {
   const map = {
-    PENDING:       'bg-gray-100  text-gray-700',
-    AUTO_MATCHED:  'bg-green-100 text-green-700',
-    AMOUNT_MISMATCH:'bg-red-100  text-red-700',
-    NOT_FOUND:     'bg-orange-100 text-orange-700',
-    DUPLICATE:     'bg-purple-100 text-purple-700',
-    MANUAL_MATCH:  'bg-blue-100  text-blue-700',
+    PENDING: 'bg-gray-100  text-gray-700',
+    AUTO_MATCHED: 'bg-green-100 text-green-700',
+    AMOUNT_MISMATCH: 'bg-red-100  text-red-700',
+    NOT_FOUND: 'bg-orange-100 text-orange-700',
+    DUPLICATE: 'bg-purple-100 text-purple-700',
+    MANUAL_MATCH: 'bg-blue-100  text-blue-700',
   };
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`}>
@@ -62,20 +62,28 @@ function payoutBadge(settlementBatchId) {
   );
 }
 
+function getPalmtecIDByTransactionID(txn) {
+  return txn?.palmtecID || '—';
+}
+
+function getPalmtecSerialByTransactionID(txn) {
+  return txn?.palmtecSerialNumber || '—';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 export default function TransactionPosting() {
-  const [settlements, setSettlements]           = useState([]);
-  const [summary, setSummary]                   = useState(null);
-  const [isRefreshing, setIsRefreshing]         = useState(false);
-  const [error, setError]                       = useState(null);
-  const [lastUpdated, setLastUpdated]           = useState(null);
-  const [isPageVisible, setIsPageVisible]       = useState(true);
-  const pollingRef                              = useRef(null);
+  const [settlements, setSettlements] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [isPageVisible, setIsPageVisible] = useState(true);
+  const pollingRef = useRef(null);
 
-  const [selectedTxn, setSelectedTxn]           = useState(null);
-  const [showModal, setShowModal]               = useState(false);
-  const [notes, setNotes]                       = useState('');
-  const [isSubmitting, setIsSubmitting]         = useState(false);
+  const [selectedTxn, setSelectedTxn] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [filters, setFilters] = useState({
     startDate: today(), endDate: today(),
@@ -90,7 +98,7 @@ export default function TransactionPosting() {
 
   const hasPending =
     appliedFilters.startDate !== filters.startDate ||
-    appliedFilters.endDate   !== filters.endDate;
+    appliedFilters.endDate !== filters.endDate;
 
   // ── fetch ──────────────────────────────────────────────────────────────────
   const fetchData = async (start, end, showLoader = true) => {
@@ -98,17 +106,19 @@ export default function TransactionPosting() {
     setError(null);
     try {
       let url = `${BASE_URL}/get_settlement_data?from_date=${start}&to_date=${end}`;
-      if (filters.verificationStatus !== 'ALL')   url += `&verification_status=${filters.verificationStatus}`;
+      if (filters.verificationStatus !== 'ALL') url += `&verification_status=${filters.verificationStatus}`;
       if (filters.reconciliationStatus !== 'ALL') url += `&reconciliation_status=${filters.reconciliationStatus}`;
-      if (filters.paymentStatus !== 'ALL')        url += `&payment_status=${filters.paymentStatus}`;
+      if (filters.paymentStatus !== 'ALL') url += `&payment_status=${filters.paymentStatus}`;
 
       const [txnRes, sumRes] = await Promise.all([
         api.get(url),
         api.get(`${BASE_URL}/get_settlement_summary?from_date=${start}&to_date=${end}`),
       ]);
 
-      if (txnRes.data.message === 'success')  setSettlements(txnRes.data.data || []);
-      if (sumRes.data.message === 'success')  setSummary(sumRes.data.data);
+      console.log(txnRes);
+
+      if (txnRes.data.message === 'success') setSettlements(txnRes.data.data || []);
+      if (sumRes.data.message === 'success') setSummary(sumRes.data.data);
       setLastUpdated(new Date());
     } catch {
       if (showLoader) setError('Failed to load data.');
@@ -181,7 +191,7 @@ export default function TransactionPosting() {
   };
 
   // ── pagination ─────────────────────────────────────────────────────────────
-  const totalPages  = Math.ceil(settlements.length / PER_PAGE);
+  const totalPages = Math.ceil(settlements.length / PER_PAGE);
   const currentData = settlements.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
 
   // ── time ago ───────────────────────────────────────────────────────────────
@@ -190,7 +200,7 @@ export default function TransactionPosting() {
     const id = setInterval(() => {
       if (!lastUpdated) return;
       const s = Math.floor((new Date() - lastUpdated) / 1000);
-      if (s < 10)  setTimeAgo('just now');
+      if (s < 10) setTimeAgo('just now');
       else if (s < 60) setTimeAgo(`${s}s ago`);
       else setTimeAgo(`${Math.floor(s / 60)}m ago`);
     }, 1000);
@@ -329,7 +339,7 @@ export default function TransactionPosting() {
             Showing {currentData.length} of {settlements.length} transactions
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            {/* <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Transaction ID</th>
@@ -347,7 +357,7 @@ export default function TransactionPosting() {
                 {isRefreshing && !currentData.length ? (
                   [...Array(5)].map((_, i) => (
                     <tr key={i}>
-                      {[...Array(9)].map((_, j) => (
+                      {[...Array(14)].map((_, j) => (
                         <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
                       ))}
                     </tr>
@@ -377,7 +387,73 @@ export default function TransactionPosting() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400 text-sm">
+                    <td colSpan={14} className="px-4 py-12 text-center text-slate-400 text-sm">
+                      No transactions found for selected filters
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table> */}
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Sl.No</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Date & Time</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Palmtec sl.no</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Palmtec ID</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Ticket No</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Amount</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Invoice</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Transaction ID</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">UTR No</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Reconciliation</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Payment</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Payout</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Verification</th>
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isRefreshing && !currentData.length ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i}>
+                      {[...Array(14)].map((_, j) => (
+                        <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : currentData.length ? currentData.map((txn, index) => (
+                  <tr key={txn.id} className="hover:bg-slate-50 transition">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{(currentPage - 1) * PER_PAGE + index + 1}</td>
+
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-700">{txn.formatted_transaction_date}</div>
+                      <div className="text-xs text-slate-400">{txn.transaction_time}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{getPalmtecSerialByTransactionID(txn)}</td>
+                    <td className="px-4 py-3 text-slate-600">{getPalmtecIDByTransactionID(txn)}</td>
+                    <td className="px-4 py-3 text-slate-600">{txn.related_ticket_number || 'N/A'}</td>
+                    <td className="px-4 py-3 font-bold text-slate-800">₹{txn.transactionAmount}</td>
+                    <td className="px-4 py-3 text-slate-600">{txn.invoiceNumber || '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{txn.transactionID}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{txn.transactionRRN}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{reconciliationBadge(txn.reconciliation_status)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${txn.payment_status_display === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {txn.payment_status_display}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">{payoutBadge(txn.settlement_batch_id)}</td>
+                    <td className="px-4 py-3">{verificationBadge(txn.verification_status)}</td>
+                    <td className="px-4 py-3">
+                      <Button variant="ghost" size="sm" onClick={() => openModal(txn)} className="text-blue-600 hover:text-blue-800 hover:bg-blue-50">
+                        <Eye size={14} className="mr-1" /> Review
+                      </Button>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={14} className="px-4 py-12 text-center text-slate-400 text-sm">
                       No transactions found for selected filters
                     </td>
                   </tr>

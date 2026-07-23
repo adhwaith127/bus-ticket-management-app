@@ -283,4 +283,4 @@ class AggregatorPayoutCallback(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Payout {self.statementId} | ₹{self.payoutAmount} | {self.payoutBank} | {self.payoutStatus}"
+        return f"Payout {self.statementId} | ₹{self.payoutAmount}  | {self.payoutBank} | {self.payoutStatus}"

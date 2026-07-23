@@ -1,6 +1,45 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
+const isLocalNetworkHost = (host) => {
+    if (!host) return false;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return true;
+    if (host.startsWith('192.168.') || host.startsWith('10.')) return true;
+
+    const parts = host.split('.').map(Number);
+    return (
+        parts.length === 4 &&
+        parts.every(part => Number.isInteger(part) && part >= 0 && part <= 255) &&
+        parts[0] === 172 &&
+        parts[1] >= 16 &&
+        parts[1] <= 31
+    );
+};
+
+const resolveBaseUrl = (url) => {
+    if (!url || typeof window === 'undefined') return url;
+
+    try {
+        const parsed = new URL(url);
+        const currentHost = window.location.hostname;
+
+        if (
+            parsed.protocol === window.location.protocol &&
+            parsed.hostname !== currentHost &&
+            isLocalNetworkHost(parsed.hostname) &&
+            isLocalNetworkHost(currentHost)
+        ) {
+            parsed.hostname = currentHost;
+        }
+
+        return parsed.toString().replace(/\/$/, '');
+    } catch {
+        return url;
+    }
+};
+
+const BASE_URL = resolveBaseUrl(configuredBaseUrl);
 
 // ── Pending request tracking ──────────────────────────────────────────────────
 const pendingControllers = new Set();

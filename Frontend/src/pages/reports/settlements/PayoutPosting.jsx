@@ -128,6 +128,7 @@ export default function PayoutPosting() {
         <KpiCard
           title="Total Amount Received"
           value={`₹${totalPayoutAmount.toFixed(2)}`}
+          // value={`₹${(totalPayoutAmount / 100).toFixed(2)}`}
           subtitle="Across all payouts"
           icon={IndianRupee}
           color="#22c55e"
@@ -233,6 +234,7 @@ export default function PayoutPosting() {
                       {new Date(p.payoutDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
                     <td className="px-4 py-3 font-bold text-slate-800">₹{parseFloat(p.payoutAmount).toFixed(2)}</td>
+                    {/* <td className="px-4 py-3 font-bold text-slate-800">₹{parseFloat(p.payoutAmount / 100).toFixed(2)}</td> */}
                     <td className="px-4 py-3 font-mono text-xs text-indigo-600">{p.utrNumber}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-700">{p.payoutBank}</div>

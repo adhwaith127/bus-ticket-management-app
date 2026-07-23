@@ -212,8 +212,11 @@ export default function CurrencyListing() {
                 placeholder="e.g. INR"
               />
             </FormField>
-            <FormField label="Country" required>
+            {/* <FormField label="Country" required>
               <DesignInput value={form.country} onChange={v => setForm(f => ({ ...f, country: v }))} placeholder="e.g. India" />
+            </FormField> */}
+            <FormField label="Country" required>
+              <DesignInput value={form.country} onChange={v => setForm(f => ({ ...f, country: v.replace(/[^A-Za-z\s]/g, '') }))} placeholder="e.g. India" />
             </FormField>
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
               <Btn variant="secondary" onClick={closeModal}>Cancel</Btn>
